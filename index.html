@@ -84,6 +84,9 @@
         </div>
         <div class="modal-body" id="compress-list-container"></div>
         <div class="modal-footer">
+            <label style="margin-right: auto; font-size: 13px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this.checked)"> 全选
+            </label>
             <span style="font-size: 13px;">压缩率:</span>
             <select id="compress-quality" style="padding: 6px; border-radius: 4px; border:1px solid #ddd">
                 <option value="0.8">高画质 (0.8)</option>
@@ -241,6 +244,13 @@
             div._targetData = item.targetFiles;
             container.appendChild(div);
         });
+        const selectAll = document.getElementById('select-all-checkbox');
+        if (selectAll) selectAll.checked = false;
+    }
+
+    function toggleSelectAll(checked) {
+        const checkboxes = document.querySelectorAll('#compress-list-container .compress-check');
+        checkboxes.forEach(cb => cb.checked = checked);
     }
 
     async function startCompression() {
