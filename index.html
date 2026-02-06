@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Android 资源助手</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root { --primary: #1a73e8; --secondary: #34a853; --refresh: #5f6368; --bg: #f8f9fa; --card: #ffffff; --border: #dadce0; --text: #3c4043; --danger: #d93025; --warning: #f9ab00; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); padding: 20px; margin: 0; color: var(--text); }
+        
+        /* Toast 样式 */
+        #toast-container { position: fixed; top: 30px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { padding: 12px 24px; border-radius: 8px; color: white; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideDown 0.3s ease, fadeOut 0.5s ease 2.5s forwards; }
+        .toast.success { background: var(--secondary); }
+        .toast.error { background: var(--danger); }
+        .toast.info { background: var(--primary); }
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
+
+        /* Header */
+        .header { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 24px; display: flex; flex-direction: column; gap: 15px; position: sticky; top: 20px; z-index: 100; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .header-info h2 { margin: 0 0 5px 0; font-size: 18px; color: var(--primary); }
+        .path-hint { font-size: 12px; color: #70757a; }
+        .header-actions { display: flex; gap: 10px; align-items: center; width: 100%; }
+        
+        .search-box { position: relative; flex: 1; display: flex; align-items: center; }
+        .search-box input { width: 100%; padding: 10px 15px 10px 35px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box; }
+        .search-box::before { content: "🔍"; position: absolute; left: 12px; font-size: 14px; color: #999; }
+
+        .btn-group { display: flex; gap: 8px; }
+        button { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+        button.green { background: var(--secondary); }
+        button.orange { background: var(--warning); color: #3c4043; }
+        button.gray { background: var(--refresh); }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* 网格 */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+        .card { background: var(--card); border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; padding: 12px; height: 200px; transition: transform 0.2s; }
+        .card.hidden { display: none; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: var(--primary); }
+        .img-container { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; background-color: #eee; background-image: linear-gradient(45deg, #fff 25%, transparent 25%), linear-gradient(-45deg, #fff 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #fff 75%), linear-gradient(-45deg, transparent 75%, #fff 75%); background-size: 10px 10px; border-radius: 4px; margin-bottom: 8px; overflow: hidden; cursor: zoom-in; }
+        .card img { max-width: 80%; max-height: 80%; object-fit: contain; }
+        .name-wrapper { width: 100%; text-align: center; }
+        .name { font-size: 13px; color: var(--primary); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; padding: 2px 0; display: block; }
+        .size-label { font-size: 10px; color: var(--danger); font-weight: bold; }
+        .time-label { font-size: 10px; color: #999; display: block; }
+
+        /* 弹窗样式 */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal { background: white; width: 95%; max-width: 750px; max-height: 85vh; border-radius: 12px; display: flex; flex-direction: column; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+        .modal-body { overflow-y: auto; flex: 1; margin: 15px 0; }
+        
+        .compress-item { display: flex; align-items: center; gap: 15px; padding: 12px; border-bottom: 1px solid #f1f1f1; }
+        .compress-item:hover { background: #f8f9fa; }
+        .compress-item img { width: 45px; height: 45px; object-fit: contain; background: #eee; border-radius: 4px; cursor: zoom-in; }
+        .compress-info { flex: 1; font-size: 13px; text-align: left; }
+        .compress-info b { color: var(--primary); }
+        .compress-size { color: var(--danger); font-family: monospace; text-align: right; min-width: 80px; }
+
+        .modal-footer { border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: flex-end; gap: 12px; align-items: center; }
+
+        #preview-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 2000; cursor: zoom-out; }
+        #preview-overlay img { max-width: 90%; max-height: 90%; border-radius: 4px; }
+        #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); display: none; align-items: center; justify-content: center; z-index: 1100; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+<div id="loading-overlay">正在执行任务...</div>
+<div id="preview-overlay" onclick="this.style.display='none'"><img id="full-preview-img" src=""></div>
+
+<div id="compress-modal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <div style="display:flex; flex-direction:column; gap:4px">
+                <h3 style="margin:0" id="compress-title">图片压缩 (按图片)</h3>
+                <span style="font-size:11px; color:#999">支持 PNG/JPG，数值越低压缩率越高</span>
+            </div>
+            <button class="gray" id="toggle-compress-mode" onclick="toggleCompressMode()">切换至：按组压缩</button>
+        </div>
+        <div class="modal-body" id="compress-list-container"></div>
+        <div class="modal-footer">
+            <span style="font-size: 13px;">压缩率:</span>
+            <select id="compress-quality" style="padding: 6px; border-radius: 4px; border:1px solid #ddd">
+                <option value="0.8">高画质 (0.8)</option>
+                <option value="0.6" selected>均衡 (0.6)</option>
+                <option value="0.4">深度压缩 (0.4)</option>
+                <option value="0.2">极限压缩 (0.2)</option>
+            </select>
+            <button style="background:#666" onclick="closeModal('compress-modal')">取消</button>
+            <button class="orange" onclick="startCompression()">确认批量执行</button>
+        </div>
+    </div>
+</div>
+
+<div id="zip-modal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 style="margin:0">ZIP 资源导入</h3>
+            <div class="search-box" style="width: 200px;"><input type="text" placeholder="过滤关键字..." oninput="filterImportList(this.value)"></div>
+        </div>
+        <div class="modal-body" id="import-list-container"></div>
+        <div class="modal-footer">
+            <button style="background:#666" onclick="closeModal('zip-modal')">取消</button>
+            <button class="green" onclick="executeAutoWrite()">确认写入本地</button>
+        </div>
+    </div>
+</div>
+
+<div class="header">
+    <div class="header-top">
+        <div class="header-info">
+            <h2>Android 资源助手</h2>
+            <div class="path-hint" id="status">连接项目后即可开启资源管理与优化</div>
+        </div>
+        <div class="btn-group">
+            <button id="btn-compress" class="orange" onclick="openCompressModal()" disabled>⚡ 压缩优化</button>
+            <button id="btn-refresh" class="gray" onclick="manualRefresh()" disabled>↻ 同步刷新</button>
+            <button onclick="pickProject()">① 选择项目目录</button>
+            <button id="btn-zip" class="green" onclick="importFromZip()" disabled>② 导入 ZIP</button>
+        </div>
+    </div>
+    <div class="header-actions">
+        <div class="search-box"><input type="text" id="main-search" placeholder="在项目中搜索图标..." oninput="filterMainGrid(this.value)"></div>
+    </div>
+</div>
+
+<div id="app" class="grid"></div>
+
+<script>
+    let resHandle = null; 
+    let imageGroups = {}; 
+    let zipImportGroups = {}; 
+    let compressMode = 'file'; // 'file' 或 'group'
+
+    window.addEventListener('beforeunload', (e) => { if (resHandle) { e.preventDefault(); e.returnValue = ''; } });
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerText = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    function formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + ['B', 'KB', 'MB'][i];
+    }
+
+    // --- 切换压缩模式 ---
+    function toggleCompressMode() {
+        compressMode = (compressMode === 'file' ? 'group' : 'file');
+        const btn = document.getElementById('toggle-compress-mode');
+        const title = document.getElementById('compress-title');
+        
+        if (compressMode === 'group') {
+            btn.innerText = "切换至：按图片压缩";
+            title.innerText = "图片压缩 (按组)";
+        } else {
+            btn.innerText = "切换至：按组压缩";
+            title.innerText = "图片压缩 (按图片)";
+        }
+        renderCompressList();
+    }
+
+    // --- 渲染压缩弹窗列表 ---
+    async function openCompressModal() {
+        document.getElementById('loading-overlay').style.display = 'flex';
+        await renderCompressList();
+        document.getElementById('loading-overlay').style.display = 'none';
+        document.getElementById('compress-modal').style.display = 'flex';
+    }
+
+    async function renderCompressList() {
+        const container = document.getElementById('compress-list-container');
+        container.innerHTML = '';
+        const listData = [];
+
+        if (compressMode === 'file') {
+            // 平铺所有文件
+            for (const bn in imageGroups) {
+                for (const f of imageGroups[bn].files) {
+                    const raw = await f.fileHandle.getFile();
+                    if (['png', 'jpg', 'jpeg', 'webp'].includes(f.fileName.split('.').pop().toLowerCase())) {
+                        listData.push({
+                            title: bn,
+                            subTitle: `${f.parentHandle.name}/${f.fileName}`,
+                            size: raw.size,
+                            previewUrl: f.url,
+                            targetFiles: [f] // 目标只有一个文件
+                        });
+                    }
+                }
+            }
+        } else {
+            // 按组聚合
+            for (const bn in imageGroups) {
+                let groupSize = 0;
+                let validFiles = [];
+                for (const f of imageGroups[bn].files) {
+                    const raw = await f.fileHandle.getFile();
+                    if (['png', 'jpg', 'jpeg', 'webp'].includes(f.fileName.split('.').pop().toLowerCase())) {
+                        groupSize += raw.size;
+                        validFiles.push(f);
+                    }
+                }
+                if (validFiles.length > 0) {
+                    listData.push({
+                        title: bn,
+                        subTitle: `共 ${validFiles.length} 个分辨率文件`,
+                        size: groupSize,
+                        previewUrl: validFiles[0].url,
+                        targetFiles: validFiles // 目标是整组
+                    });
+                }
+            }
+        }
+
+        listData.sort((a, b) => b.size - a.size);
+
+        listData.forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'compress-item';
+            div.innerHTML = `
+                <input type="checkbox" class="compress-check">
+                <img src="${item.previewUrl}" onclick="showFullPreview('${item.previewUrl}')">
+                <div class="compress-info">
+                    <b>${item.title}</b><br>
+                    <small style="color:#666">${item.subTitle}</small>
+                </div>
+                <div class="compress-size">${formatSize(item.size)}</div>
+            `;
+            div._targetData = item.targetFiles;
+            container.appendChild(div);
+        });
+    }
+
+    async function startCompression() {
+        const selected = Array.from(document.querySelectorAll('.compress-check:checked')).map(cb => cb.closest('.compress-item')._targetData).flat();
+        if (selected.length === 0) { showToast("请勾选需要压缩的项目", "error"); return; }
+
+        const quality = parseFloat(document.getElementById('compress-quality').value);
+        document.getElementById('loading-overlay').style.display = 'flex';
+        let count = 0;
+
+        try {
+            for (const f of selected) {
+                const raw = await f.fileHandle.getFile();
+                const bitmap = await createImageBitmap(raw);
+                const canvas = document.createElement('canvas');
+                canvas.width = bitmap.width; canvas.height = bitmap.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(bitmap, 0, 0);
+
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+                if (blob) {
+                    const w = await f.fileHandle.createWritable();
+                    await w.write(blob); await w.close();
+                    count++;
+                }
+            }
+            showToast(`✅ 优化成功，已处理 ${count} 个文件`);
+            closeModal('compress-modal');
+            await scanMipmaps();
+        } catch (e) { showToast("写入失败，请检查项目权限", "error"); }
+        finally { document.getElementById('loading-overlay').style.display = 'none'; }
+    }
+
+    // --- 基础逻辑 ---
+    async function pickProject() {
+        try {
+            const root = await window.showDirectoryPicker({ mode: 'readwrite' });
+            resHandle = await findResDirectory(root);
+            if (resHandle) {
+                document.getElementById('status').innerText = `已连接：.../${resHandle.name}`;
+                ['btn-zip', 'btn-refresh', 'btn-compress'].forEach(id => document.getElementById(id).disabled = false);
+                await scanMipmaps();
+                showToast("连接成功");
+            }
+        } catch (e) {}
+    }
+
+    async function findResDirectory(handle) {
+        if (handle.name === 'res') return handle;
+        for await (const entry of handle.values()) {
+            if (entry.kind === 'directory' && !['build', '.gradle', '.git', '.idea'].includes(entry.name)) {
+                const found = await findResDirectory(entry);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    async function scanMipmaps() {
+        imageGroups = {};
+        for await (const [name, handle] of resHandle.entries()) {
+            if (handle.kind === 'directory' && name.startsWith('mipmap')) {
+                for await (const [fileName, fileHandle] of handle.entries()) {
+                    if (fileHandle.kind === 'file' && !fileName.startsWith('.')) {
+                        const baseName = fileName.split('.').shift();
+                        const file = await fileHandle.getFile();
+                        if (!imageGroups[baseName]) imageGroups[baseName] = { files: [], lastModified: 0, totalSize: 0 };
+                        if (file.lastModified > imageGroups[baseName].lastModified) imageGroups[baseName].lastModified = file.lastModified;
+                        imageGroups[baseName].totalSize += file.size;
+                        imageGroups[baseName].files.push({ parentHandle: handle, fileHandle, fileName, url: URL.createObjectURL(file) });
+                    }
+                }
+            }
+        }
+        render();
+    }
+
+    function render() {
+        const app = document.getElementById('app');
+        app.innerHTML = '';
+        const sorted = Object.keys(imageGroups).sort((a, b) => imageGroups[b].lastModified - imageGroups[a].lastModified);
+        sorted.forEach(bn => {
+            const g = imageGroups[bn];
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.setAttribute('data-name', bn);
+            card.innerHTML = `<div class="img-container" onclick="showFullPreview('${g.files[0].url}')"><img src="${g.files[0].url}" loading="lazy"></div>
+                <div class="name-wrapper">
+                    <span class="name" onclick="enterEdit('${bn}')">${bn}</span>
+                    <span class="size-label">${formatSize(g.totalSize)}</span>
+                    <span class="time-label">${new Date(g.lastModified).toLocaleTimeString()}</span>
+                </div>`;
+            app.appendChild(card);
+        });
+        filterMainGrid(document.getElementById('main-search').value);
+    }
+
+    function enterEdit(name) {
+        const box = document.querySelector(`[data-name="${name}"] .name-wrapper`);
+        box.innerHTML = `<input type="text" value="${name}" onblur="render()" onkeyup="if(event.key==='Enter') saveEdit('${name}', this.value)">`;
+        box.querySelector('input').focus();
+    }
+
+    async function saveEdit(oldName, newName) {
+        if (!newName || newName === oldName) { render(); return; }
+        try {
+            for (const item of imageGroups[oldName].files) {
+                const ext = item.fileName.split('.').pop();
+                const file = await item.fileHandle.getFile();
+                const newH = await item.parentHandle.getFileHandle(`${newName}.${ext}`, { create: true });
+                const w = await newH.createWritable();
+                await w.write(file); await w.close();
+                await item.parentHandle.removeEntry(item.fileName);
+            }
+            await scanMipmaps();
+            showToast("重命名成功");
+        } catch (e) { showToast("重命名失败", "error"); }
+    }
+
+    async function importFromZip() {
+        try {
+            const [fh] = await window.showOpenFilePicker({ types: [{ accept: { 'application/zip': ['.zip'] } }] });
+            const zip = await JSZip.loadAsync(await fh.getFile());
+            zipImportGroups = {};
+            for (const [path, entry] of Object.entries(zip.files)) {
+                if (entry.dir || !path.toLowerCase().includes('mipmap')) continue;
+                const fileName = path.split('/').pop();
+                const baseName = fileName.split('.').shift();
+                if (!zipImportGroups[baseName]) zipImportGroups[baseName] = { previewUrl: URL.createObjectURL(await entry.async("blob")), files: [] };
+                zipImportGroups[baseName].files.push({ path, entry, ext: fileName.split('.').pop() });
+            }
+            const container = document.getElementById('import-list-container');
+            container.innerHTML = '';
+            Object.keys(zipImportGroups).forEach(bn => {
+                const d = document.createElement('div'); d.className = 'compress-item'; d.setAttribute('data-name', bn);
+                d.innerHTML = `<img src="${zipImportGroups[bn].previewUrl}" onclick="showFullPreview('${zipImportGroups[bn].previewUrl}')"><input type="text" data-old="${bn}" value="${bn}" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:4px">`;
+                container.appendChild(d);
+            });
+            document.getElementById('zip-modal').style.display = 'flex';
+        } catch (e) {}
+    }
+
+    async function executeAutoWrite() {
+        document.getElementById('loading-overlay').style.display = 'flex';
+        try {
+            const inputs = document.querySelectorAll('#import-list-container input');
+            for (const input of inputs) {
+                const group = zipImportGroups[input.dataset.old];
+                const newName = input.value.trim();
+                if (!newName) continue;
+                for (const fileObj of group.files) {
+                    const folder = fileObj.path.split('/').find(p => p.startsWith('mipmap'));
+                    if (!folder) continue;
+                    const dir = await resHandle.getDirectoryHandle(folder, { create: true });
+                    const w = await (await dir.getFileHandle(`${newName}.${fileObj.ext}`, { create: true })).createWritable();
+                    await w.write(await fileObj.entry.async("uint8array")); await w.close();
+                }
+            }
+            showToast("导入成功"); closeModal('zip-modal'); await scanMipmaps();
+        } catch (e) { showToast("写入失败", "error"); } finally { document.getElementById('loading-overlay').style.display = 'none'; }
+    }
+
+    function filterMainGrid(q) { document.querySelectorAll('#app .card').forEach(c => c.classList.toggle('hidden', !c.getAttribute('data-name').toLowerCase().includes(q.toLowerCase()))); }
+    function filterImportList(q) { document.querySelectorAll('#import-list-container .compress-item').forEach(i => i.classList.toggle('hidden', !i.getAttribute('data-name').toLowerCase().includes(q.toLowerCase()))); }
+    function showFullPreview(url) { document.getElementById('full-preview-img').src = url; document.getElementById('preview-overlay').style.display = 'flex'; }
+    function manualRefresh() { if (resHandle) scanMipmaps().then(() => showToast("同步刷新成功", "info")); }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+</script>
+</body>
+</html>
