@@ -84,9 +84,14 @@
         </div>
         <div class="modal-body" id="compress-list-container"></div>
         <div class="modal-footer">
-            <label style="margin-right: auto; font-size: 13px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
-                <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this.checked)"> 全选
-            </label>
+            <div style="margin-right: auto; display: flex; gap: 15px;">
+                <label style="font-size: 13px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                    <input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this.checked)"> 全选
+                </label>
+                <label style="font-size: 13px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                    <input type="checkbox" id="keep-format-checkbox" checked> 保留原格式
+                </label>
+            </div>
             <span style="font-size: 13px;">压缩率:</span>
             <select id="compress-quality" style="padding: 6px; border-radius: 4px; border:1px solid #ddd">
                 <option value="0.8">高画质 (0.8)</option>
@@ -254,34 +259,77 @@
     }
 
     async function startCompression() {
-        const selected = Array.from(document.querySelectorAll('.compress-check:checked')).map(cb => cb.closest('.compress-item')._targetData).flat();
-        if (selected.length === 0) { showToast("请勾选需要压缩的项目", "error"); return; }
+        const selected = Array.from(document.querySelectorAll('.compress-check:checked'))
+            .map(cb => cb.closest('.compress-item')._targetData).flat();
+        
+        if (selected.length === 0) { 
+            showToast("请勾选需要压缩的项目", "error"); 
+            return; 
+        }
 
         const quality = parseFloat(document.getElementById('compress-quality').value);
+        const keepFormat = document.getElementById('keep-format-checkbox').checked;
         document.getElementById('loading-overlay').style.display = 'flex';
         let count = 0;
 
         try {
             for (const f of selected) {
                 const raw = await f.fileHandle.getFile();
+                
+                // 1. 读取并绘制到 Canvas，确保透明通道
                 const bitmap = await createImageBitmap(raw);
                 const canvas = document.createElement('canvas');
-                canvas.width = bitmap.width; canvas.height = bitmap.height;
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
                 const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // 关键：保持透明背景
                 ctx.drawImage(bitmap, 0, 0);
 
-                const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+                /**
+                 * 2. 核心逻辑：
+                 * 强制导出为 WebP 格式以支持透明度和高压缩率
+                 */
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/webp', quality));
+                
                 if (blob) {
-                    const w = await f.fileHandle.createWritable();
-                    await w.write(blob); await w.close();
+                    if (keepFormat) {
+                        // 保留原格式：内容为 WebP，但覆盖原文件（保持原后缀）
+                        const writable = await f.fileHandle.createWritable();
+                        await writable.write(blob); 
+                        await writable.close();
+                    } else {
+                        // 真实的 WebP 格式：修改后缀为 .webp
+                        const ext = f.fileName.split('.').pop().toLowerCase();
+                        if (ext === 'webp') {
+                            const writable = await f.fileHandle.createWritable();
+                            await writable.write(blob); 
+                            await writable.close();
+                        } else {
+                            const baseName = f.fileName.substring(0, f.fileName.lastIndexOf('.'));
+                            const newName = `${baseName}.webp`;
+                            
+                            // 创建新文件
+                            const newHandle = await f.parentHandle.getFileHandle(newName, { create: true });
+                            const writable = await newHandle.createWritable();
+                            await writable.write(blob);
+                            await writable.close();
+                            
+                            // 删除旧文件
+                            await f.parentHandle.removeEntry(f.fileName);
+                        }
+                    }
                     count++;
                 }
             }
-            showToast(`✅ 优化成功，已处理 ${count} 个文件`);
+            showToast(`✅ 处理完成${count} 个文件`);
             closeModal('compress-modal');
-            await scanMipmaps();
-        } catch (e) { showToast("写入失败，请检查项目权限", "error"); }
-        finally { document.getElementById('loading-overlay').style.display = 'none'; }
+            await scanMipmaps(); 
+        } catch (e) { 
+            console.error(e);
+            showToast("写入失败，请检查文件权限", "error"); 
+        } finally { 
+            document.getElementById('loading-overlay').style.display = 'none'; 
+        }
     }
 
     // --- 基础逻辑 ---
