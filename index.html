@@ -63,7 +63,7 @@
         .modal-footer { border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: flex-end; gap: 12px; align-items: center; }
 
         #preview-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 2000; cursor: zoom-out; }
-        #preview-overlay img { max-width: 90%; max-height: 90%; border-radius: 4px; }
+        #preview-overlay img { width: 90%; height: 90%; object-fit: contain; border-radius: 4px; }
         #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); display: none; align-items: center; justify-content: center; z-index: 1100; font-weight: bold; }
     </style>
 </head>
@@ -71,7 +71,17 @@
 
 <div id="toast-container"></div>
 <div id="loading-overlay">正在执行任务...</div>
-<div id="preview-overlay" onclick="this.style.display='none'"><img id="full-preview-img" src=""></div>
+<div id="preview-overlay" onclick="if(event.target === this || event.target.parentNode === this) closePreview()">
+    <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none;">
+        <img id="full-preview-img" src="" style="transition: transform 0.2s ease; pointer-events: auto;">
+        <div style="position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 30px; z-index: 2001; pointer-events: auto;">
+            <button style="background: transparent; border: 1px solid white; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 18px; padding: 0;" onclick="adjustZoom(-0.2)">－</button>
+            <span id="zoom-level" style="color: white; font-weight: bold; min-width: 50px; text-align: center; display: flex; align-items: center; justify-content: center;">50%</span>
+            <button style="background: transparent; border: 1px solid white; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 18px; padding: 0;" onclick="adjustZoom(0.2)">＋</button>
+            <button style="background: transparent; border: 1px solid white; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 14px; padding: 0; margin-left: 10px;" onclick="closePreview()">✕</button>
+        </div>
+    </div>
+</div>
 
 <div id="compress-modal" class="modal-overlay">
     <div class="modal">
@@ -493,7 +503,31 @@
 
     function filterMainGrid(q) { document.querySelectorAll('#app .card').forEach(c => c.classList.toggle('hidden', !c.getAttribute('data-name').toLowerCase().includes(q.toLowerCase()))); }
     function filterImportList(q) { document.querySelectorAll('#import-list-container .compress-item').forEach(i => i.classList.toggle('hidden', !i.getAttribute('data-name').toLowerCase().includes(q.toLowerCase()))); }
-    function showFullPreview(url) { document.getElementById('full-preview-img').src = url; document.getElementById('preview-overlay').style.display = 'flex'; }
+    let currentZoom = 0.5;
+
+    function showFullPreview(url) { 
+        const img = document.getElementById('full-preview-img');
+        img.src = url; 
+        currentZoom = 0.5;
+        updateZoomDisplay();
+        document.getElementById('preview-overlay').style.display = 'block'; 
+    }
+
+    function adjustZoom(delta) {
+        currentZoom = Math.max(0.2, Math.min(5.0, currentZoom + delta));
+        updateZoomDisplay();
+    }
+
+    function updateZoomDisplay() {
+        const img = document.getElementById('full-preview-img');
+        const label = document.getElementById('zoom-level');
+        img.style.transform = `scale(${currentZoom})`;
+        label.innerText = `${Math.round(currentZoom * 100)}%`;
+    }
+
+    function closePreview() {
+        document.getElementById('preview-overlay').style.display = 'none';
+    }
     function manualRefresh() { if (resHandle) scanMipmaps().then(() => showToast("同步刷新成功", "info")); }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 </script>
