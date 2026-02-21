@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量祝福</title>
+    <link rel="stylesheet" href="../css/batch-bless.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>批量祝福</h1>
+            <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
+        </div>
+        
+        <div class="content">
+            <!-- 用户选择区域 -->
+            <div class="user-selection-area" id="userSelectionArea">
+                <div class="selection-header">
+                    <h3>选择要祝福的用户</h3>
+                    <div class="selection-controls">
+                        <button class="control-btn" onclick="selectAllUsers()">全选</button>
+                        <button class="control-btn" onclick="deselectAllUsers()">全不选</button>
+                        <button class="control-btn" onclick="invertSelection()">反选</button>
+                    </div>
+                </div>
+                <div class="user-list" id="userList">
+                    <!-- 用户列表将通过JavaScript动态生成 -->
+                </div>
+                <div class="action-area">
+                    <button class="start-btn" id="startBtn" onclick="startBatchBless()">🙏 开始批量祝福</button>
+                </div>
+            </div>
+
+            <!-- 执行结果区域 -->
+            <div class="output-area" id="outputArea" style="display: none;">
+                <div class="output-header">
+                    <h3>执行结果</h3>
+                    <button class="control-btn" onclick="clearOutput()">清空日志</button>
+                </div>
+                <div id="outputContent" class="output-content empty">
+                    等待操作...
+                </div>
+                <div class="result-actions">
+                    <button class="action-btn" onclick="showUserSelection()">重新选择用户</button>
+                    <button class="action-btn" onclick="window.location.href='../index.html'">返回首页</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/batch-bless.js"></script>
+</body>
+</html>

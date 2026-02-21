@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一键拜年 - 愤怒小鸟</title>
+    <link rel="stylesheet" href="../css/new-year.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <button class="back-btn" onclick="goBack()">← 返回</button>
+            <h1>🧧 一键拜年</h1>
+        </header>
+
+        <main class="main-content">
+            <!-- 用户选择区域 -->
+            <div id="userSelectionArea" class="user-selection-area">
+                <div class="selection-header">
+                    <!-- <h2>选择用户</h2> -->
+                    <div class="selection-actions">
+                        <button onclick="selectAllUsers()" class="action-btn secondary">全选</button>
+                        <button onclick="deselectAllUsers()" class="action-btn secondary">全不选</button>
+                        <button onclick="invertSelection()" class="action-btn secondary">反选</button>
+                    </div>
+                </div>
+
+                <div id="userList" class="user-list">
+                    <!-- 用户列表将通过 JS 动态生成 -->
+                </div>
+
+                <div class="action-area">
+                    <button id="startBtn" class="action-btn primary" onclick="startNewYear()">
+                        🧧 开始一键拜年
+                    </button>
+                </div>
+            </div>
+
+            <!-- 输出区域 -->
+            <div id="outputArea" class="output-area" style="display: none;">
+                <div class="output-header">
+                    <h2>执行日志</h2>
+                    <div class="output-actions">
+                        <button onclick="clearOutput()" class="action-btn secondary">清空日志</button>
+                        <button onclick="showUserSelection()" class="action-btn secondary">返回选择</button>
+                    </div>
+                </div>
+                <div id="outputContent" class="output-content empty">
+                    等待操作...
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="../js/new-year.js"></script>
+</body>
+</html>

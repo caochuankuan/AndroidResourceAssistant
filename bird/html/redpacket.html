@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一键红包</title>
+    <link rel="stylesheet" href="../css/redpacket.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>一键红包</h1>
+            <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
+        </div>
+        
+        <div class="content">
+            <!-- 批量执行按钮 -->
+            <div style="margin-bottom: 30px; text-align: center;">
+                <button class="action-btn" id="batchExecuteBtn" onclick="showBatchExecuteModal()" style="background: #ff5722; font-size: 18px; padding: 15px 30px; box-shadow: 0 4px 15px rgba(255, 87, 34, 0.3);">🧧 批量抢红包</button>
+            </div>
+
+            <!-- 输出区域 -->
+            <div class="output-area">
+                <h3>输出结果</h3>
+                <div id="outputContent" class="output-content empty">
+                    等待操作...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量执行模态窗口 -->
+    <div id="batchExecuteModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>批量抢红包</h2>
+                <span class="close" onclick="closeBatchExecuteModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="user-selection-area">
+                    <div class="selection-controls">
+                        <button class="control-btn" onclick="selectAllUsers()">全选</button>
+                        <button class="control-btn" onclick="deselectAllUsers()">全不选</button>
+                        <button class="control-btn" onclick="invertSelection()">反选</button>
+                    </div>
+                    <div class="user-list" id="batchUserList">
+                        <!-- 用户列表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn cancel-btn" onclick="closeBatchExecuteModal()">取消</button>
+                <button class="modal-btn confirm-btn" onclick="executeBatchRedpacket()">开始抢红包</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/redpacket.js"></script>
+</body>
+</html>

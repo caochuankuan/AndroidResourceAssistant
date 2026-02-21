@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小鸟图鉴</title>
+    <link rel="stylesheet" href="../css/bird-book.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>小鸟图鉴</h1>
+            <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
+        </div>
+        
+        <div class="content">
+            <!-- 搜索和筛选区域 -->
+            <div class="filter-area">
+                <input type="text" id="searchInput" placeholder="搜索任意字段..." class="search-input">
+            </div>
+
+            <!-- 小鸟表格 -->
+            <div class="table-container">
+                <table class="bird-table" id="birdTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('i')">ID <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('name')">名称 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('period')">捕获分钟 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('ws')">最小重量 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('we')">最大重量 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('maxLimit')">极限重量 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('exp')">经验 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('baitName')">诱饵 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('baitField')">地点 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('skillId')">技能ID <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('skillPosition')">技能位置 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('skillName')">技能名称 <span class="sort-icon">⇅</span></th>
+                            <th onclick="sortTable('skillDescription')">技能描述 <span class="sort-icon">⇅</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="birdTableBody">
+                        <tr>
+                            <td colspan="13" class="loading">加载中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/bird-book.js"></script>
+</body>
+</html>
