@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文件夹占用大小查看</title>
+  <style>
+    :root { color-scheme: light dark }
+    body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif; margin: 0; background: #0b0b0c; color: #e7e7ea }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px }
+    .bar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px }
+    .btn { appearance: none; border: 1px solid #3a3a40; background: #1a1a1e; color: #e7e7ea; padding: 8px 14px; border-radius: 8px; cursor: pointer }
+    .btn:hover { background: #232329 }
+    .crumbs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px }
+    .crumbs a { color: #9fb7ff; text-decoration: none; cursor: pointer }
+    .crumbs .sep { opacity: .5 }
+    .status { min-height: 24px; font-size: 13px; opacity: .8 }
+    .table { width: 100%; border-collapse: collapse; margin-top: 12px }
+    .table th, .table td { border-bottom: 1px solid #2a2a30; padding: 10px 8px; text-align: left }
+    .table th { font-weight: 600; opacity: .8 }
+    .row { cursor: default }
+    .row.folder { cursor: pointer }
+    .name { display: flex; align-items: center; gap: 10px }
+    .tag { font-size: 12px; padding: 2px 8px; border: 1px solid #3a3a40; border-radius: 999px; background: #16161a }
+    .icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #3a3a40; border-radius: 4px; font-size: 12px }
+    .empty { padding: 24px; text-align: center; opacity: .7 }
+    .actions { display: flex; gap: 8px }
+    .act { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #3a3a40; border-radius: 6px; background: #16161a; cursor: pointer; }
+    .act:hover { background: #232329 }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 24px }
+    .modal-body { width: min(860px, 90vw); max-height: 80vh; background: #111114; border: 1px solid #2a2a30; border-radius: 12px; overflow: auto }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #1f1f24 }
+    .modal-title { font-weight: 600 }
+    .modal-content { padding: 14px }
+    .preview-text { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace }
+    .preview-grid { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="bar">
+      <button id="pick" class="btn">选择文件夹</button>
+      <div id="status" class="status"></div>
+    </div>
+    <div id="crumbs" class="crumbs"></div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>类型</th>
+          <th>大小</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty" class="empty" style="display:none">无内容</div>
+    <div id="modal" class="modal" style="display:none">
+      <div class="modal-body">
+        <div class="modal-head">
+          <div id="modal-title" class="modal-title"></div>
+          <button id="modal-close" class="btn">关闭</button>
+        </div>
+        <div id="modal-content" class="modal-content"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const pickBtn = document.getElementById('pick')
+    const statusEl = document.getElementById('status')
+    const crumbsEl = document.getElementById('crumbs')
+    const tbodyEl = document.getElementById('tbody')
+    const emptyEl = document.getElementById('empty')
+    const modalEl = document.getElementById('modal')
+    const modalTitleEl = document.getElementById('modal-title')
+    const modalContentEl = document.getElementById('modal-content')
+    const modalCloseEl = document.getElementById('modal-close')
+
+    let current = null
+    const trail = []
+    let tempURLs = []
+
+    function fmt(bytes) {
+      if (bytes === 0) return '0 B'
+      const k = 1024
+      const sizes = ['B','KB','MB','GB','TB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      const v = bytes / Math.pow(k, i)
+      return (v >= 100 ? Math.round(v) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + ' ' + sizes[i]
+    }
+
+    async function dirSize(handle) {
+      let sum = 0
+      for await (const entry of handle.values()) {
+        if (entry.kind === 'file') {
+          const f = await entry.getFile()
+          sum += f.size
+        } else if (entry.kind === 'directory') {
+          sum += await dirSize(entry)
+        }
+      }
+      return sum
+    }
+
+    async function list(handle) {
+      const items = []
+      for await (const entry of handle.values()) {
+        if (entry.kind === 'file') {
+          const f = await entry.getFile()
+          items.push({ name: entry.name, type: '文件', size: f.size, handle: entry, isDir: false })
+        } else {
+          const s = await dirSize(entry)
+          items.push({ name: entry.name, type: '文件夹', size: s, handle: entry, isDir: true })
+        }
+      }
+      items.sort((a, b) => b.size - a.size || a.name.localeCompare(b.name))
+      return items
+    }
+
+    function renderCrumbs() {
+      crumbsEl.innerHTML = ''
+      if (trail.length === 0) return
+      trail.forEach((c, i) => {
+        const a = document.createElement('a')
+        a.textContent = c.name
+        a.onclick = async () => {
+          while (trail.length > i + 1) trail.pop()
+          await enter(c.handle, false)
+        }
+        crumbsEl.appendChild(a)
+        if (i < trail.length - 1) {
+          const s = document.createElement('span')
+          s.textContent = '/'
+          s.className = 'sep'
+          crumbsEl.appendChild(s)
+        }
+      })
+    }
+
+    function renderTable(items) {
+      tbodyEl.innerHTML = ''
+      if (!items.length) {
+        emptyEl.style.display = ''
+        return
+      }
+      emptyEl.style.display = 'none'
+      for (const it of items) {
+        const tr = document.createElement('tr')
+        tr.className = 'row' + (it.isDir ? ' folder' : '')
+        const tdName = document.createElement('td')
+        const nameWrap = document.createElement('div')
+        nameWrap.className = 'name'
+        const icon = document.createElement('span')
+        icon.className = 'icon'
+        icon.textContent = it.isDir ? '📁' : '📄'
+        const name = document.createElement('span')
+        name.textContent = it.name
+        nameWrap.appendChild(icon)
+        nameWrap.appendChild(name)
+        tdName.appendChild(nameWrap)
+
+        const tdType = document.createElement('td')
+        const tag = document.createElement('span')
+        tag.className = 'tag'
+        tag.textContent = it.type
+        tdType.appendChild(tag)
+
+        const tdSize = document.createElement('td')
+        tdSize.textContent = fmt(it.size)
+
+        tr.appendChild(tdName)
+        tr.appendChild(tdType)
+        tr.appendChild(tdSize)
+        const tdOps = document.createElement('td')
+        const ops = document.createElement('div')
+        ops.className = 'actions'
+        const openBtn = document.createElement('button')
+        openBtn.className = 'act'
+        openBtn.title = '复制路径'
+        openBtn.textContent = '📋'
+        openBtn.onclick = (e) => { e.stopPropagation(); copyPath(it) }
+        const delBtn = document.createElement('button')
+        delBtn.className = 'act'
+        delBtn.title = '删除'
+        delBtn.textContent = '🗑'
+        delBtn.onclick = (e) => { e.stopPropagation(); removeItem(it) }
+        const prevBtn = document.createElement('button')
+        prevBtn.className = 'act'
+        prevBtn.title = '预览'
+        prevBtn.textContent = '🔎'
+        prevBtn.onclick = (e) => { e.stopPropagation(); previewItem(it) }
+        ops.appendChild(openBtn)
+        ops.appendChild(delBtn)
+        ops.appendChild(prevBtn)
+        tdOps.appendChild(ops)
+        tr.appendChild(tdOps)
+
+        if (it.isDir) {
+          tr.onclick = async () => {
+            trail.push({ name: it.name, handle: it.handle })
+            await enter(it.handle, true)
+          }
+        }
+        tbodyEl.appendChild(tr)
+      }
+    }
+
+    async function enter(handle, pushCrumb) {
+      current = handle
+      renderCrumbs()
+      statusEl.textContent = '计算中…'
+      try {
+        const items = await list(handle)
+        renderTable(items)
+        statusEl.textContent = '完成'
+      } catch (e) {
+        statusEl.textContent = '失败'
+        alert('该浏览器不支持或权限被拒绝')
+      }
+    }
+
+    function showModal(title, node) {
+      modalTitleEl.textContent = title
+      modalContentEl.innerHTML = ''
+      if (node) modalContentEl.appendChild(node)
+      modalEl.style.display = ''
+    }
+
+    function closeModal() {
+      modalEl.style.display = 'none'
+      for (const u of tempURLs) URL.revokeObjectURL(u)
+      tempURLs = []
+      modalContentEl.innerHTML = ''
+      modalTitleEl.textContent = ''
+    }
+
+    modalCloseEl.onclick = closeModal
+
+    async function previewItem(it) {
+      if (it.isDir) {
+        const box = document.createElement('div')
+        const items = await list(it.handle)
+        const grid = document.createElement('div')
+        grid.className = 'preview-grid'
+        items.slice(0, 20).forEach(x => {
+          const a = document.createElement('div')
+          a.textContent = x.name
+          const b = document.createElement('div')
+          b.textContent = fmt(x.size)
+          grid.appendChild(a)
+          grid.appendChild(b)
+        })
+        box.appendChild(grid)
+        showModal(it.name, box)
+        return
+      }
+      const f = await it.handle.getFile()
+      const t = f.type || ''
+      if (t.startsWith('image/')) {
+        const url = URL.createObjectURL(f)
+        tempURLs.push(url)
+        const img = document.createElement('img')
+        img.src = url
+        img.style.maxWidth = '100%'
+        img.style.height = 'auto'
+        showModal(it.name, img)
+        return
+      }
+      if (t.startsWith('video/')) {
+        const url = URL.createObjectURL(f)
+        tempURLs.push(url)
+        const video = document.createElement('video')
+        video.src = url
+        video.controls = true
+        video.style.maxWidth = '100%'
+        showModal(it.name, video)
+        return
+      }
+      if (t.startsWith('audio/')) {
+        const url = URL.createObjectURL(f)
+        tempURLs.push(url)
+        const audio = document.createElement('audio')
+        audio.src = url
+        audio.controls = true
+        showModal(it.name, audio)
+        return
+      }
+      if (t.startsWith('text/') || f.size < 2 * 1024 * 1024) {
+        const txt = await f.text()
+        const pre = document.createElement('pre')
+        pre.className = 'preview-text'
+        pre.textContent = txt
+        showModal(it.name + '（文本预览）', pre)
+        return
+      }
+      const url = URL.createObjectURL(f)
+      tempURLs.push(url)
+      const link = document.createElement('a')
+      link.href = url
+      link.textContent = '打开'
+      link.target = '_blank'
+      showModal(it.name + '（外部打开）', link)
+    }
+
+    function pathString(it) {
+      const parts = trail.map(x => x.name)
+      if (it) parts.push(it.name)
+      return parts.join('/')
+    }
+
+    async function copyPath(it) {
+      const p = pathString(it)
+      try {
+        await navigator.clipboard.writeText(p)
+        statusEl.textContent = '已复制路径：' + p
+      } catch (e) {
+        const pre = document.createElement('pre')
+        pre.className = 'preview-text'
+        pre.textContent = p
+        showModal('复制路径失败，请手动复制', pre)
+      }
+    }
+
+    async function removeItem(it) {
+      const ok = confirm('确认删除：' + it.name + (it.isDir ? '（将删除整个文件夹）' : ''))
+      if (!ok) return
+      const perm = await current.requestPermission({ mode: 'readwrite' })
+      if (perm !== 'granted') {
+        alert('需要写入权限')
+        return
+      }
+      try {
+        await current.removeEntry(it.name, { recursive: it.isDir })
+        await enter(current, false)
+      } catch (e) {
+        alert('删除失败')
+      }
+    }
+
+    pickBtn.onclick = async () => {
+      statusEl.textContent = ''
+      try {
+        const dir = await window.showDirectoryPicker()
+        trail.length = 0
+        trail.push({ name: dir.name || '根目录', handle: dir })
+        await enter(dir, true)
+      } catch (e) {
+        statusEl.textContent = '取消'
+      }
+    }
+  </script>
+</body>
+</html>
