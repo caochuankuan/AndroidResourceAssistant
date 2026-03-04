@@ -234,6 +234,10 @@
       opacity: .7;
     }
 
+    .preview-box.fit img { max-width: 100%; max-height: calc(90vh - 80px); object-fit: contain; }
+    .preview-box.actual { overflow: auto; }
+    .preview-box.actual img { max-width: none; max-height: none; }
+
     /* ===== EMPTY STATE ===== */
     #empty-state {
       flex: 1;
@@ -306,7 +310,7 @@
     .thumb-wrap img {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: var(--thumb-fit, cover);
       display: block;
     }
 
@@ -506,6 +510,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
       </button>
     </div>
+    <button class="invert-btn" id="scale-mode-btn" title="切换预览缩放">适应</button>
     <label class="check-all-wrap" id="check-all-wrap" style="display:none">
       <input type="checkbox" id="check-all" />
       全选
@@ -553,10 +558,12 @@
   let selected = new Set();
   let previewIdx = 0;
   let thumbSize = 52;
-  const THUMB_SIZES = [32, 44, 52, 68, 88, 112];
-  let thumbSizeIdx = 2; // default 52
+  const THUMB_SIZES = [10, 20, 32, 44, 52, 68, 88, 112, 144, 168, 180, 200, 240];
+  let thumbSizeIdx = 5; // default 52
   let displayMode = 'flat'; // 'flat' or 'folder'
   let folderData = []; // { path, count, size, indices: [] }
+  let previewScaleMode = 'fit'; // 'fit' or 'actual'
+  let thumbFitMode = 'cover'; // 'cover' or 'contain'
 
   const IMAGE_EXTS = new Set([
     'jpg','jpeg','png','gif','webp','svg','bmp','avif','ico','tiff','tif','heic','heif'
@@ -587,6 +594,7 @@
   const modeSwitch      = document.getElementById('mode-switch');
   const modeFlatBtn     = document.getElementById('mode-flat-btn');
   const modeFolderBtn   = document.getElementById('mode-folder-btn');
+  const scaleModeBtn    = document.getElementById('scale-mode-btn');
 
   // ─── Pick directory ─────────────────────────────────────────────────────────
   pickDirBtn.addEventListener('click', async () => {
@@ -978,6 +986,7 @@
     previewInfo.textContent = `${item.relativePath}  ·  ${formatSize(item.size)}  ·  ${previewIdx + 1} / ${allFiles.length}`;
     prevBtn.style.display = previewIdx === 0 ? 'none' : 'flex';
     nextBtn.style.display = previewIdx === allFiles.length - 1 ? 'none' : 'flex';
+    applyPreviewScale();
   }
 
   closeModal.addEventListener('click', closePreview);
@@ -1015,6 +1024,29 @@
     selected.clear();
     renderByMode();
   });
+
+  function applyPreviewScale() {
+    const box = document.querySelector('.preview-box');
+    if (!box) return;
+    if (previewScaleMode === 'fit') {
+      box.classList.add('fit');
+      box.classList.remove('actual');
+    } else {
+      box.classList.add('actual');
+      box.classList.remove('fit');
+    }
+  }
+  function applyThumbFit() {
+    const val = thumbFitMode === 'cover' ? 'cover' : 'contain';
+    document.documentElement.style.setProperty('--thumb-fit', val);
+    scaleModeBtn.textContent = thumbFitMode === 'cover' ? '填充' : '适应';
+    scaleModeBtn.title = thumbFitMode === 'cover' ? '切换为适应' : '切换为填充';
+  }
+  scaleModeBtn.addEventListener('click', () => {
+    thumbFitMode = thumbFitMode === 'cover' ? 'contain' : 'cover';
+    applyThumbFit();
+  });
+  applyThumbFit();
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
   function formatSize(bytes) {
