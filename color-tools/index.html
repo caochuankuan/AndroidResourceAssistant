@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>颜色吸取工具 · P3 & sRGB</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --surface2: #22222d;
+      --border: #2e2e3d;
+      --text: #e8e8f0;
+      --text-dim: #888899;
+      --accent: #7c6ef0;
+      --accent2: #5b8df0;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 64px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(124,110,240,0.15);
+      border: 1px solid rgba(124,110,240,0.3);
+      color: #a78bfa;
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 12px;
+      margin: 4px 3px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    /* Upload area */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 48px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(124,110,240,0.07);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 16px;
+      background: rgba(124,110,240,0.15);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .upload-icon svg {
+      width: 26px;
+      height: 26px;
+      fill: var(--accent);
+    }
+
+    .upload-zone h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .upload-zone p {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    /* Canvas area */
+    .canvas-section {
+      display: none;
+      margin-top: 24px;
+      gap: 24px;
+    }
+
+    .canvas-section.visible {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .canvas-wrap {
+      flex: 1;
+      min-width: 300px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .canvas-label {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .canvas-label span.dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    #canvas-container {
+      position: relative;
+      cursor: crosshair;
+      line-height: 0;
+    }
+
+    #main-canvas {
+      max-width: 100%;
+      max-height: 60vh;
+      display: block;
+      object-fit: contain;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      pointer-events: none;
+      width: 24px;
+      height: 24px;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: white;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+    }
+
+    #crosshair::before {
+      width: 1px;
+      height: 100%;
+      left: 50%;
+      top: 0;
+    }
+
+    #crosshair::after {
+      width: 100%;
+      height: 1px;
+      top: 50%;
+      left: 0;
+    }
+
+    /* Color result panel */
+    .result-panel {
+      flex: 0 0 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Color preview */
+    .color-preview-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .color-preview-swatch {
+      width: 100%;
+      height: 100px;
+      background: #888;
+      transition: background 0.1s;
+    }
+
+    .color-preview-info {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .color-preview-info .label {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .color-preview-info .hex-val {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    /* Color cards */
+    .color-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .color-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .color-card-header {
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-p3 .color-card-header { color: #a78bfa; background: rgba(167,139,250,0.08); }
+    .card-srgb .color-card-header { color: #60a5fa; background: rgba(96,165,250,0.08); }
+
+    .color-card-header .info-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      opacity: 0.7;
+    }
+
+    .color-rows {
+      padding: 8px 0;
+    }
+
+    .color-row {
+      display: flex;
+      align-items: center;
+      padding: 6px 14px;
+      gap: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-radius: 6px;
+      margin: 2px 6px;
+    }
+
+    .color-row:hover {
+      background: var(--surface2);
+    }
+
+    .color-row:hover .copy-hint {
+      opacity: 1;
+    }
+
+    .color-row-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      width: 52px;
+      flex-shrink: 0;
+      font-weight: 500;
+    }
+
+    .color-row-value {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 12.5px;
+      flex: 1;
+      color: var(--text);
+    }
+
+    .copy-hint {
+      font-size: 10px;
+      color: var(--text-dim);
+      opacity: 0;
+      transition: opacity 0.15s;
+      flex-shrink: 0;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(124,110,240,0.95);
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 999;
+      backdrop-filter: blur(10px);
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Zoom preview */
+    .zoom-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .zoom-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    #zoom-canvas {
+      display: block;
+      border-radius: 6px;
+      width: 100%;
+      image-rendering: pixelated;
+      border: 1px solid var(--border);
+    }
+
+    .placeholder-text {
+      font-size: 13px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 24px;
+    }
+
+    /* Pinned colors */
+    .pinned-section {
+      margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .pinned-header {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pinned-header button {
+      font-size: 11px;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 3px 10px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .pinned-header button:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .pinned-list {
+      padding: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 52px;
+    }
+
+    .pinned-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px 5px 6px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      font-size: 12px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    .pinned-item:hover { border-color: var(--accent); }
+
+    .pinned-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+      flex-shrink: 0;
+    }
+
+    .pinned-empty {
+      color: var(--text-dim);
+      font-size: 13px;
+      padding: 8px 4px;
+    }
+
+    .add-pin-btn {
+      display: none;
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(124,110,240,0.9);
+      color: white;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    #canvas-container:hover .add-pin-btn { display: block; }
+
+    @media (max-width: 700px) {
+      .result-panel { flex: 0 0 100%; }
+    }
+
+    /* Space key modal */
+    .color-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .color-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(6px);
+    }
+
+    .color-modal-box {
+      position: relative;
+      z-index: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      width: 340px;
+      max-width: 95vw;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+      animation: modal-in 0.18s ease;
+    }
+
+    @keyframes modal-in {
+      from { opacity: 0; transform: scale(0.94) translateY(8px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .color-modal-swatch {
+      width: 100%;
+      height: 72px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .color-modal-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .color-modal-section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      padding: 0 4px;
+    }
+
+    .color-modal-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .color-modal-item {
+      display: flex;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+      gap: 10px;
+    }
+
+    .color-modal-item:hover {
+      background: var(--surface2);
+    }
+
+    .color-modal-item:hover .modal-copy-hint {
+      opacity: 1;
+    }
+
+    .color-modal-item-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      width: 48px;
+      flex-shrink: 0;
+      font-weight: 500;
+    }
+
+    .color-modal-item-value {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+      flex: 1;
+      color: var(--text);
+    }
+
+    .modal-copy-hint {
+      font-size: 10px;
+      color: var(--text-dim);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .color-modal-close {
+      margin-top: 14px;
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .color-modal-close:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .color-modal-close kbd {
+      font-size: 11px;
+      background: var(--border);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>颜色吸取工具</h1>
+  <p>
+    <span class="badge">Display P3</span>
+    <span class="badge">sRGB</span>
+    <span class="badge">HEX · RGB · HSL · oklch</span>
+  </p>
+  <p style="margin-top:10px;">上传图片，移动鼠标吸取任意位置颜色，点击任意色值可复制</p>
+</header>
+
+<div class="container">
+
+  <!-- Upload -->
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept="image/*" />
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <h2>点击或拖拽图片到此处</h2>
+    <p>支持 PNG、JPEG、WebP、HEIC 等格式</p>
+    <p style="margin-top:8px;font-size:12px;color:#666;">Mac 微信截图为 Display P3 色域，本工具同时显示 P3 和 sRGB 色值</p>
+  </div>
+
+  <!-- Canvas + Result -->
+  <div class="canvas-section" id="canvas-section">
+
+    <!-- Left: Image Canvas -->
+    <div class="canvas-wrap">
+      <div class="canvas-label">
+        <span class="dot"></span>
+        图片预览 — 移动鼠标吸取颜色，点击固定到历史记录
+      </div>
+      <div id="canvas-container">
+        <canvas id="main-canvas"></canvas>
+        <div id="crosshair"></div>
+        <button class="add-pin-btn" id="add-pin-btn" title="固定当前颜色">📌 固定</button>
+      </div>
+    </div>
+
+    <!-- Right: Results -->
+    <div class="result-panel">
+
+      <!-- Color Swatch -->
+      <div class="color-preview-box">
+        <div class="color-preview-swatch" id="color-swatch"></div>
+        <div class="color-preview-info">
+          <div>
+            <div class="label">HEX (sRGB)</div>
+            <div class="hex-val" id="hex-display">#———</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zoom Preview -->
+      <div class="zoom-wrap">
+        <div class="zoom-label">像素放大镜</div>
+        <canvas id="zoom-canvas" width="240" height="120"></canvas>
+      </div>
+
+      <!-- P3 Card -->
+      <div class="color-cards">
+        <div class="color-card card-p3">
+          <div class="color-card-header">
+            ◆ Display P3
+            <span class="info-badge">Mac 微信截图色域</span>
+          </div>
+          <div class="color-rows" id="p3-rows">
+            <div class="placeholder-text">移动鼠标到图片上</div>
+          </div>
+        </div>
+
+        <!-- sRGB Card -->
+        <div class="color-card card-srgb">
+          <div class="color-card-header">
+            ◇ sRGB
+            <span class="info-badge">浏览器标准色域</span>
+          </div>
+          <div class="color-rows" id="srgb-rows">
+            <div class="placeholder-text">移动鼠标到图片上</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Pinned History -->
+  <div class="pinned-section" id="pinned-section" style="display:none;">
+    <div class="pinned-header">
+      <span>📌 固定颜色历史</span>
+      <button id="clear-pins-btn">清空</button>
+    </div>
+    <div class="pinned-list" id="pinned-list">
+      <span class="pinned-empty">点击图片固定颜色，按 Space 键弹出复制面板</span>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast">已复制！</div>
+
+<!-- Space key color picker modal -->
+<div id="color-modal" class="color-modal" style="display:none;">
+  <div class="color-modal-backdrop" id="modal-backdrop"></div>
+  <div class="color-modal-box">
+    <div class="color-modal-swatch" id="modal-swatch"></div>
+    <div class="color-modal-title">选择要复制的颜色值</div>
+    <div class="color-modal-section-label">◆ Display P3</div>
+    <div class="color-modal-list" id="modal-p3-list"></div>
+    <div class="color-modal-section-label" style="margin-top:10px;">◇ sRGB</div>
+    <div class="color-modal-list" id="modal-srgb-list"></div>
+    <button class="color-modal-close" id="modal-close">关闭 <kbd>Esc</kbd></button>
+  </div>
+</div>
+
+<script>
+// ─── Utility ────────────────────────────────────────────────
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function round(v, d = 0) { return Math.round(v * 10**d) / 10**d; }
+
+function toHex(r, g, b) {
+  return '#' + [r, g, b].map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) {
+    h = s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+}
+
+// sRGB linearize
+function linearize(c) {
+  c /= 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+// Linear sRGB -> oklch  (via oklab)
+function linearRgbToOklab(r, g, b) {
+  const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+  const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+  const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+  const l_ = Math.cbrt(l), m_ = Math.cbrt(m), s_ = Math.cbrt(s);
+  return [
+    0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+    1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+    0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+  ];
+}
+
+function oklabToOklch(L, a, b) {
+  const C = Math.sqrt(a * a + b * b);
+  let H = Math.atan2(b, a) * 180 / Math.PI;
+  if (H < 0) H += 360;
+  return [L, C, H];
+}
+
+function rgbToOklch(r, g, b) {
+  const lr = linearize(r), lg = linearize(g), lb = linearize(b);
+  const [L, a, bv] = linearRgbToOklab(lr, lg, lb);
+  return oklabToOklch(L, a, bv);
+}
+
+// ─── P3 conversion ───────────────────────────────────────────
+// Canvas reads raw bytes. For P3 images displayed in sRGB canvas context,
+// the browser color-manages them to sRGB on read.
+// We provide the "interpreted as P3" values by applying the P3 → sRGB matrix inverse.
+
+// P3 primaries → XYZ D65 matrix (column vectors)
+const M_P3_to_XYZ = [
+  [0.4865709, 0.2656677, 0.1982173],
+  [0.2289746, 0.6917385, 0.0792869],
+  [0.0000000, 0.0451134, 1.0439444]
+];
+// sRGB → XYZ D65
+const M_sRGB_to_XYZ = [
+  [0.4124564, 0.3575761, 0.1804375],
+  [0.2126729, 0.7151522, 0.0721750],
+  [0.0193339, 0.1191920, 0.9503041]
+];
+// XYZ → sRGB (inverse of M_sRGB_to_XYZ)
+const M_XYZ_to_sRGB = [
+  [ 3.2404542, -1.5371385, -0.4985314],
+  [-0.9692660,  1.8760108,  0.0415560],
+  [ 0.0556434, -0.2040259,  1.0572252]
+];
+
+function gammaEncode(c) {
+  if (c <= 0.0031308) return 12.92 * c;
+  return 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+
+// Given raw bytes (canvas, sRGB-clamped display), reconstruct original P3 values
+// Strategy: treat canvas bytes as if they were already P3-encoded, decode gamma, 
+// convert P3 linear → XYZ → sRGB linear → sRGB encoded.
+function p3LinearToXYZ(r, g, b) {
+  return [
+    M_P3_to_XYZ[0][0]*r + M_P3_to_XYZ[0][1]*g + M_P3_to_XYZ[0][2]*b,
+    M_P3_to_XYZ[1][0]*r + M_P3_to_XYZ[1][1]*g + M_P3_to_XYZ[1][2]*b,
+    M_P3_to_XYZ[2][0]*r + M_P3_to_XYZ[2][1]*g + M_P3_to_XYZ[2][2]*b
+  ];
+}
+
+function xyzToSrgbLinear(x, y, z) {
+  return [
+    M_XYZ_to_sRGB[0][0]*x + M_XYZ_to_sRGB[0][1]*y + M_XYZ_to_sRGB[0][2]*z,
+    M_XYZ_to_sRGB[1][0]*x + M_XYZ_to_sRGB[1][1]*y + M_XYZ_to_sRGB[1][2]*z,
+    M_XYZ_to_sRGB[2][0]*x + M_XYZ_to_sRGB[2][1]*y + M_XYZ_to_sRGB[2][2]*z,
+  ];
+}
+
+// Given canvas pixel bytes (read via getImageData from standard 2d context)
+// The browser converts P3→sRGB when drawing into a standard canvas.
+// So canvas bytes ARE sRGB. To get the original P3 values we do sRGB→XYZ→P3.
+const M_XYZ_to_P3 = [
+  [ 2.4934969, -0.9313836, -0.4027108],
+  [-0.8294890,  1.7626641,  0.0236247],
+  [ 0.0358458, -0.0761724,  0.9568845]
+];
+
+function srgbLinearToP3Linear(x, y, z) {
+  return [
+    M_XYZ_to_P3[0][0]*x + M_XYZ_to_P3[0][1]*y + M_XYZ_to_P3[0][2]*z,
+    M_XYZ_to_P3[1][0]*x + M_XYZ_to_P3[1][1]*y + M_XYZ_to_P3[1][2]*z,
+    M_XYZ_to_P3[2][0]*x + M_XYZ_to_P3[2][1]*y + M_XYZ_to_P3[2][2]*z,
+  ];
+}
+
+// sRGB bytes → P3 encoded values (0-1 range, may exceed gamut)
+function srgbBytesToP3(sr, sg, sb) {
+  // 1. sRGB decode gamma
+  const lr = linearize(sr), lg = linearize(sg), lb = linearize(sb);
+  // 2. sRGB linear → XYZ
+  const [x, y, z] = [
+    M_sRGB_to_XYZ[0][0]*lr + M_sRGB_to_XYZ[0][1]*lg + M_sRGB_to_XYZ[0][2]*lb,
+    M_sRGB_to_XYZ[1][0]*lr + M_sRGB_to_XYZ[1][1]*lg + M_sRGB_to_XYZ[1][2]*lb,
+    M_sRGB_to_XYZ[2][0]*lr + M_sRGB_to_XYZ[2][1]*lg + M_sRGB_to_XYZ[2][2]*lb,
+  ];
+  // 3. XYZ → P3 linear
+  const [p3r, p3g, p3b] = srgbLinearToP3Linear(x, y, z);
+  // 4. Apply P3 gamma (same as sRGB gamma formula)
+  return [gammaEncode(p3r), gammaEncode(p3g), gammaEncode(p3b)];
+}
+
+// ─── Format helpers ──────────────────────────────────────────
+
+function formatP3(sr, sg, sb) {
+  const [p3r, p3g, p3b] = srgbBytesToP3(sr, sg, sb);
+  const r0 = round(p3r, 4), g0 = round(p3g, 4), b0 = round(p3b, 4);
+  const ri = clamp(Math.round(p3r * 255), 0, 255);
+  const gi = clamp(Math.round(p3g * 255), 0, 255);
+  const bi = clamp(Math.round(p3b * 255), 0, 255);
+  const [h, s, l] = rgbToHsl(ri, gi, bi);
+  const [L, C, H] = rgbToOklch(ri, gi, bi);
+  return {
+    hex: toHex(ri, gi, bi),
+    rgb: `rgb(${ri}, ${gi}, ${bi})`,
+    rgbNorm: `color(display-p3 ${r0} ${g0} ${b0})`,
+    hsl: `hsl(${h}, ${s}%, ${l}%)`,
+    oklch: `oklch(${round(L,4)} ${round(C,4)} ${round(H,1)})`,
+  };
+}
+
+function formatSrgb(sr, sg, sb) {
+  const [h, s, l] = rgbToHsl(sr, sg, sb);
+  const [L, C, H] = rgbToOklch(sr, sg, sb);
+  return {
+    hex: toHex(sr, sg, sb),
+    rgb: `rgb(${sr}, ${sg}, ${sb})`,
+    hsl: `hsl(${h}, ${s}%, ${l}%)`,
+    oklch: `oklch(${round(L,4)} ${round(C,4)} ${round(H,1)})`,
+  };
+}
+
+// ─── DOM ─────────────────────────────────────────────────────
+
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+const canvasSection = document.getElementById('canvas-section');
+const mainCanvas = document.getElementById('main-canvas');
+const ctx = mainCanvas.getContext('2d', { willReadFrequently: true });
+const crosshair = document.getElementById('crosshair');
+const canvasContainer = document.getElementById('canvas-container');
+const colorSwatch = document.getElementById('color-swatch');
+const hexDisplay = document.getElementById('hex-display');
+const p3Rows = document.getElementById('p3-rows');
+const srgbRows = document.getElementById('srgb-rows');
+const zoomCanvas = document.getElementById('zoom-canvas');
+const zoomCtx = zoomCanvas.getContext('2d', { willReadFrequently: true });
+const toast = document.getElementById('toast');
+const pinnedSection = document.getElementById('pinned-section');
+const pinnedList = document.getElementById('pinned-list');
+const clearPinsBtn = document.getElementById('clear-pins-btn');
+const addPinBtn = document.getElementById('add-pin-btn');
+
+let imageLoaded = false;
+let currentColor = null;
+let pinnedColors = [];
+
+// ─── Image loading ───────────────────────────────────────────
+
+function loadImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    mainCanvas.width = img.naturalWidth;
+    mainCanvas.height = img.naturalHeight;
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    imageLoaded = true;
+    uploadZone.style.display = 'none';
+    canvasSection.classList.add('visible');
+    pinnedSection.style.display = 'block';
+  };
+  img.src = url;
+}
+
+fileInput.addEventListener('change', e => loadImageFile(e.target.files[0]));
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  loadImageFile(e.dataTransfer.files[0]);
+});
+
+// Paste image
+document.addEventListener('paste', e => {
+  const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+  if (item) loadImageFile(item.getAsFile());
+});
+
+// ─── Mouse events on canvas ──────────────────────────────────
+
+function getCanvasCoords(e) {
+  const rect = mainCanvas.getBoundingClientRect();
+  const scaleX = mainCanvas.width / rect.width;
+  const scaleY = mainCanvas.height / rect.height;
+  return [
+    Math.floor((e.clientX - rect.left) * scaleX),
+    Math.floor((e.clientY - rect.top) * scaleY),
+  ];
+}
+
+function pickColor(x, y) {
+  if (!imageLoaded) return;
+  const px = ctx.getImageData(x, y, 1, 1).data;
+  const [sr, sg, sb] = [px[0], px[1], px[2]];
+  const srgbFmt = formatSrgb(sr, sg, sb);
+  const p3Fmt = formatP3(sr, sg, sb);
+  currentColor = { sr, sg, sb, srgbFmt, p3Fmt };
+  updateUI(sr, sg, sb, srgbFmt, p3Fmt);
+  updateZoom(x, y);
+}
+
+function updateUI(sr, sg, sb, srgb, p3) {
+  colorSwatch.style.background = srgb.hex;
+  hexDisplay.textContent = srgb.hex;
+
+  const p3Items = [
+    ['HEX',    p3.hex],
+    ['RGB',    p3.rgb],
+    ['P3',     p3.rgbNorm],
+    ['HSL',    p3.hsl],
+    ['oklch',  p3.oklch],
+  ];
+  const srgbItems = [
+    ['HEX',   srgb.hex],
+    ['RGB',   srgb.rgb],
+    ['HSL',   srgb.hsl],
+    ['oklch', srgb.oklch],
+  ];
+
+  p3Rows.innerHTML = p3Items.map(([label, value]) => colorRow(label, value)).join('');
+  srgbRows.innerHTML = srgbItems.map(([label, value]) => colorRow(label, value)).join('');
+
+  p3Rows.querySelectorAll('.color-row').forEach((el, i) => {
+    el.addEventListener('click', () => copyText(p3Items[i][1]));
+  });
+  srgbRows.querySelectorAll('.color-row').forEach((el, i) => {
+    el.addEventListener('click', () => copyText(srgbItems[i][1]));
+  });
+}
+
+function colorRow(label, value) {
+  return `<div class="color-row">
+    <span class="color-row-label">${label}</span>
+    <span class="color-row-value">${value}</span>
+    <span class="copy-hint">复制</span>
+  </div>`;
+}
+
+function updateZoom(cx, cy) {
+  const size = 12; // pixels radius
+  const sw = size * 2 + 1, sh = size * 2 + 1;
+  const sx = clamp(cx - size, 0, mainCanvas.width - sw);
+  const sy = clamp(cy - size, 0, mainCanvas.height - sh);
+  zoomCtx.imageSmoothingEnabled = false;
+  zoomCtx.clearRect(0, 0, zoomCanvas.width, zoomCanvas.height);
+  zoomCtx.drawImage(mainCanvas, sx, sy, sw, sh, 0, 0, zoomCanvas.width, zoomCanvas.height);
+  // Draw center crosshair on zoom
+  const zw = zoomCanvas.width, zh = zoomCanvas.height;
+  zoomCtx.strokeStyle = 'rgba(255,255,255,0.8)';
+  zoomCtx.lineWidth = 1;
+  zoomCtx.beginPath();
+  zoomCtx.moveTo(zw / 2, 0); zoomCtx.lineTo(zw / 2, zh);
+  zoomCtx.moveTo(0, zh / 2); zoomCtx.lineTo(zw, zh / 2);
+  zoomCtx.stroke();
+}
+
+canvasContainer.addEventListener('mousemove', e => {
+  if (!imageLoaded) return;
+  const [x, y] = getCanvasCoords(e);
+  const rect = mainCanvas.getBoundingClientRect();
+  crosshair.style.display = 'block';
+  crosshair.style.left = (e.clientX - rect.left) + 'px';
+  crosshair.style.top = (e.clientY - rect.top) + 'px';
+  pickColor(x, y);
+});
+
+canvasContainer.addEventListener('mouseleave', () => {
+  crosshair.style.display = 'none';
+});
+
+canvasContainer.addEventListener('click', () => {
+  if (currentColor) pinColor(currentColor);
+});
+
+// ─── Pin colors ──────────────────────────────────────────────
+
+addPinBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (currentColor) pinColor(currentColor);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && currentColor && imageLoaded) {
+    e.preventDefault();
+    openColorModal(currentColor);
+  }
+  if (e.code === 'Escape') closeColorModal();
+});
+
+// ─── Color Modal ─────────────────────────────────────────────
+
+const colorModal = document.getElementById('color-modal');
+const modalSwatch = document.getElementById('modal-swatch');
+const modalP3List = document.getElementById('modal-p3-list');
+const modalSrgbList = document.getElementById('modal-srgb-list');
+const modalBackdrop = document.getElementById('modal-backdrop');
+const modalClose = document.getElementById('modal-close');
+
+function openColorModal(c) {
+  const { srgbFmt: srgb, p3Fmt: p3 } = c;
+  modalSwatch.style.background = srgb.hex;
+
+  const p3Items = [
+    ['HEX',   p3.hex],
+    ['RGB',   p3.rgb],
+    ['P3',    p3.rgbNorm],
+    ['HSL',   p3.hsl],
+    ['oklch', p3.oklch],
+  ];
+  const srgbItems = [
+    ['HEX',   srgb.hex],
+    ['RGB',   srgb.rgb],
+    ['HSL',   srgb.hsl],
+    ['oklch', srgb.oklch],
+  ];
+
+  modalP3List.innerHTML = p3Items.map(([label, value]) => modalItem(label, value)).join('');
+  modalSrgbList.innerHTML = srgbItems.map(([label, value]) => modalItem(label, value)).join('');
+
+  modalP3List.querySelectorAll('.color-modal-item').forEach((el, i) => {
+    el.addEventListener('click', () => { copyText(p3Items[i][1]); closeColorModal(); });
+  });
+  modalSrgbList.querySelectorAll('.color-modal-item').forEach((el, i) => {
+    el.addEventListener('click', () => { copyText(srgbItems[i][1]); closeColorModal(); });
+  });
+
+  colorModal.style.display = 'flex';
+}
+
+function closeColorModal() {
+  colorModal.style.display = 'none';
+}
+
+function modalItem(label, value) {
+  return `<div class="color-modal-item">
+    <span class="color-modal-item-label">${label}</span>
+    <span class="color-modal-item-value">${value}</span>
+    <span class="modal-copy-hint">复制</span>
+  </div>`;
+}
+
+modalBackdrop.addEventListener('click', closeColorModal);
+modalClose.addEventListener('click', closeColorModal);
+
+function pinColor(c) {
+  pinnedColors.unshift({ ...c });
+  if (pinnedColors.length > 20) pinnedColors.pop();
+  renderPinned();
+  showToast('已固定颜色 ' + c.srgbFmt.hex);
+}
+
+function renderPinned() {
+  if (pinnedColors.length === 0) {
+    pinnedList.innerHTML = '<span class="pinned-empty">点击图片或按 Space 键保存颜色</span>';
+    return;
+  }
+  pinnedList.innerHTML = pinnedColors.map((c, i) => `
+    <div class="pinned-item" data-index="${i}" title="点击复制 HEX: ${c.srgbFmt.hex}">
+      <div class="pinned-swatch" style="background:${c.srgbFmt.hex}"></div>
+      ${c.srgbFmt.hex}
+    </div>
+  `).join('');
+  pinnedList.querySelectorAll('.pinned-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.index);
+      copyText(pinnedColors[idx].srgbFmt.hex);
+    });
+  });
+}
+
+clearPinsBtn.addEventListener('click', () => {
+  pinnedColors = [];
+  renderPinned();
+});
+
+// ─── Copy ────────────────────────────────────────────────────
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已复制：' + text));
+}
+
+let toastTimer;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+</script>
+</body>
+</html>
