@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图片查找器</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232637;
+      --border: #2e3248;
+      --accent: #6c63ff;
+      --accent-hover: #8b85ff;
+      --text: #e8eaf6;
+      --text-muted: #8b8fa8;
+      --success: #4caf82;
+      --danger: #ff6b6b;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .select-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+    .select-btn:hover { background: var(--accent-hover); }
+    .select-btn svg { flex-shrink: 0; }
+
+    .dir-path {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 340px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .stats {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .check-all-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .check-all-wrap input[type=checkbox] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .invert-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      cursor: pointer;
+      transition: color .2s, border-color .2s, background .2s;
+      white-space: nowrap;
+    }
+    .invert-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+      background: #6c63ff18;
+    }
+
+    .dl-selected-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: var(--success);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .2s, background .2s;
+    }
+    .dl-selected-btn:hover { opacity: .88; }
+    .dl-selected-btn:disabled { opacity: .38; cursor: default; }
+
+    /* ===== THUMB SIZE CONTROLS ===== */
+    .thumb-size-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px 4px;
+    }
+    .thumb-size-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color .2s, background .2s;
+      flex-shrink: 0;
+    }
+    .thumb-size-btn:hover { color: var(--text); background: var(--border); }
+    .thumb-size-btn:disabled { opacity: .3; cursor: default; }
+    .thumb-size-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      min-width: 30px;
+      text-align: center;
+      user-select: none;
+    }
+
+    /* ===== VIEW MODE SWITCH ===== */
+    .mode-switch {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface2);
+    }
+    .mode-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: color .2s, background .2s;
+    }
+    .mode-btn:hover { color: var(--text); background: var(--border); }
+    .mode-btn.active { color: #fff; background: var(--accent); }
+    .mode-btn + .mode-btn { border-left: 1px solid var(--border); }
+    .mode-btn:disabled { opacity: .35; cursor: default; }
+
+    /* ===== GROUP HEADER (FOLDER MODE) ===== */
+    .group-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 6px;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .group-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .group-meta {
+      font-size: 12px;
+      opacity: .7;
+    }
+
+    /* ===== EMPTY STATE ===== */
+    #empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      color: var(--text-muted);
+      padding: 40px;
+      text-align: center;
+    }
+    #empty-state svg { opacity: .35; }
+    #empty-state p { font-size: 16px; }
+    #empty-state small { font-size: 13px; opacity: .6; }
+
+    /* ===== IMAGE LIST ===== */
+    #list-container {
+      display: none;
+      flex: 1;
+      padding: 20px 24px;
+    }
+
+    #image-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .img-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      transition: border-color .2s, background .2s;
+      cursor: pointer;
+      user-select: none;
+    }
+    .img-row:hover { border-color: var(--accent); background: var(--surface2); }
+    .img-row.selected { border-color: var(--accent); background: #6c63ff18; }
+
+    .row-check {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .thumb-wrap {
+      width: var(--thumb-size, 52px);
+      height: var(--thumb-size, 52px);
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--surface2);
+      cursor: pointer;
+      position: relative;
+    }
+    .thumb-wrap:hover::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(108,99,255,.35);
+      border-radius: 6px;
+    }
+    .thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .file-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .file-name {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .file-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      cursor: default;
+    }
+
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: color .2s, border-color .2s, background .2s;
+    }
+    .action-btn:hover {
+      color: var(--text);
+      border-color: var(--accent);
+      background: #6c63ff18;
+    }
+    .action-btn.copied {
+      color: var(--success);
+      border-color: var(--success);
+    }
+
+    /* ===== PREVIEW MODAL ===== */
+    #preview-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      background: rgba(0,0,0,.82);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      backdrop-filter: blur(6px);
+    }
+    #preview-modal.open { display: flex; }
+
+    .preview-box {
+      position: relative;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .preview-box img {
+      max-width: 100%;
+      max-height: calc(90vh - 80px);
+      border-radius: 10px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
+      display: block;
+      object-fit: contain;
+    }
+
+    .preview-info {
+      color: #fff;
+      font-size: 14px;
+      opacity: .75;
+      text-align: center;
+    }
+
+    .preview-close {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.12);
+      border: none;
+      color: #fff;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .preview-close:hover { background: rgba(255,255,255,.25); }
+
+    /* arrow nav */
+    .preview-nav {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      background: rgba(255,255,255,.1);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .preview-nav:hover { background: rgba(255,255,255,.22); }
+    #prev-btn { left: 20px; }
+    #next-btn { right: 20px; }
+
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ===== TOAST ===== */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #323548;
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      z-index: 9999;
+      white-space: nowrap;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <span class="logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-3px;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      图片查找器
+    </span>
+    <button class="select-btn" id="pick-dir-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      选择项目
+    </button>
+    <span class="dir-path" id="dir-path"></span>
+  </div>
+  <div class="header-right">
+    <span class="stats" id="stats"></span>
+    <div class="mode-switch" id="mode-switch">
+      <button class="mode-btn active" id="mode-flat-btn" title="平铺模式">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        平铺
+      </button>
+      <button class="mode-btn" id="mode-folder-btn" title="文件夹模式">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        文件夹
+      </button>
+    </div>
+    <div class="thumb-size-group" id="thumb-size-group" style="display:none">
+      <button class="thumb-size-btn" id="thumb-shrink-btn" title="缩小预览图">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      </button>
+      <span class="thumb-size-label" id="thumb-size-label">52</span>
+      <button class="thumb-size-btn" id="thumb-grow-btn" title="放大预览图">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      </button>
+    </div>
+    <label class="check-all-wrap" id="check-all-wrap" style="display:none">
+      <input type="checkbox" id="check-all" />
+      全选
+    </label>
+    <button class="invert-btn" id="invert-btn" style="display:none" title="反选">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 6H3"/><path d="M10 12H3"/><path d="M10 18H3"/><polyline points="15 12 18 15 22 11"/></svg>
+      反选
+    </button>
+    <button class="dl-selected-btn" id="dl-selected-btn" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      打包下载 (<span id="sel-count">0</span>)
+    </button>
+  </div>
+</header>
+
+<!-- EMPTY STATE -->
+<div id="empty-state">
+  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+  <p>请选择一个项目文件夹</p>
+  <small>支持 JPG、PNG、GIF、WebP、SVG、BMP、AVIF 等格式</small>
+</div>
+
+<!-- LIST -->
+<div id="list-container">
+  <div id="image-list"></div>
+</div>
+
+<!-- PREVIEW MODAL -->
+<div id="preview-modal">
+  <button class="preview-close" id="close-modal">✕</button>
+  <button class="preview-nav" id="prev-btn">‹</button>
+  <button class="preview-nav" id="next-btn">›</button>
+  <div class="preview-box">
+    <img id="preview-img" src="" alt="" />
+    <div class="preview-info" id="preview-info"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+  // ─── State ─────────────────────────────────────────────────────────────────
+  let allFiles = [];       // { file, url, name, size }
+  let selected = new Set();
+  let previewIdx = 0;
+  let thumbSize = 52;
+  const THUMB_SIZES = [32, 44, 52, 68, 88, 112];
+  let thumbSizeIdx = 2; // default 52
+  let displayMode = 'flat'; // 'flat' or 'folder'
+  let folderData = []; // { path, count, size, indices: [] }
+
+  const IMAGE_EXTS = new Set([
+    'jpg','jpeg','png','gif','webp','svg','bmp','avif','ico','tiff','tif','heic','heif'
+  ]);
+
+  // ─── DOM refs ───────────────────────────────────────────────────────────────
+  const pickDirBtn      = document.getElementById('pick-dir-btn');
+  const dirPathEl       = document.getElementById('dir-path');
+  const statsEl         = document.getElementById('stats');
+  const checkAllWrap    = document.getElementById('check-all-wrap');
+  const checkAll        = document.getElementById('check-all');
+  const invertBtn       = document.getElementById('invert-btn');
+  const dlSelectedBtn   = document.getElementById('dl-selected-btn');
+  const emptyState      = document.getElementById('empty-state');
+  const listContainer   = document.getElementById('list-container');
+  const imageList       = document.getElementById('image-list');
+  const previewModal    = document.getElementById('preview-modal');
+  const previewImg      = document.getElementById('preview-img');
+  const previewInfo     = document.getElementById('preview-info');
+  const closeModal      = document.getElementById('close-modal');
+  const prevBtn         = document.getElementById('prev-btn');
+  const nextBtn         = document.getElementById('next-btn');
+  const toast           = document.getElementById('toast');
+  const thumbSizeGroup  = document.getElementById('thumb-size-group');
+  const thumbShrinkBtn  = document.getElementById('thumb-shrink-btn');
+  const thumbGrowBtn    = document.getElementById('thumb-grow-btn');
+  const thumbSizeLabel  = document.getElementById('thumb-size-label');
+  const modeSwitch      = document.getElementById('mode-switch');
+  const modeFlatBtn     = document.getElementById('mode-flat-btn');
+  const modeFolderBtn   = document.getElementById('mode-folder-btn');
+
+  // ─── Pick directory ─────────────────────────────────────────────────────────
+  pickDirBtn.addEventListener('click', async () => {
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+      await loadDirectory(dirHandle);
+    } catch (e) {
+      if (e.name !== 'AbortError') showToast('无法读取目录：' + e.message);
+    }
+  });
+
+  async function loadDirectory(dirHandle) {
+    // revoke old object URLs
+    allFiles.forEach(f => URL.revokeObjectURL(f.url));
+    allFiles = [];
+    selected.clear();
+
+    dirPathEl.textContent = dirHandle.name;
+    imageList.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:14px">扫描中…</div>';
+    emptyState.style.display = 'none';
+    listContainer.style.display = 'block';
+
+    await collectImages(dirHandle, '');
+
+    if (allFiles.length === 0) {
+      imageList.innerHTML = '<div style="padding:60px;text-align:center;color:var(--text-muted);font-size:14px">未找到图片文件</div>';
+      statsEl.textContent = '';
+      checkAllWrap.style.display = 'none';
+      return;
+    }
+
+    statsEl.textContent = `共 ${allFiles.length} 张图片`;
+    checkAllWrap.style.display = 'flex';
+    invertBtn.style.display = 'inline-flex';
+    modeSwitch.style.display = 'flex';
+    thumbSizeGroup.style.display = displayMode === 'flat' ? 'flex' : 'none';
+    buildFolders();
+    renderByMode();
+    updateSelUI();
+  }
+
+  async function collectImages(dirHandle, prefix) {
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'directory') {
+        await collectImages(handle, prefix ? `${prefix}/${name}` : name);
+      } else {
+        const ext = name.split('.').pop().toLowerCase();
+        if (IMAGE_EXTS.has(ext)) {
+          const file = await handle.getFile();
+          const url  = URL.createObjectURL(file);
+          const relativePath = prefix ? `${prefix}/${name}` : name;
+          allFiles.push({ file, url, name, relativePath, size: file.size });
+        }
+      }
+    }
+  }
+
+  function buildFolders() {
+    const map = new Map();
+    allFiles.forEach((item, idx) => {
+      const rp = item.relativePath;
+      const folder = rp.includes('/') ? rp.split('/').slice(0, -1).join('/') : '';
+      if (!map.has(folder)) map.set(folder, { path: folder, count: 0, size: 0, indices: [] });
+      const entry = map.get(folder);
+      entry.count += 1;
+      entry.size += item.size;
+      entry.indices.push(idx);
+    });
+    folderData = Array.from(map.values()).sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  function renderByMode() {
+    imageList.innerHTML = '';
+    selected.clear();
+    syncCheckAll();
+    if (displayMode === 'flat') {
+      thumbSizeGroup.style.display = 'flex';
+      statsEl.textContent = `共 ${allFiles.length} 张图片`;
+      renderListFlat();
+    } else {
+      thumbSizeGroup.style.display = 'flex';
+      statsEl.textContent = `共 ${folderData.length} 个文件夹 · ${allFiles.length} 张图片`;
+      renderListGrouped();
+    }
+    updateSelUI();
+  }
+
+  // ─── Render (flat) ──────────────────────────────────────────────────────────
+  function renderListFlat() {
+    imageList.innerHTML = '';
+    applyThumbSize();
+    allFiles.forEach((item, idx) => {
+      const row = document.createElement('div');
+      row.className = 'img-row';
+      row.dataset.idx = idx;
+
+      row.innerHTML = `
+        <input class="row-check" type="checkbox" data-idx="${idx}" />
+        <div class="thumb-wrap" data-idx="${idx}">
+          <img src="${item.url}" alt="${item.name}" loading="lazy" />
+        </div>
+        <div class="file-info">
+          <div class="file-name" title="${item.relativePath}">${item.relativePath}</div>
+          <div class="file-meta">${formatSize(item.size)}</div>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn copy-btn" data-idx="${idx}" data-type="file">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            复制路径
+          </button>
+          <button class="action-btn dl-btn" data-idx="${idx}" data-type="file">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载
+          </button>
+        </div>
+      `;
+
+      imageList.appendChild(row);
+    });
+
+    // ── Event delegation ──
+    imageList.removeEventListener('change', onCheckChange);
+    imageList.removeEventListener('click', onListClick);
+    imageList.addEventListener('change', onCheckChange);
+    imageList.addEventListener('click', onListClick);
+  }
+
+  // ─── Render (folder) ────────────────────────────────────────────────────────
+  function renderListGrouped() {
+    imageList.innerHTML = '';
+    applyThumbSize();
+    folderData.forEach(folder => {
+      const showName = folder.path || '根目录';
+      const header = document.createElement('div');
+      header.className = 'group-header';
+      header.innerHTML = `
+        <span class="group-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          ${showName}
+        </span>
+        <span class="group-meta">· ${folder.count} 张 · ${formatSize(folder.size)}</span>
+      `;
+      imageList.appendChild(header);
+
+      folder.indices.forEach(idx => {
+        const item = allFiles[idx];
+        const row = document.createElement('div');
+        row.className = 'img-row';
+        row.dataset.idx = idx;
+        const baseName = item.relativePath.split('/').pop();
+        row.innerHTML = `
+          <input class="row-check" type="checkbox" data-idx="${idx}" />
+          <div class="thumb-wrap" data-idx="${idx}">
+            <img src="${item.url}" alt="${item.name}" loading="lazy" />
+          </div>
+          <div class="file-info">
+            <div class="file-name" title="${item.relativePath}">${baseName}</div>
+            <div class="file-meta">${formatSize(item.size)}</div>
+          </div>
+          <div class="row-actions">
+            <button class="action-btn copy-btn" data-idx="${idx}" data-type="file">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              复制路径
+            </button>
+            <button class="action-btn dl-btn" data-idx="${idx}" data-type="file">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              下载
+            </button>
+          </div>
+        `;
+        imageList.appendChild(row);
+      });
+    });
+    imageList.removeEventListener('change', onCheckChange);
+    imageList.removeEventListener('click', onListClick);
+    imageList.addEventListener('change', onCheckChange);
+    imageList.addEventListener('click', onListClick);
+  }
+
+  function onCheckChange(e) {
+    if (!e.target.classList.contains('row-check')) return;
+    const idx = +e.target.dataset.idx;
+    e.target.checked ? selected.add(idx) : selected.delete(idx);
+    const row = imageList.querySelector(`.img-row[data-idx="${idx}"]`);
+    if (row) row.classList.toggle('selected', e.target.checked);
+    syncCheckAll();
+    updateSelUI();
+  }
+
+  function onListClick(e) {
+    const thumb = e.target.closest('.thumb-wrap');
+    if (thumb && thumb.dataset.idx) { openPreview(+thumb.dataset.idx); return; }
+
+    // copy / download buttons — don't toggle selection
+    const copyBtn = e.target.closest('.copy-btn');
+    if (copyBtn) {
+      const type = copyBtn.dataset.type;
+      const idx = +copyBtn.dataset.idx;
+      copyPath(idx, copyBtn);
+      return;
+    }
+    const dlBtn = e.target.closest('.dl-btn');
+    if (dlBtn) {
+      const type = dlBtn.dataset.type;
+      const idx = +dlBtn.dataset.idx;
+      downloadOne(idx);
+      return;
+    }
+
+    // click anywhere on the row (except checkbox itself, which fires change) -> toggle check
+    const row = e.target.closest('.img-row');
+    if (row && !e.target.classList.contains('row-check')) {
+      const idx = +row.dataset.idx;
+      const cb = row.querySelector('.row-check');
+      cb.checked = !cb.checked;
+      cb.checked ? selected.add(idx) : selected.delete(idx);
+      row.classList.toggle('selected', cb.checked);
+      syncCheckAll();
+      updateSelUI();
+    }
+  }
+
+  // ─── Copy path ──────────────────────────────────────────────────────────────
+  function copyPath(idx, btn) {
+    const path = allFiles[idx].relativePath;
+    navigator.clipboard.writeText(path).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
+      showToast('路径已复制');
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制路径`;
+      }, 2000);
+    });
+  }
+
+  function copyFolderPath(idx, btn) {
+    const fp = folderData[idx].path;
+    navigator.clipboard.writeText(fp).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
+      showToast('路径已复制');
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制路径`;
+      }, 2000);
+    });
+  }
+
+  // ─── Download single (direct) ────────────────────────────────────────────────
+  function downloadOne(idx) {
+    const { url, name } = allFiles[idx];
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  // ─── Download folder (ZIP) ──────────────────────────────────────────────────
+  async function downloadFolder(idx) {
+    const folder = folderData[idx];
+    if (!folder || folder.indices.length === 0) return;
+    try {
+      const zip = new JSZip();
+      const folderName = (folder.path ? folder.path.split('/').pop() : 'root') || 'root';
+      const zf = zip.folder(folderName);
+      const used = new Set();
+      for (const fi of folder.indices) {
+        const { file, name } = allFiles[fi];
+        const blob = file instanceof Blob ? file : await file.arrayBuffer().then(b => new Blob([b]));
+        const final = uniqueName(name, used);
+        zf.file(final, blob);
+      }
+      const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const zipName = folderName + '_' + folder.count + '张.zip';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = zipName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      showToast(`已打包 ${folder.count} 张 → ${zipName}`);
+    } catch (err) {
+      showToast('打包失败：' + err.message);
+    }
+  }
+
+  // ─── Batch download as ZIP ───────────────────────────────────────────────────
+  dlSelectedBtn.addEventListener('click', async () => {
+    if (selected.size === 0) return;
+    dlSelectedBtn.disabled = true;
+    dlSelectedBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg> 打包中…`;
+
+    try {
+      const zip = new JSZip();
+      if (displayMode === 'flat') {
+        const indices = [...selected];
+        const used = new Set();
+        for (const idx of indices) {
+          const { file, name } = allFiles[idx];
+          const blob = file instanceof Blob ? file : await file.arrayBuffer().then(b => new Blob([b]));
+          const final = uniqueName(name, used);
+          zip.file(final, blob);
+        }
+      } else {
+        const indices = [...selected];
+        const folderUsedMap = new Map();
+        for (const idx of indices) {
+          const { file, name, relativePath } = allFiles[idx];
+          const blob = file instanceof Blob ? file : await file.arrayBuffer().then(b => new Blob([b]));
+          const parent = relativePath.includes('/') ? relativePath.split('/').slice(0, -1).join('/') : '';
+          const folderName = (parent ? parent.split('/').pop() : 'root') || 'root';
+          const zf = (zip.folder(folderName));
+          if (!folderUsedMap.has(folderName)) folderUsedMap.set(folderName, new Set());
+          const used = folderUsedMap.get(folderName);
+          const final = uniqueName(name, used);
+          zf.file(final, blob);
+        }
+      }
+      const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, meta => {
+        dlSelectedBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 压缩中 ${Math.round(meta.percent)}%`;
+      });
+      const zipName = (dirPathEl.textContent || 'images') + '_' + selected.size + '张.zip';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = zipName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      showToast(`已打包选中图片 → ${zipName}`);
+    } catch (err) {
+      showToast('打包失败：' + err.message);
+    } finally {
+      dlSelectedBtn.disabled = selected.size === 0;
+      dlSelectedBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 打包下载 (<span id="sel-count">${selected.size}</span>)`;
+    }
+  });
+
+  // ─── Select all ─────────────────────────────────────────────────────────────
+  checkAll.addEventListener('change', () => {
+    const checked = checkAll.checked;
+    selected.clear();
+    imageList.querySelectorAll('.row-check').forEach(cb => {
+      cb.checked = checked;
+      const idx = +cb.dataset.idx;
+      if (checked) selected.add(idx);
+      const row = cb.closest('.img-row');
+      if (row) row.classList.toggle('selected', checked);
+    });
+    updateSelUI();
+  });
+
+  // ─── Invert selection ────────────────────────────────────────────────────────
+  invertBtn.addEventListener('click', () => {
+    imageList.querySelectorAll('.row-check').forEach(cb => {
+      const idx = +cb.dataset.idx;
+      const willCheck = !cb.checked;
+      cb.checked = willCheck;
+      if (willCheck) selected.add(idx); else selected.delete(idx);
+      const row = cb.closest('.img-row');
+      if (row) row.classList.toggle('selected', willCheck);
+    });
+    syncCheckAll();
+    updateSelUI();
+  });
+
+  function syncCheckAll() {
+    const total = imageList.querySelectorAll('.row-check').length;
+    if (selected.size === 0) { checkAll.indeterminate = false; checkAll.checked = false; }
+    else if (selected.size === total) { checkAll.indeterminate = false; checkAll.checked = true; }
+    else { checkAll.indeterminate = true; }
+  }
+
+  function updateSelUI() {
+    dlSelectedBtn.disabled = selected.size === 0;
+    // sel-count span may be re-created after innerHTML replace, query each time
+    const sc = document.getElementById('sel-count');
+    if (sc) sc.textContent = selected.size;
+  }
+
+  // ─── Preview ────────────────────────────────────────────────────────────────
+  function openPreview(idx) {
+    previewIdx = idx;
+    showPreview();
+    previewModal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function showPreview() {
+    const item = allFiles[previewIdx];
+    previewImg.src = item.url;
+    previewInfo.textContent = `${item.relativePath}  ·  ${formatSize(item.size)}  ·  ${previewIdx + 1} / ${allFiles.length}`;
+    prevBtn.style.display = previewIdx === 0 ? 'none' : 'flex';
+    nextBtn.style.display = previewIdx === allFiles.length - 1 ? 'none' : 'flex';
+  }
+
+  closeModal.addEventListener('click', closePreview);
+  previewModal.addEventListener('click', e => { if (e.target === previewModal) closePreview(); });
+  prevBtn.addEventListener('click', () => { if (previewIdx > 0) { previewIdx--; showPreview(); } });
+  nextBtn.addEventListener('click', () => { if (previewIdx < allFiles.length - 1) { previewIdx++; showPreview(); } });
+
+  document.addEventListener('keydown', e => {
+    if (!previewModal.classList.contains('open')) return;
+    if (e.key === 'Escape') closePreview();
+    if (e.key === 'ArrowLeft' && previewIdx > 0) { previewIdx--; showPreview(); }
+    if (e.key === 'ArrowRight' && previewIdx < allFiles.length - 1) { previewIdx++; showPreview(); }
+  });
+
+  function closePreview() {
+    previewModal.classList.remove('open');
+    document.body.style.overflow = '';
+    previewImg.src = '';
+  }
+
+  // ─── Mode switch ────────────────────────────────────────────────────────────
+  modeFlatBtn.addEventListener('click', () => {
+    if (displayMode === 'flat') return;
+    displayMode = 'flat';
+    modeFlatBtn.classList.add('active');
+    modeFolderBtn.classList.remove('active');
+    selected.clear();
+    renderByMode();
+  });
+  modeFolderBtn.addEventListener('click', () => {
+    if (displayMode === 'folder') return;
+    displayMode = 'folder';
+    modeFolderBtn.classList.add('active');
+    modeFlatBtn.classList.remove('active');
+    selected.clear();
+    renderByMode();
+  });
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+  function uniqueName(name, used) {
+    if (!used.has(name)) { used.add(name); return name; }
+    const dot = name.lastIndexOf('.');
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    const ext  = dot > 0 ? name.slice(dot) : '';
+    let i = 2;
+    let candidate = `${base} (${i})${ext}`;
+    while (used.has(candidate)) { i++; candidate = `${base} (${i})${ext}`; }
+    used.add(candidate);
+    return candidate;
+  }
+
+  let toastTimer;
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  // ─── Thumb size control ─────────────────────────────────────────────────────
+  function applyThumbSize() {
+    thumbSize = THUMB_SIZES[thumbSizeIdx];
+    document.documentElement.style.setProperty('--thumb-size', thumbSize + 'px');
+    thumbSizeLabel.textContent = thumbSize;
+    thumbShrinkBtn.disabled = thumbSizeIdx === 0;
+    thumbGrowBtn.disabled   = thumbSizeIdx === THUMB_SIZES.length - 1;
+  }
+
+  thumbShrinkBtn.addEventListener('click', () => {
+    if (thumbSizeIdx > 0) { thumbSizeIdx--; applyThumbSize(); }
+  });
+  thumbGrowBtn.addEventListener('click', () => {
+    if (thumbSizeIdx < THUMB_SIZES.length - 1) { thumbSizeIdx++; applyThumbSize(); }
+  });
+
+  function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
