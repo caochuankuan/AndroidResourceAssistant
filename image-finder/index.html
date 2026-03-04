@@ -238,6 +238,40 @@
     .preview-box.actual { overflow: auto; }
     .preview-box.actual img { max-width: none; max-height: none; }
 
+    /* ===== ROOT SELECT MODAL ===== */
+    #root-select-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      background: rgba(0,0,0,.6);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      backdrop-filter: blur(4px);
+    }
+    #root-select-modal.open { display: flex; }
+    .root-select-box {
+      width: 560px;
+      max-width: 94vw;
+      max-height: 80vh;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.5);
+      display: flex;
+      flex-direction: column;
+    }
+    .root-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 600 }
+    .root-body { padding: 12px 16px; overflow: auto; display: flex; flex-direction: column; gap: 8px }
+    .root-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px }
+    .root-row input { width: 16px; height: 16px; accent-color: var(--accent) }
+    .root-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end }
+    .root-btn { appearance: none; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 8px 14px; border-radius: 8px; cursor: pointer }
+    .root-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff }
+    .root-meta { font-size: 12px; color: var(--text-muted) }
+    .root-actions { display: flex; align-items: center; justify-content: space-between; padding: 8px 0 }
+
     /* ===== EMPTY STATE ===== */
     #empty-state {
       flex: 1;
@@ -552,6 +586,31 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
+<!-- ROOT SELECT MODAL -->
+<div id="root-select-modal">
+  <div class="root-select-box">
+    <div class="root-header">选择遍历的根文件夹</div>
+    <div class="root-body">
+      <div class="root-actions">
+        <div class="root-meta">默认全选。可选择需要遍历的顶层文件夹</div>
+        <div>
+          <button class="root-btn" id="root-select-all">全选</button>
+          <button class="root-btn" id="root-unselect-all">全不选</button>
+        </div>
+      </div>
+      <div id="root-list"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <input type="checkbox" id="include-root-files" checked />
+        包含项目根目录下的文件
+      </label>
+    </div>
+    <div class="root-footer">
+      <button class="root-btn" id="root-cancel">取消</button>
+      <button class="root-btn primary" id="root-confirm">开始扫描</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ─── State ─────────────────────────────────────────────────────────────────
   let allFiles = [];       // { file, url, name, size }
@@ -564,6 +623,7 @@
   let folderData = []; // { path, count, size, indices: [] }
   let previewScaleMode = 'fit'; // 'fit' or 'actual'
   let thumbFitMode = 'cover'; // 'cover' or 'contain'
+  let rootDirs = []; // [{name, handle}]
 
   const IMAGE_EXTS = new Set([
     'jpg','jpeg','png','gif','webp','svg','bmp','avif','ico','tiff','tif','heic','heif'
@@ -595,6 +655,13 @@
   const modeFlatBtn     = document.getElementById('mode-flat-btn');
   const modeFolderBtn   = document.getElementById('mode-folder-btn');
   const scaleModeBtn    = document.getElementById('scale-mode-btn');
+  const rootSelectModal = document.getElementById('root-select-modal');
+  const rootList        = document.getElementById('root-list');
+  const rootConfirmBtn  = document.getElementById('root-confirm');
+  const rootCancelBtn   = document.getElementById('root-cancel');
+  const includeRootCB   = document.getElementById('include-root-files');
+  const rootSelectAllBtn   = document.getElementById('root-select-all');
+  const rootUnselectAllBtn = document.getElementById('root-unselect-all');
 
   // ─── Pick directory ─────────────────────────────────────────────────────────
   pickDirBtn.addEventListener('click', async () => {
@@ -613,11 +680,20 @@
     selected.clear();
 
     dirPathEl.textContent = dirHandle.name;
-    imageList.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:14px">扫描中…</div>';
     emptyState.style.display = 'none';
     listContainer.style.display = 'block';
 
-    await collectImages(dirHandle, '');
+    const sel = await openRootSelect(dirHandle);
+    imageList.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:14px">扫描中…</div>';
+    allFiles = [];
+    selected.clear();
+    if (sel.includeRoot) {
+      await collectRootFiles(dirHandle);
+    }
+    for (const i of sel.indices) {
+      const { name, handle } = rootDirs[i];
+      await collectImages(handle, name);
+    }
 
     if (allFiles.length === 0) {
       imageList.innerHTML = '<div style="padding:60px;text-align:center;color:var(--text-muted);font-size:14px">未找到图片文件</div>';
@@ -636,6 +712,62 @@
     updateSelUI();
   }
 
+  async function openRootSelect(dirHandle) {
+    rootDirs = [];
+    let hasRootImage = false;
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'directory') {
+        const skip = name.startsWith('.') || ['node_modules','build','dist','out','.gradle','gradle','Pods','.idea','.vscode'].includes(name);
+        if (!skip) rootDirs.push({ name, handle });
+      } else {
+        const ext = name.split('.').pop().toLowerCase();
+        if (IMAGE_EXTS.has(ext)) hasRootImage = true;
+      }
+    }
+    includeRootCB.checked = true; // 始终默认包含
+    includeRootCB.disabled = false; // 始终可点击
+    // 渲染列表
+    rootList.innerHTML = '';
+    if (rootDirs.length === 0) {
+      const info = document.createElement('div');
+      info.className = 'root-meta';
+      info.textContent = '该项目没有顶层文件夹，仅扫描根目录中的文件';
+      rootList.appendChild(info);
+    } else {
+      rootDirs.forEach((d, idx) => {
+        const row = document.createElement('div');
+        row.className = 'root-row';
+        row.innerHTML = `
+          <input type="checkbox" class="root-check" data-idx="${idx}" checked />
+          <span>${d.name}</span>
+        `;
+        rootList.appendChild(row);
+      });
+    }
+    rootSelectModal.classList.add('open');
+    rootSelectAllBtn.onclick = () => {
+      rootList.querySelectorAll('.root-check').forEach(cb => cb.checked = true);
+    };
+    rootUnselectAllBtn.onclick = () => {
+      rootList.querySelectorAll('.root-check').forEach(cb => cb.checked = false);
+    };
+    const indicesAll = Array.from({ length: rootDirs.length }, (_, i) => i);
+    const includeDefault = hasRootImage;
+    return new Promise(resolve => {
+      rootCancelBtn.onclick = () => {
+        rootSelectModal.classList.remove('open');
+        resolve({ includeRoot: includeDefault, indices: indicesAll });
+      };
+      rootConfirmBtn.onclick = () => {
+        const indices = [...rootList.querySelectorAll('.root-check')]
+          .filter(cb => cb.checked)
+          .map(cb => +cb.dataset.idx);
+        rootSelectModal.classList.remove('open');
+        resolve({ includeRoot: includeRootCB.checked, indices });
+      };
+    });
+  }
+
   async function collectImages(dirHandle, prefix) {
     for await (const [name, handle] of dirHandle.entries()) {
       if (handle.kind === 'directory') {
@@ -646,6 +778,20 @@
           const file = await handle.getFile();
           const url  = URL.createObjectURL(file);
           const relativePath = prefix ? `${prefix}/${name}` : name;
+          allFiles.push({ file, url, name, relativePath, size: file.size });
+        }
+      }
+    }
+  }
+
+  async function collectRootFiles(dirHandle) {
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'file') {
+        const ext = name.split('.').pop().toLowerCase();
+        if (IMAGE_EXTS.has(ext)) {
+          const file = await handle.getFile();
+          const url  = URL.createObjectURL(file);
+          const relativePath = name;
           allFiles.push({ file, url, name, relativePath, size: file.size });
         }
       }
