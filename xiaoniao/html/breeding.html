@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一键配鸟</title>
+    <link rel="stylesheet" href="../css/breeding.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>一键配鸟</h1>
+            <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
+        </div>
+        
+        <div class="content">
+            <!-- 步骤指示器 -->
+            <div class="step-indicator">
+                <div class="step active">
+                    <div class="step-number">1</div>
+                    <span>选择账号</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <span>执行配鸟</span>
+                </div>
+                <div class="step-divider"></div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <span>查看结果</span>
+                </div>
+            </div>
+
+            <!-- 账号选择区域 (第一步) -->
+            <div class="section step-1" id="step1">
+                <div class="section-title">
+                    👥 选择两个账号进行配鸟
+                </div>
+                
+                <div class="account-selector">
+                    <h3>账号A（配鸟方）</h3>
+                    <select id="accountA" class="account-select" onchange="updateAccountSelection()">
+                        <option value="">请选择第一个账号</option>
+                    </select>
+                </div>
+
+                <div class="account-selector">
+                    <h3>账号B（被配鸟方）</h3>
+                    <select id="accountB" class="account-select" onchange="updateAccountSelection()">
+                        <option value="">请选择第二个账号</option>
+                    </select>
+                </div>
+
+                <!-- 选中的账号预览 -->
+                <div class="selected-accounts" id="selectedAccounts" style="display: none;">
+                    <div class="account-card" id="cardA">
+                        <h4 id="nameA">账号A</h4>
+                        <div class="account-id" id="idA">ID: -</div>
+                    </div>
+                    <div class="account-card" id="cardB">
+                        <h4 id="nameB">账号B</h4>
+                        <div class="account-id" id="idB">ID: -</div>
+                    </div>
+                </div>
+
+                <div class="warning" id="warningMessage">
+                    ⚠️ 请选择两个不同的账号
+                </div>
+
+                <button class="next-btn" id="nextBtn" onclick="goToNextStep()" disabled>
+                    下一步：开始配鸟
+                </button>
+            </div>
+
+            <!-- 用户信息确认区域 (第二步) -->
+            <div class="section step-2" id="step2">
+                <div class="section-title">
+                    ✨ 确认用户信息
+                </div>
+                
+                <div class="user-info-card" id="userInfoA">
+                    <h3>
+                        <span>👤 账号A信息</span>
+                        <div class="loading-spinner" id="loadingA" style="display: none;"></div>
+                    </h3>
+                    <div class="user-details" id="detailsA">
+                        <span class="label">用户名:</span>
+                        <span class="value" id="usernameA">加载中...</span>
+                        <span class="label">UID:</span>
+                        <span class="value" id="uidA">加载中...</span>
+                        <span class="label">昵称:</span>
+                        <span class="value" id="nicknameA">加载中...</span>
+                    </div>
+                    <div class="error-message" id="errorA" style="display: none;"></div>
+                </div>
+
+                <div class="user-info-card" id="userInfoB">
+                    <h3>
+                        <span>👤 账号B信息</span>
+                        <div class="loading-spinner" id="loadingB" style="display: none;"></div>
+                    </h3>
+                    <div class="user-details" id="detailsB">
+                        <span class="label">用户名:</span>
+                        <span class="value" id="usernameB">加载中...</span>
+                        <span class="label">UID:</span>
+                        <span class="value" id="uidB">加载中...</span>
+                        <span class="label">昵称:</span>
+                        <span class="value" id="nicknameB">加载中...</span>
+                    </div>
+                    <div class="error-message" id="errorB" style="display: none;"></div>
+                </div>
+
+                <div style="display: flex; gap: 20px; justify-content: center; margin-top: 40px;">
+                    <button class="next-btn" onclick="goBackToStep1()" style="background: #6c757d;">
+                        返回上一步
+                    </button>
+                    <button class="next-btn" id="startBlessingBtn" onclick="goToStep3()" disabled>
+                        开始配鸟操作
+                    </button>
+                </div>
+            </div>
+
+            <!-- 祝福执行区域 (第三步) -->
+            <div class="section step-3" id="step3">
+                <div class="section-title">
+                    🎲 执行配鸟操作
+                </div>
+                
+                <div class="random-selection" id="randomSelection">
+                    <h3>🎯 随机选择配鸟方向</h3>
+                    <p id="randomResult">正在随机选择...</p>
+                </div>
+
+                <div class="blessing-process" id="blessingProcess">
+                    <h3 id="processTitle">选择小鸟进行配鸟</h3>
+                    
+                    <div class="loading-birds" id="loadingBirds">
+                        <div class="loading-spinner"></div>
+                        <p>正在获取小鸟列表...</p>
+                    </div>
+
+                    <div id="birdSelection" style="display: none;">
+                        <p id="selectionInstruction">请选择一只小鸟进行配鸟：</p>
+                        <div class="bird-list" id="birdList"></div>
+                    </div>
+
+                    <div class="error-message" id="birdError" style="display: none;"></div>
+                </div>
+
+                <div class="blessing-result" id="blessingResult" style="display: none;">
+                    <h3>🎉 配鸟完成！</h3>
+                    <div id="resultDetails"></div>
+                </div>
+
+                <div style="display: flex; gap: 20px; justify-content: center; margin-top: 40px;">
+                    <button class="next-btn" onclick="goBackToStep2()" style="background: #6c757d;">
+                        返回上一步
+                    </button>
+                    <button class="next-btn" id="confirmBlessingBtn" onclick="confirmBlessing()" disabled style="display: none;">
+                        确认配鸟
+                    </button>
+                    <button class="next-btn" onclick="restartBlessing()" style="background: #28a745; display: none;" id="restartBtn">
+                        重新开始
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/breeding.js"></script>
+</body>
+</html>

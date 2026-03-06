@@ -1,0 +1,92 @@
+/* 重置样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Microsoft YaHei', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.header h1 {
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 300;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.main-content {
+    display: flex;
+    justify-content: center;
+}
+
+.button-container {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.nav-button {
+    background: white;
+    border: none;
+    border-radius: 20px;
+    padding: 40px 30px;
+    min-width: 200px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.nav-button:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+}
+
+.button-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+
+.button-text {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #333;
+}
+
+/* 响应式设计 */
+@media (max-width: 600px) {
+    .button-container {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .nav-button {
+        min-width: 250px;
+    }
+    
+    .header h1 {
+        font-size: 2rem;
+    }
+}

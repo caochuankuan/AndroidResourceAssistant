@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理</title>
+    <link rel="stylesheet" href="../css/user-manage.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>用户管理</h1>
+            <div class="header-buttons">
+                <button class="import-btn" onclick="importUserConfig()">导入配置</button>
+                <button class="export-btn" onclick="exportUserConfig()">导出配置</button>
+                <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div id="userList" class="user-list">
+                <!-- 用户列表将在这里动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 悬浮新增按钮 -->
+    <button class="add-btn" onclick="openAddModal()">+</button>
+
+    <!-- 隐藏的文件输入用于导入 -->
+    <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+
+    <!-- 新增用户弹窗 -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">新增用户</div>
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label for="userName">用户名</label>
+                    <input type="text" id="userName" name="userName" required>
+                </div>
+                <div class="form-group">
+                    <label for="gameLink">游戏首页链接</label>
+                    <input type="text" id="gameLink" name="gameLink" required placeholder="请输入包含sso参数的完整链接">
+                    <div id="ssoPreview" style="margin-top: 8px; padding: 8px; background: #f0f4f8; border-radius: 6px; font-size: 12px; color: #666; display: none;">
+                        <strong>提取的SSO值：</strong><br>
+                        <span id="ssoValue" style="word-break: break-all; overflow-wrap: anywhere; white-space: pre-wrap; display: block; line-height: 1.4;"></span>
+                    </div>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">确认删除</div>
+            <p style="margin-bottom: 20px; color: #666;">确定要删除用户 "<span id="deleteUserName"></span>" 吗？此操作不可撤销。</p>
+            <div class="modal-buttons">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">取消</button>
+                <button type="button" class="btn" style="background: #ff4757; color: white;" onclick="confirmDelete()">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/user-manage.js"></script>
+</body>
+</html>
