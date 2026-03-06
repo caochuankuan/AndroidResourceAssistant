@@ -115,6 +115,8 @@ async function startLadder() {
         return;
     }
 
+    const targetIndexInput = document.getElementById('targetIndex');
+    const targetIndex = targetIndexInput && targetIndexInput.value ? parseInt(targetIndexInput.value) : null;
 
     const withdrawAmount = parseInt(document.getElementById('withdrawAmount').value) || 0;
     const cardCount = parseInt(document.getElementById('cardCount').value) || 10;
@@ -132,6 +134,11 @@ async function startLadder() {
         addOutput(`⚔️ 开始一键天梯操作...`, 'info');
         addOutput(`用户: ${user.name}`, 'info');
         addOutput(`战斗次数: ${battleCount}`, 'info');
+        if (targetIndex) {
+            addOutput(`指定攻击对手位置: 第 ${targetIndex} 个`, 'info');
+        } else {
+            addOutput(`攻击策略: 默认攻击最后一个`, 'info');
+        }
         addOutput(`金币不足时取钱: ${withdrawAmount} 金币`, 'info');
         addOutput(`购买恢复卡数量: ${cardCount} 张`, 'info');
         addOutput(`将进行${battleCount}次战斗，每次都会重新获取最后一个对手`, 'info');
@@ -174,11 +181,22 @@ async function startLadder() {
                     continue;
                 }
 
-                // 获取最后一个uid
-                const lastPlayer = ladderList[ladderList.length - 1];
-                const targetUid = lastPlayer.uid;
+                // 获取目标对手
+                let targetPlayer;
+                if (targetIndex && targetIndex > 0) {
+                    if (targetIndex <= ladderList.length) {
+                        targetPlayer = ladderList[targetIndex - 1];
+                    } else {
+                        addOutput(`⚠️ 指定位置 ${targetIndex} 超出列表长度 (${ladderList.length})，将攻击最后一个`, 'warning');
+                        targetPlayer = ladderList[ladderList.length - 1];
+                    }
+                } else {
+                    targetPlayer = ladderList[ladderList.length - 1];
+                }
+
+                const targetUid = targetPlayer.uid;
                 
-                addOutput(`第 ${i}/${battleCount} 次 - 目标对手: UID ${targetUid}, 积分: ${lastPlayer.points}, 排名: ${lastPlayer.rank}`, 'info');
+                addOutput(`第 ${i}/${battleCount} 次 - 目标对手: UID ${targetUid}, 积分: ${targetPlayer.points}, 排名: ${targetPlayer.rank}`, 'info');
 
                 // 进行战斗
                 const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
@@ -556,6 +574,9 @@ function showUserSelection() {
     // 重置选择状态
     document.getElementById('userSelect').value = '';
     document.getElementById('battleCount').value = 15;
+    if (document.getElementById('targetIndex')) {
+        document.getElementById('targetIndex').value = '';
+    }
     document.getElementById('withdrawAmount').value = 100000;
     document.getElementById('cardCount').value = 10;
     updateStartButtonState();
