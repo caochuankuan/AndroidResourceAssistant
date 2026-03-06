@@ -398,11 +398,16 @@ async function performAutomatedBreeding(askUid, birdName) {
     const maxCycles = breedingCountInput.value ? parseInt(breedingCountInput.value) : 100;
     const hasLimit = breedingCountInput.value && breedingCountInput.value.trim() !== '';
     
+    // 获取配鸟间隔
+    const intervalInput = document.getElementById('breedingInterval');
+    const intervalSeconds = intervalInput.value ? parseInt(intervalInput.value) : 5;
+    
     if (hasLimit) {
         addLog(`设置了配对次数限制: ${maxCycles} 次`, 'info');
     } else {
         addLog(`未设置配对次数限制，最多执行 ${maxCycles} 次`, 'info');
     }
+    addLog(`设置配鸟间隔: ${intervalSeconds} 秒`, 'info');
     
     let cycleCount = 0;
     
@@ -444,7 +449,14 @@ async function performAutomatedBreeding(askUid, birdName) {
             askUid = blessingResult.askUid;
             addLog(`获得新的askUid: ${askUid}，继续下一轮`, 'success');
             
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // 倒计时等待
+            if (cycleCount < maxCycles) {
+                addLog(`等待 ${intervalSeconds} 秒后开始下一轮...`, 'info');
+                for (let i = intervalSeconds; i > 0; i--) {
+                    addLog(`倒计时: ${i}秒`, 'info');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
             
         } catch (error) {
             addLog(`第 ${cycleCount} 次循环失败: ${error.message}`, 'error');
