@@ -12,6 +12,19 @@ function toggleButtons() {
     }
 }
 
+// 获取API基础URL
+function getApiBaseUrl(user) {
+    if (user && user.originalUrl) {
+        try {
+            return new URL(user.originalUrl).origin;
+        } catch (e) {
+            console.warn('Invalid originalUrl:', user.originalUrl);
+            return 'http://82.157.255.108';
+        }
+    }
+    return 'http://82.157.255.108';
+}
+
 // 一键执行所有操作
 async function executeAllOperations() {
     const user = getSelectedUser();
@@ -201,7 +214,7 @@ async function performBirdBait() {
         
         // 步骤1: 先收网
         addOutput(`步骤1: 收网中...`, 'info');
-        const finishResponse = await fetch('http://82.157.255.108/api/fowling/all/finish', {
+        const finishResponse = await fetch(`${getApiBaseUrl(user)}/api/fowling/all/finish`, {
             method: 'POST',
             headers: {
                 'authorization': user.sso,
@@ -256,7 +269,7 @@ async function performBirdBait() {
         if (birdIds.length > 0) {
             addOutput(`步骤2: 卖掉收获的 ${birdIds.length} 只鸟...`, 'info');
             
-            const sellResponse = await fetch(`http://82.157.255.108/api/storage/bird/sell?id=${birdIds.join(',')}&confirm=true`, {
+            const sellResponse = await fetch(`${getApiBaseUrl(user)}/api/storage/bird/sell?id=${birdIds.join(',')}&confirm=true`, {
                 method: 'POST',
                 headers: {
                     'authorization': user.sso,
@@ -293,7 +306,7 @@ async function performBirdBait() {
         // 步骤3: 一键下饵
         addOutput(`步骤3: 下饵中...`, 'info');
         
-        const placeBaitResponse = await fetch('http://82.157.255.108/api/fowling/place/all?bid=1', {
+        const placeBaitResponse = await fetch(`${getApiBaseUrl(user)}/api/fowling/place/all?bid=1`, {
             method: 'POST',
             headers: {
                 'authorization': user.sso,
@@ -316,7 +329,7 @@ async function performBirdBait() {
                     // 步骤4: 如果没有饵，先购买饵料
                     addOutput(`⚠️ 没有饵料，正在购买饵料...`, 'warning');
                     
-                    const buyBaitResponse = await fetch('http://82.157.255.108/api/shop/buy/goods?func=BAIT&id=1&num=5', {
+                    const buyBaitResponse = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=BAIT&id=1&num=5`, {
                         method: 'POST',
                         headers: {
                             'authorization': user.sso,
@@ -339,7 +352,7 @@ async function performBirdBait() {
                                 // 再次尝试下饵
                                 addOutput(`重新尝试下饵...`, 'info');
                                 
-                                const retryPlaceBaitResponse = await fetch('http://82.157.255.108/api/fowling/place/all?bid=1', {
+                                const retryPlaceBaitResponse = await fetch(`${getApiBaseUrl(user)}/api/fowling/place/all?bid=1`, {
                                     method: 'POST',
                                     headers: {
                                         'authorization': user.sso,
@@ -421,7 +434,7 @@ async function performFamilyFight() {
         
         // 获取家族列表
         addOutput(`正在获取家族列表...`, 'info');
-        const listResponse = await fetch('http://82.157.255.108/api/task/family/list?page=0', {
+        const listResponse = await fetch(`${getApiBaseUrl(user)}/api/task/family/list?page=0`, {
             method: 'GET',
             headers: {
                 'authorization': user.sso,
@@ -462,7 +475,7 @@ async function performFamilyFight() {
             try {
                 addOutput(`正在进行第 ${i}/5 次切磋...`, 'info');
                 
-                const fightResponse = await fetch(`http://82.157.255.108/api/task/family?id=${familyId}`, {
+                const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/task/family?id=${familyId}`, {
                     method: 'POST',
                     headers: {
                         'authorization': user.sso,
@@ -540,7 +553,7 @@ async function claimAllRewards() {
     try {
         addOutput(`开始为用户 "${user.name}" 执行领取任务奖励操作...`, 'info');
         
-        const response = await fetch('http://82.157.255.108/api/activity/claim/all', {
+        const response = await fetch(`${getApiBaseUrl(user)}/api/activity/claim/all`, {
             method: 'POST',
             headers: {
                 'authorization': user.sso,
@@ -599,7 +612,7 @@ async function guildSignIn() {
     try {
         addOutput(`开始为用户 "${user.name}" 执行公会签到操作...`, 'info');
         
-        const response = await fetch('http://82.157.255.108/api/guild/salary', {
+        const response = await fetch(`${getApiBaseUrl(user)}/api/guild/salary`, {
             method: 'POST',
             headers: {
                 'authorization': user.sso,
@@ -658,7 +671,7 @@ async function guildDonateYuanbao() {
     try {
         addOutput(`开始为用户 "${user.name}" 执行工会元宝捐赠操作...`, 'info');
         
-        const response = await fetch('http://82.157.255.108/api/guild/donateOk?ft=3&fp=100', {
+        const response = await fetch(`${getApiBaseUrl(user)}/api/guild/donateOk?ft=3&fp=100`, {
             method: 'POST',
             headers: {
                 'authorization': user.sso,
@@ -727,7 +740,7 @@ async function guildDonate() {
             try {
                 addOutput(`正在进行第 ${i}/2 次捐赠...`, 'info');
                 
-                const response = await fetch('http://82.157.255.108/api/guild/donateOk?ft=1&fp=20000', {
+                const response = await fetch(`${getApiBaseUrl(user)}/api/guild/donateOk?ft=1&fp=20000`, {
                     method: 'POST',
                     headers: {
                         'authorization': user.sso,
@@ -817,7 +830,7 @@ async function performLadder() {
             try {
                 // 获取天梯列表
                 addOutput(`第 ${i}/15 次 - 正在获取天梯列表...`, 'info');
-                const surroundResponse = await fetch('http://82.157.255.108/api/fight/surround', {
+                const surroundResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/surround`, {
                     method: 'GET',
                     headers: {
                         'authorization': user.sso,
@@ -850,7 +863,7 @@ async function performLadder() {
                 addOutput(`第 ${i}/15 次 - 目标对手: UID ${targetUid}, 积分: ${lastPlayer.points}, 排名: ${lastPlayer.rank}`, 'info');
 
                 // 进行战斗
-                const fightResponse = await fetch(`http://82.157.255.108/api/fight/fight?uid=${targetUid}`, {
+                const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
                     method: 'POST',
                     headers: {
                         'authorization': user.sso,
@@ -938,7 +951,7 @@ async function blessAllFriends() {
                 // 获取当前页好友列表
                 addOutput(`正在获取好友列表第 ${page + 1} 页...`, 'info');
                 
-                const response = await fetch(`http://82.157.255.108/api/friend/list?page=${page}&keyword=`, {
+                const response = await fetch(`${getApiBaseUrl(user)}/api/friend/list?page=${page}&keyword=`, {
                     method: 'GET',
                     headers: {
                         'authorization': user.sso,
@@ -986,7 +999,7 @@ async function blessAllFriends() {
                     try {
                         addOutput(`正在祝福第 ${page + 1} 页好友 ${i + 1}/${friends.length}: ${friend.nickname} (UID: ${friend.uid})`, 'info');
                         
-                        const blessResponse = await fetch(`http://82.157.255.108/api/fowling/all/bless?uid=${friend.uid}`, {
+                        const blessResponse = await fetch(`${getApiBaseUrl(user)}/api/fowling/all/bless?uid=${friend.uid}`, {
                             method: 'POST',
                             headers: {
                                 'authorization': user.sso,
@@ -1108,7 +1121,7 @@ async function withdrawMoney() {
     try {
         addOutput(`开始为用户 "${user.name}" 执行取钱操作...`, 'info');
         
-        const response = await fetch('http://82.157.255.108/api/qianzhuang/qk?num=100000', {
+        const response = await fetch(`${getApiBaseUrl(user)}/api/qianzhuang/qk?num=100000`, {
             method: 'PUT',
             headers: {
                 'authorization': user.sso,
@@ -1165,7 +1178,7 @@ async function checkTaskProgress() {
     try {
         addOutput(`开始为用户 "${user.name}" 检查任务进度...`, 'info');
         
-        const response = await fetch('http://82.157.255.108/api/activity/points?includeDetails=true', {
+        const response = await fetch(`${getApiBaseUrl(user)}/api/activity/points?includeDetails=true`, {
             method: 'GET',
             headers: {
                 'authorization': user.sso,
@@ -1319,7 +1332,7 @@ async function getUserInfo() {
     try {
         addOutput(`开始为用户 "${user.name}" 获取用户信息...`, 'info');
         
-        const response = await fetch('http://82.157.255.108/api/player/info', {
+        const response = await fetch(`${getApiBaseUrl(user)}/api/player/info`, {
             method: 'GET',
             headers: {
                 'authorization': user.sso,
@@ -1374,7 +1387,7 @@ async function performSignIn() {
     try {
         addOutput(`开始为用户 "${user.name}" 执行签到操作...`, 'info');
         
-        const response = await fetch('http://82.157.255.108/api/task/dailyfeed', {
+        const response = await fetch(`${getApiBaseUrl(user)}/api/task/dailyfeed`, {
             method: 'POST',
             headers: {
                 'authorization': user.sso,

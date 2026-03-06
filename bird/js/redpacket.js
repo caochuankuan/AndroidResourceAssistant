@@ -1,6 +1,19 @@
 let users = [];
 let isExecuting = false;
 
+// 获取API基础URL
+function getApiBaseUrl(user) {
+    if (user && user.originalUrl) {
+        try {
+            return new URL(user.originalUrl).origin;
+        } catch (e) {
+            console.warn('Invalid originalUrl:', user.originalUrl);
+            return 'http://82.157.255.108';
+        }
+    }
+    return 'http://82.157.255.108';
+}
+
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
     loadUsers();
@@ -118,7 +131,7 @@ async function grabRedpacketForUser(user) {
     
     while (!shouldStop) {
         try {
-            const response = await fetch('http://82.157.255.108/api/award/redpacket', {
+            const response = await fetch(`${getApiBaseUrl(user)}/api/award/redpacket`, {
                 method: 'POST',
                 headers: {
                     'authorization': user.sso,

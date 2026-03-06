@@ -1,6 +1,19 @@
 // 一键天梯相关变量
 let users = [];
 
+// 获取API基础URL
+function getApiBaseUrl(user) {
+    if (user && user.originalUrl) {
+        try {
+            return new URL(user.originalUrl).origin;
+        } catch (e) {
+            console.warn('Invalid originalUrl:', user.originalUrl);
+            return 'http://82.157.255.108';
+        }
+    }
+    return 'http://82.157.255.108';
+}
+
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
     loadUsers();
@@ -135,7 +148,7 @@ async function startLadder() {
             try {
                 // 获取天梯列表
                 addOutput(`第 ${i}/${battleCount} 次 - 正在获取天梯列表...`, 'info');
-                const surroundResponse = await fetch('http://82.157.255.108/api/fight/surround', {
+                const surroundResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/surround`, {
                     method: 'GET',
                     headers: {
                         'authorization': user.sso,
@@ -168,7 +181,7 @@ async function startLadder() {
                 addOutput(`第 ${i}/${battleCount} 次 - 目标对手: UID ${targetUid}, 积分: ${lastPlayer.points}, 排名: ${lastPlayer.rank}`, 'info');
 
                 // 进行战斗
-                const fightResponse = await fetch(`http://82.157.255.108/api/fight/fight?uid=${targetUid}`, {
+                const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
                     method: 'POST',
                     headers: {
                         'authorization': user.sso,
@@ -200,7 +213,7 @@ async function startLadder() {
                             addOutput(`⚠️ 第 ${i} 次战斗失败: ${fightData.msg}`, 'warning');
                             addOutput(`🎴 尝试使用战斗恢复卡（道具ID: 32）...`, 'info');
                             
-                            const usePropResponse = await fetch(`http://82.157.255.108/api/prop/use?id=32`, {
+                            const usePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
                                 method: 'POST',
                                 headers: {
                                     'authorization': user.sso,
@@ -219,7 +232,7 @@ async function startLadder() {
                                         // 使用道具成功后重新战斗
                                         addOutput(`🔄 重新进行第 ${i} 次战斗...`, 'info');
                                         
-                                        const retryFightResponse = await fetch(`http://82.157.255.108/api/fight/fight?uid=${targetUid}`, {
+                                        const retryFightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
                                             method: 'POST',
                                             headers: {
                                                 'authorization': user.sso,
@@ -258,7 +271,7 @@ async function startLadder() {
                                         addOutput(`⚠️ 没有战斗恢复卡可用`, 'warning');
                                         addOutput(`🛒 尝试购买 ${cardCount} 张战斗恢复卡...`, 'info');
                                         
-                                        const buyResponse = await fetch(`http://82.157.255.108/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
+                                        const buyResponse = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
                                             method: 'POST',
                                             headers: {
                                                 'authorization': user.sso,
@@ -277,7 +290,7 @@ async function startLadder() {
                                                     // 购买成功后再次使用恢复卡
                                                     addOutput(`🎴 再次尝试使用战斗恢复卡...`, 'info');
                                                     
-                                                    const retryUsePropResponse = await fetch(`http://82.157.255.108/api/prop/use?id=32`, {
+                                                    const retryUsePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
                                                         method: 'POST',
                                                         headers: {
                                                             'authorization': user.sso,
@@ -295,7 +308,7 @@ async function startLadder() {
                                                             // 使用道具成功后重新战斗
                                                             addOutput(`🔄 重新进行第 ${i} 次战斗...`, 'info');
                                                             
-                                                            const retryFightResponse = await fetch(`http://82.157.255.108/api/fight/fight?uid=${targetUid}`, {
+                                                            const retryFightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
                                                                 method: 'POST',
                                                                 headers: {
                                                                     'authorization': user.sso,
@@ -370,7 +383,7 @@ async function startLadder() {
                             if (withdrawAmount > 0) {
                                 addOutput(`💰 尝试从钱庄取钱 ${withdrawAmount} 金币...`, 'info');
                                 
-                                const withdrawResponse = await fetch(`http://82.157.255.108/api/qianzhuang/qk?num=${withdrawAmount}`, {
+                                const withdrawResponse = await fetch(`${getApiBaseUrl(user)}/api/qianzhuang/qk?num=${withdrawAmount}`, {
                                     method: 'PUT',
                                     headers: {
                                         'authorization': user.sso,
@@ -390,7 +403,7 @@ async function startLadder() {
                                             // 取钱成功后重新战斗
                                             addOutput(`🔄 重新进行第 ${i} 次战斗...`, 'info');
                                             
-                                            const retryFightResponse = await fetch(`http://82.157.255.108/api/fight/fight?uid=${targetUid}`, {
+                                            const retryFightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
                                                 method: 'POST',
                                                 headers: {
                                                     'authorization': user.sso,
@@ -699,7 +712,7 @@ async function startVipLadder() {
                 addOutput(`🎴 战斗前使用恢复卡（第1次）...`, 'info');
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                let useCard1Response = await fetch(`http://82.157.255.108/api/prop/use?id=32`, {
+                let useCard1Response = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
                     method: 'POST',
                     headers: {
                         'authorization': user.sso,
@@ -714,7 +727,7 @@ async function startVipLadder() {
                     addOutput(`⚠️ 没有恢复卡，尝试购买 ${cardCount} 张...`, 'warning');
                     await new Promise(resolve => setTimeout(resolve, 500));
                     
-                    const buyResponse = await fetch(`http://82.157.255.108/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
+                    const buyResponse = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
                         method: 'POST',
                         headers: {
                             'authorization': user.sso,
@@ -728,7 +741,7 @@ async function startVipLadder() {
                         
                         // 购买后重新使用
                         await new Promise(resolve => setTimeout(resolve, 500));
-                        useCard1Response = await fetch(`http://82.157.255.108/api/prop/use?id=32`, {
+                        useCard1Response = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
                             method: 'POST',
                             headers: {
                                 'authorization': user.sso,
@@ -750,7 +763,7 @@ async function startVipLadder() {
                 addOutput(`🎴 战斗前使用恢复卡（第2次）...`, 'info');
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                const useCard2Response = await fetch(`http://82.157.255.108/api/prop/use?id=32`, {
+                const useCard2Response = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
                     method: 'POST',
                     headers: {
                         'authorization': user.sso,
@@ -769,7 +782,7 @@ async function startVipLadder() {
                 await new Promise(resolve => setTimeout(resolve, 2000));
 
                 // 直接调用 /api/fight/fight/all
-                const fightResponse = await fetch('http://82.157.255.108/api/fight/fight/all', {
+                const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
                     method: 'POST',
                     headers: {
                         'authorization': user.sso,
@@ -796,7 +809,7 @@ async function startVipLadder() {
                             
                             await new Promise(resolve => setTimeout(resolve, 500));
                             
-                            const usePropResponse = await fetch(`http://82.157.255.108/api/prop/use?id=32`, {
+                            const usePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
                                 method: 'POST',
                                 headers: {
                                     'authorization': user.sso,
@@ -814,7 +827,7 @@ async function startVipLadder() {
                                     // 延迟500毫秒后重试战斗
                                     await new Promise(resolve => setTimeout(resolve, 500));
                                     
-                                    const retryResponse = await fetch('http://82.157.255.108/api/fight/fight/all', {
+                                    const retryResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
                                         method: 'POST',
                                         headers: {
                                             'authorization': user.sso,
@@ -837,7 +850,7 @@ async function startVipLadder() {
                                     
                                     await new Promise(resolve => setTimeout(resolve, 500));
                                     
-                                    const buyResponse = await fetch(`http://82.157.255.108/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
+                                    const buyResponse = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
                                         method: 'POST',
                                         headers: {
                                             'authorization': user.sso,
@@ -857,7 +870,7 @@ async function startVipLadder() {
                                             
                                             await new Promise(resolve => setTimeout(resolve, 500));
                                             
-                                            const retryUsePropResponse = await fetch(`http://82.157.255.108/api/prop/use?id=32`, {
+                                            const retryUsePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
                                                 method: 'POST',
                                                 headers: {
                                                     'authorization': user.sso,
@@ -872,7 +885,7 @@ async function startVipLadder() {
                                                 // 延迟500毫秒后重试战斗
                                                 await new Promise(resolve => setTimeout(resolve, 500));
                                                 
-                                                const retryResponse = await fetch('http://82.157.255.108/api/fight/fight/all', {
+                                                const retryResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
                                                     method: 'POST',
                                                     headers: {
                                                         'authorization': user.sso,
@@ -915,7 +928,7 @@ async function startVipLadder() {
                             if (withdrawAmount > 0) {
                                 addOutput(`💰 尝试从钱庄取钱 ${withdrawAmount} 金币...`, 'info');
                                 
-                                const withdrawResponse = await fetch(`http://82.157.255.108/api/qianzhuang/qk?num=${withdrawAmount}`, {
+                                const withdrawResponse = await fetch(`${getApiBaseUrl(user)}/api/qianzhuang/qk?num=${withdrawAmount}`, {
                                     method: 'PUT',
                                     headers: {
                                         'authorization': user.sso,
@@ -930,7 +943,7 @@ async function startVipLadder() {
                                     // 延迟500毫秒后重试战斗
                                     await new Promise(resolve => setTimeout(resolve, 500));
                                     
-                                    const retryResponse = await fetch('http://82.157.255.108/api/fight/fight/all', {
+                                    const retryResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
                                         method: 'POST',
                                         headers: {
                                             'authorization': user.sso,

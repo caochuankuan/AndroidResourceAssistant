@@ -2,6 +2,19 @@
 let users = [];
 let selectedUserIds = new Set();
 
+// 获取API基础URL
+function getApiBaseUrl(user) {
+    if (user && user.originalUrl) {
+        try {
+            return new URL(user.originalUrl).origin;
+        } catch (e) {
+            console.warn('Invalid originalUrl:', user.originalUrl);
+            return 'http://82.157.255.108';
+        }
+    }
+    return 'http://82.157.255.108';
+}
+
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
     loadUsers();
@@ -210,7 +223,7 @@ async function performBlessForUser(user) {
                 // 获取当前页好友列表
                 addOutput(`正在获取好友列表第 ${page + 1} 页...`, 'info');
                 
-                const response = await fetch(`http://82.157.255.108/api/friend/list?page=${page}&keyword=`, {
+                const response = await fetch(`${getApiBaseUrl(user)}/api/friend/list?page=${page}&keyword=`, {
                     method: 'GET',
                     headers: {
                         'authorization': user.sso,
@@ -258,7 +271,7 @@ async function performBlessForUser(user) {
                     try {
                         addOutput(`正在祝福第 ${page + 1} 页好友 ${i + 1}/${friends.length}: ${friend.nickname} (UID: ${friend.uid})`, 'info');
                         
-                        const blessResponse = await fetch(`http://82.157.255.108/api/fowling/all/bless?uid=${friend.uid}`, {
+                        const blessResponse = await fetch(`${getApiBaseUrl(user)}/api/fowling/all/bless?uid=${friend.uid}`, {
                             method: 'POST',
                             headers: {
                                 'authorization': user.sso,

@@ -8,6 +8,19 @@ let selectedReceiver = null;
 let allBirds = [];
 let selectedBird = null;
 
+// 获取API基础URL
+function getApiBaseUrl(user) {
+    if (user && user.originalUrl) {
+        try {
+            return new URL(user.originalUrl).origin;
+        } catch (e) {
+            console.warn('Invalid originalUrl:', user.originalUrl);
+            return 'http://82.157.255.108';
+        }
+    }
+    return 'http://82.157.255.108';
+}
+
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 显示开发中提示
@@ -96,7 +109,7 @@ async function fetchUserInfos() {
     try {
         addLog('正在获取用户信息...', 'info');
         
-        const responseA = await fetch('http://82.157.255.108/api/player/info', {
+        const responseA = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/player/info`, {
             method: 'GET',
             headers: {
                 'authorization': selectedAccountA.sso,
@@ -127,7 +140,7 @@ async function fetchUserInfos() {
         } else {
             throw new Error(`获取账号A信息失败: ${dataA.msg}`);
         }
-        const responseB = await fetch('http://82.157.255.108/api/player/info', {
+        const responseB = await fetch(`${getApiBaseUrl(selectedAccountB)}/api/player/info`, {
             method: 'GET',
             headers: {
                 'authorization': selectedAccountB.sso,
@@ -175,7 +188,7 @@ async function fetchBirds() {
         let hasMore = true;
         
         while (hasMore) {
-            const response = await fetch(`http://82.157.255.108/api/birth/birthwait?uid=${selectedReceiver.info.uid}&page=${page}`, {
+            const response = await fetch(`${getApiBaseUrl(selectedBlesser.user)}/api/birth/birthwait?uid=${selectedReceiver.info.uid}&page=${page}`, {
                 method: 'GET',
                 headers: {
                     'authorization': selectedBlesser.user.sso,
@@ -269,7 +282,7 @@ async function performInitialBreeding() {
         addLog('正在获取配对者的小鸟...', 'info');
         
         while (hasMore) {
-            const blesserBirdResponse = await fetch(`http://82.157.255.108/api/birth/birthwait?birdId=${selectedBird.id}&page=${page}`, {
+            const blesserBirdResponse = await fetch(`${getApiBaseUrl(selectedBlesser.user)}/api/birth/birthwait?birdId=${selectedBird.id}&page=${page}`, {
                 method: 'GET',
                 headers: {
                     'authorization': selectedBlesser.user.sso,
@@ -299,7 +312,7 @@ async function performInitialBreeding() {
         addLog(`找到配对小鸟: ${blesserBird.name} (ID: ${blesserBird.id})`, 'success');
         
         addLog('发起配鸟请求...', 'info');
-        const blessingResponse = await fetch(`http://82.157.255.108/api/birth/make?birdId=${blesserBird.id}&friendBirdId=${selectedBird.id}`, {
+        const blessingResponse = await fetch(`${getApiBaseUrl(selectedBlesser.user)}/api/birth/make?birdId=${blesserBird.id}&friendBirdId=${selectedBird.id}`, {
             method: 'POST',
             headers: {
                 'authorization': selectedBlesser.user.sso,
@@ -316,7 +329,7 @@ async function performInitialBreeding() {
         addLog(`配鸟请求成功，ID: ${blessingId}`, 'success');
         
         addLog('接受配鸟请求...', 'info');
-        const acceptResponse = await fetch(`http://82.157.255.108/api/birth/accept?id=${blessingId}`, {
+        const acceptResponse = await fetch(`${getApiBaseUrl(selectedReceiver.user)}/api/birth/accept?id=${blessingId}`, {
             method: 'POST',
             headers: {
                 'authorization': selectedReceiver.user.sso,
@@ -493,7 +506,7 @@ async function useCatalyst(askUid) {
             // addLog(`执行第 ${accelerateCount} 次加速...`, 'info');
             
             try {
-                const useResponse = await fetch('http://82.157.255.108/api/prop/use?id=37', {
+                const useResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=37`, {
                     method: 'POST',
                     headers: {
                         'authorization': selectedAccountA.sso,
@@ -538,7 +551,7 @@ async function useCatalyst(askUid) {
     addLog(`当前VIP等级 ${vipLevel} >= 5，使用常规加速逻辑`, 'info');
     
     try {
-        const useResponse = await fetch('http://82.157.255.108/api/prop/use?id=37&targetId=-1&num=5', {
+        const useResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=37&targetId=-1&num=5`, {
             method: 'POST',
             headers: {
                 'authorization': selectedAccountA.sso,
@@ -554,7 +567,7 @@ async function useCatalyst(askUid) {
             
             addLog('催产剂购买成功，重新使用...', 'success');
             
-            const retryResponse = await fetch('http://82.157.255.108/api/prop/use?id=37&targetId=-1&num=5', {
+            const retryResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=37&targetId=-1&num=5`, {
                 method: 'POST',
                 headers: {
                     'authorization': selectedAccountA.sso,
@@ -578,7 +591,7 @@ async function useCatalyst(askUid) {
 
 // 购买催产剂
 async function buyCatalyst() {
-    const shopResponse = await fetch('http://82.157.255.108/api/shop/prop?id=37', {
+    const shopResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/shop/prop?id=37`, {
         method: 'GET',
         headers: {
             'authorization': selectedAccountA.sso,
@@ -595,7 +608,8 @@ async function finishBirth(askUid) {
     addLog(`完成生育 - askUid: ${askUid}`, 'info');
     
     try {
-        const response = await fetch(`http://82.157.255.108/api/birth/finish?uid=${askUid}`, {
+        addLog('正在收取小鸟...', 'info');
+        const response = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/birth/finish?uid=${askUid}`, {
             method: 'POST',
             headers: {
                 'authorization': selectedAccountA.sso,
@@ -624,7 +638,7 @@ async function findBirdsByName(birdName) {
         let hasMore = true;
         
         while (hasMore) {
-            const response = await fetch(`http://82.157.255.108/api/birth/birthwait?uid=${selectedReceiver.info.uid}&page=${page}`, {
+            const response = await fetch(`${getApiBaseUrl(selectedBlesser.user)}/api/birth/birthwait?uid=${selectedReceiver.info.uid}&page=${page}`, {
                 method: 'GET',
                 headers: {
                     'authorization': selectedBlesser.user.sso,
@@ -665,7 +679,7 @@ async function performBreeding(bird) {
         let hasMore = true;
         
         while (hasMore) {
-            const blesserBirdResponse = await fetch(`http://82.157.255.108/api/birth/birthwait?birdId=${bird.id}&page=${page}`, {
+            const blesserBirdResponse = await fetch(`${getApiBaseUrl(selectedBlesser.user)}/api/birth/birthwait?birdId=${bird.id}&page=${page}`, {
                 method: 'GET',
                 headers: {
                     'authorization': selectedBlesser.user.sso,
@@ -696,7 +710,7 @@ async function performBreeding(bird) {
         const blesserBird = blesserBirds[0];
         addLog(`使用配对小鸟: ${blesserBird.name} (ID: ${blesserBird.id})`, 'info');
         
-        const blessingResponse = await fetch(`http://82.157.255.108/api/birth/make?birdId=${blesserBird.id}&friendBirdId=${bird.id}`, {
+        const blessingResponse = await fetch(`${getApiBaseUrl(selectedBlesser.user)}/api/birth/make?birdId=${blesserBird.id}&friendBirdId=${bird.id}`, {
             method: 'POST',
             headers: {
                 'authorization': selectedBlesser.user.sso,
@@ -713,7 +727,7 @@ async function performBreeding(bird) {
         const blessingId = blessingData.data.id;
         addLog(`配鸟请求成功，ID: ${blessingId}`, 'success');
         
-        const acceptResponse = await fetch(`http://82.157.255.108/api/birth/accept?id=${blessingId}`, {
+        const acceptResponse = await fetch(`${getApiBaseUrl(selectedReceiver.user)}/api/birth/accept?id=${blessingId}`, {
             method: 'POST',
             headers: {
                 'authorization': selectedReceiver.user.sso,
