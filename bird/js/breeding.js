@@ -11,7 +11,7 @@ let selectedBird = null;
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 显示开发中提示
-    alert('⚠️ 提示：一键配鸟功能为半成品，正在开发中...');
+    // alert('⚠️ 提示：一键配鸟功能为半成品，正在开发中...');
     
     loadUsers();
     populateAccountSelects();
@@ -106,13 +106,24 @@ async function fetchUserInfos() {
 
         const dataA = await responseA.json();
         if (dataA.code === 200 && dataA.data) {
+            // 解析VIP等级
+            let vipLevel = 0;
+            if (dataA.data.vipLevel && typeof dataA.data.vipLevel === 'string') {
+                const match = dataA.data.vipLevel.match(/VIP(\d+)/);
+                if (match) {
+                    vipLevel = parseInt(match[1]);
+                }
+            } else if (typeof dataA.data.vipLevel === 'number') {
+                vipLevel = dataA.data.vipLevel;
+            }
+
             userInfoA = {
                 uid: dataA.data.uid,
                 nickname: dataA.data.nickname,
                 level: dataA.data.levelInfo?.currentLevel?.level || 'N/A',
-                vipLevel: dataA.data.vipLevel || 0
+                vipLevel: vipLevel
             };
-            addLog(`获取账号A信息成功: ${userInfoA.nickname} (${userInfoA.uid})`, 'success');
+            addLog(`获取账号A信息成功: ${userInfoA.nickname} (${userInfoA.uid}), VIP: ${userInfoA.vipLevel}`, 'success');
         } else {
             throw new Error(`获取账号A信息失败: ${dataA.msg}`);
         }
@@ -387,11 +398,16 @@ async function performAutomatedBreeding(askUid, birdName) {
     const maxCycles = breedingCountInput.value ? parseInt(breedingCountInput.value) : 100;
     const hasLimit = breedingCountInput.value && breedingCountInput.value.trim() !== '';
     
+    // 获取配鸟间隔
+    const intervalInput = document.getElementById('breedingInterval');
+    const intervalSeconds = intervalInput.value ? parseInt(intervalInput.value) : 5;
+    
     if (hasLimit) {
         addLog(`设置了配对次数限制: ${maxCycles} 次`, 'info');
     } else {
         addLog(`未设置配对次数限制，最多执行 ${maxCycles} 次`, 'info');
     }
+    addLog(`设置配鸟间隔: ${intervalSeconds} 秒`, 'info');
     
     let cycleCount = 0;
     
@@ -433,7 +449,14 @@ async function performAutomatedBreeding(askUid, birdName) {
             askUid = blessingResult.askUid;
             addLog(`获得新的askUid: ${askUid}，继续下一轮`, 'success');
             
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // 倒计时等待
+            if (cycleCount < maxCycles) {
+                addLog(`等待 ${intervalSeconds} 秒后开始下一轮...`, 'info');
+                for (let i = intervalSeconds; i > 0; i--) {
+                    addLog(`倒计时: ${i}秒`, 'info');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
             
         } catch (error) {
             addLog(`第 ${cycleCount} 次循环失败: ${error.message}`, 'error');
@@ -455,6 +478,65 @@ async function performAutomatedBreeding(askUid, birdName) {
 async function useCatalyst(askUid) {
     addLog(`使用催产剂 - askUid: ${askUid}`, 'info');
     
+    // 检查VIP等级
+    const vipLevel = userInfoA.vipLevel || 0;
+    
+    // 如果VIP等级小于5，使用循环加速逻辑
+    if (vipLevel < 5) {
+        addLog(`当前VIP等级 ${vipLevel} < 5，使用循环加速逻辑`, 'info');
+        
+        let accelerateCount = 0;
+        let isAccelerating = true;
+        
+        while (isAccelerating) {
+            accelerateCount++;
+            // addLog(`执行第 ${accelerateCount} 次加速...`, 'info');
+            
+            try {
+                const useResponse = await fetch('http://82.157.255.108/api/prop/use?id=37', {
+                    method: 'POST',
+                    headers: {
+                        'authorization': selectedAccountA.sso,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const useData = await useResponse.json();
+                
+                if (useData.code === 500 && useData.msg === "配对已经完成了,无法加速") {
+                    addLog('加速完成：配对已完成', 'success');
+                    isAccelerating = false;
+                    break;
+                } else if (useData.code === 500 && useData.msg === "你没有催产剂可用") {
+                    addLog('没有催产剂，正在购买...', 'warning');
+                    await buyCatalyst();
+                    // 购买后继续尝试加速
+                    continue;
+                } else if (useData.code !== 200) {
+                    throw new Error(`加速失败: ${useData.msg}`);
+                }
+                
+                // 成功执行一次加速，添加短暂延迟避免请求过快
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+            } catch (error) {
+                // 如果购买失败或其他严重错误，停止循环
+                if (error.message.includes('购买催产剂失败')) {
+                    throw error;
+                }
+                addLog(`加速过程异常: ${error.message}`, 'warning');
+                // 异常情况下暂停一下再试
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+        
+        addLog(`加速结束，共执行 ${accelerateCount} 次操作`, 'success');
+        return;
+    }
+    
+    // VIP5及以上，使用原有逻辑
+    addLog(`当前VIP等级 ${vipLevel} >= 5，使用常规加速逻辑`, 'info');
+    
     try {
         const useResponse = await fetch('http://82.157.255.108/api/prop/use?id=37&targetId=-1&num=5', {
             method: 'POST',
@@ -468,18 +550,7 @@ async function useCatalyst(askUid) {
         
         if (useData.code === 500 && useData.msg === "你没有催产剂可用") {
             addLog('没有催产剂，正在购买...', 'warning');
-            
-            const shopResponse = await fetch('http://82.157.255.108/api/shop/prop?id=37', {
-                method: 'GET',
-                headers: {
-                    'authorization': selectedAccountA.sso,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!shopResponse.ok) {
-                throw new Error(`购买催产剂失败: HTTP ${shopResponse.status}`);
-            }
+            await buyCatalyst();
             
             addLog('催产剂购买成功，重新使用...', 'success');
             
@@ -502,6 +573,21 @@ async function useCatalyst(askUid) {
         addLog('催产剂使用成功', 'success');
     } catch (error) {
         throw error;
+    }
+}
+
+// 购买催产剂
+async function buyCatalyst() {
+    const shopResponse = await fetch('http://82.157.255.108/api/shop/prop?id=37', {
+        method: 'GET',
+        headers: {
+            'authorization': selectedAccountA.sso,
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!shopResponse.ok) {
+        throw new Error(`购买催产剂失败: HTTP ${shopResponse.status}`);
     }
 }
 // 完成生育
