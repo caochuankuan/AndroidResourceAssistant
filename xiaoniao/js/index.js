@@ -14,6 +14,11 @@ function goToBatchBless() {
     window.location.href = 'html/batch-bless.html';
 }
 
+function goToBreeding() {
+    // 跳转到一键配鸟页面
+    window.location.href = 'html/breeding.html';
+}
+
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('首页加载完成');
