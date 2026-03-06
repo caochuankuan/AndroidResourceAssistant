@@ -459,21 +459,28 @@ async function performFamilyFight() {
             return;
         }
 
-        // 获取第一个家族的id
-        const firstFamily = familyList[0];
-        const familyId = firstFamily.id;
-        
         addOutput(`获取到家族列表，共 ${familyList.length} 个家族`, 'info');
-        addOutput(`目标家族: ${firstFamily.name} (ID: ${familyId}, 等级: ${firstFamily.level})`, 'info');
-        addOutput(`开始进行5次切磋...`, 'info');
-
-        let successCount = 0;
+        
+        let currentFamilyIndex = 0;
+        let winCount = 0;
         let failCount = 0;
+        let totalAttempts = 0;
 
-        // 进行5次切磋
-        for (let i = 1; i <= 5; i++) {
+        // 进行5次胜利切磋，或者遍历完所有家族，或者达到最大尝试次数15次
+        while (winCount < 5 && totalAttempts < 15) {
+            // 检查是否有可用家族
+            if (currentFamilyIndex >= familyList.length) {
+                addOutput(`⚠️ 没有更多家族可供切磋，停止操作`, 'warning');
+                break;
+            }
+
+            const targetFamily = familyList[currentFamilyIndex];
+            const familyId = targetFamily.id;
+            
+            totalAttempts++;
+
             try {
-                addOutput(`正在进行第 ${i}/5 次切磋...`, 'info');
+                addOutput(`正在进行第 ${totalAttempts} 次尝试 (当前胜利: ${winCount}/5, 目标: ${targetFamily.name})...`, 'info');
                 
                 const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/task/family?id=${familyId}`, {
                     method: 'POST',
@@ -489,46 +496,64 @@ async function performFamilyFight() {
                     try {
                         const fightData = JSON.parse(fightText);
                         if (fightData.code === 200) {
-                            addOutput(`✅ 第 ${i} 次切磋成功`, 'success');
+                            // 检查胜负结果
+                            if (fightData.data && fightData.data.win === false) {
+                                addOutput(`❌ 切磋失败: 输了`, 'warning');
+                                addOutput(`🔄 切换到下一个家族，不消耗成功次数...`, 'info');
+                                currentFamilyIndex++; // 输了切换下一个
+                                // 失败不增加 winCount
+                            } else {
+                                addOutput(`✅ 切磋成功: 赢了`, 'success');
+                                winCount++;
+                                // 赢了不需要切换家族，继续打这个
+                            }
+                            
                             if (fightData.data) {
                                 const resultStr = JSON.stringify(fightData.data);
                                 addOutput(`切磋结果: ${resultStr.length > 100 ? resultStr.substring(0, 100) + '...' : resultStr}`, 'info');
                             }
-                            successCount++;
                         } else {
-                            addOutput(`❌ 第 ${i} 次切磋失败: ${fightData.msg || '未知错误'}`, 'error');
+                            addOutput(`❌ 切磋失败: ${fightData.msg || '未知错误'}`, 'error');
                             if (fightData.data) {
                                 addOutput(`错误数据: ${JSON.stringify(fightData.data)}`, 'error');
                             }
                             failCount++;
+                            currentFamilyIndex++; // 出错也切换下一个试试
                         }
                     } catch (parseError) {
-                        addOutput(`❌ 第 ${i} 次切磋失败: 响应解析错误`, 'error');
+                        addOutput(`❌ 切磋失败: 响应解析错误`, 'error');
                         addOutput(`原始响应: ${fightText}`, 'error');
                         failCount++;
+                        currentFamilyIndex++;
                     }
                 } else {
-                    addOutput(`❌ 第 ${i} 次切磋失败: HTTP ${fightResponse.status}`, 'error');
+                    addOutput(`❌ 切磋失败: HTTP ${fightResponse.status}`, 'error');
                     failCount++;
+                    currentFamilyIndex++;
                 }
 
                 // 添加延迟避免请求过快
-                if (i < 5) {
-                    await new Promise(resolve => setTimeout(resolve, 50));
+                if (winCount < 5) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
                 }
 
             } catch (error) {
-                addOutput(`❌ 第 ${i} 次切磋失败: ${error.message}`, 'error');
+                addOutput(`❌ 切磋失败: ${error.message}`, 'error');
                 failCount++;
+                currentFamilyIndex++;
             }
         }
 
         // 输出切磋总结
         addOutput(`\n=== 一键切磋操作完成 ===`, 'info');
-        addOutput(`目标家族: ${firstFamily.name} (ID: ${familyId})`, 'info');
-        addOutput(`总计切磋: 5次`, 'info');
-        addOutput(`切磋成功: ${successCount}`, 'success');
-        addOutput(`切磋失败: ${failCount}`, failCount > 0 ? 'error' : 'info');
+        addOutput(`总计尝试: ${totalAttempts} 次`, 'info');
+        addOutput(`成功胜利: ${winCount} 次`, 'success');
+        if (failCount > 0) {
+            addOutput(`执行错误: ${failCount} 次`, 'error');
+        }
+        if (totalAttempts >= 15 && winCount < 5) {
+            addOutput(`⚠️ 达到最大尝试次数 (15次)，停止切磋`, 'warning');
+        }
         
     } catch (error) {
         addOutput(`一键切磋操作失败: ${error.message}`, 'error');
