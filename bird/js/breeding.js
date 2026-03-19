@@ -394,6 +394,13 @@ function addLog(message, type = 'info') {
     logContent.appendChild(logEntry);
     logContent.scrollTop = logContent.scrollHeight;
 }
+
+function getCatalystInfo() {
+    const catalystId = document.getElementById('catalystType').value;
+    console.log("catalystId", catalystId)
+    const catalystName = catalystId === '37' ? '催产剂' : '小催产剂';
+    return { catalystId, catalystName };
+}
 // 自动化配鸟流程
 async function startAutomatedBreeding(askUid, birdName) {
     addLog(`开始自动化配鸟流程 - askUid: ${askUid}, birdName: ${birdName}`, 'info');
@@ -489,7 +496,8 @@ async function performAutomatedBreeding(askUid, birdName) {
 }
 // 使用催产剂
 async function useCatalyst(askUid) {
-    addLog(`使用催产剂 - askUid: ${askUid}`, 'info');
+    const { catalystId, catalystName } = getCatalystInfo();
+    addLog(`使用${catalystName} - askUid: ${askUid}`, 'info');
     
     // 检查VIP等级
     const vipLevel = userInfoA.vipLevel || 0;
@@ -506,7 +514,7 @@ async function useCatalyst(askUid) {
             // addLog(`执行第 ${accelerateCount} 次加速...`, 'info');
             
             try {
-                const useResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=37`, {
+                const useResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=${catalystId}`, {
                     method: 'POST',
                     headers: {
                         'authorization': selectedAccountA.sso,
@@ -520,8 +528,8 @@ async function useCatalyst(askUid) {
                     addLog('加速完成：配对已完成', 'success');
                     isAccelerating = false;
                     break;
-                } else if (useData.code === 500 && useData.msg === "你没有催产剂可用") {
-                    addLog('没有催产剂，正在购买...', 'warning');
+                } else if (useData.code === 500 && useData.msg === `你没有${catalystName}可用`) {
+                    addLog(`没有${catalystName}，正在购买...`, 'warning');
                     await buyCatalyst();
                     // 购买后继续尝试加速
                     continue;
@@ -534,7 +542,7 @@ async function useCatalyst(askUid) {
                 
             } catch (error) {
                 // 如果购买失败或其他严重错误，停止循环
-                if (error.message.includes('购买催产剂失败')) {
+                if (error.message.includes(`购买${catalystName}失败`)) {
                     throw error;
                 }
                 addLog(`加速过程异常: ${error.message}`, 'warning');
@@ -551,7 +559,7 @@ async function useCatalyst(askUid) {
     addLog(`当前VIP等级 ${vipLevel} >= 5，使用常规加速逻辑`, 'info');
     
     try {
-        const useResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=37&targetId=-1&num=5`, {
+        const useResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=${catalystId}&targetId=-1&num=5`, {
             method: 'POST',
             headers: {
                 'authorization': selectedAccountA.sso,
@@ -561,13 +569,13 @@ async function useCatalyst(askUid) {
         
         const useData = await useResponse.json();
         
-        if (useData.code === 500 && useData.msg === "你没有催产剂可用") {
-            addLog('没有催产剂，正在购买...', 'warning');
+        if (useData.code === 500 && useData.msg === `你没有${catalystName}可用`) {
+            addLog(`没有${catalystName}，正在购买...`, 'warning');
             await buyCatalyst();
             
-            addLog('催产剂购买成功，重新使用...', 'success');
+            addLog(`${catalystName}购买成功，重新使用...`, 'success');
             
-            const retryResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=37&targetId=-1&num=5`, {
+            const retryResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/prop/use?id=${catalystId}&targetId=-1&num=5`, {
                 method: 'POST',
                 headers: {
                     'authorization': selectedAccountA.sso,
@@ -577,13 +585,13 @@ async function useCatalyst(askUid) {
             
             const retryData = await retryResponse.json();
             if (retryData.code !== 200) {
-                throw new Error(`重试使用催产剂失败: ${retryData.msg}`);
+                throw new Error(`重试使用${catalystName}失败: ${retryData.msg}`);
             }
         } else if (useData.code !== 200) {
-            throw new Error(`使用催产剂失败: ${useData.msg}`);
+            throw new Error(`使用${catalystName}失败: ${useData.msg}`);
         }
         
-        addLog('催产剂使用成功', 'success');
+        addLog(`${catalystName}使用成功`, 'success');
     } catch (error) {
         throw error;
     }
@@ -591,7 +599,8 @@ async function useCatalyst(askUid) {
 
 // 购买催产剂
 async function buyCatalyst() {
-    const shopResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/shop/prop?id=37`, {
+    const { catalystId, catalystName } = getCatalystInfo();
+    const shopResponse = await fetch(`${getApiBaseUrl(selectedAccountA)}/api/shop/prop?id=${catalystId}`, {
         method: 'GET',
         headers: {
             'authorization': selectedAccountA.sso,
@@ -600,7 +609,7 @@ async function buyCatalyst() {
     });
     
     if (!shopResponse.ok) {
-        throw new Error(`购买催产剂失败: HTTP ${shopResponse.status}`);
+        throw new Error(`购买${catalystName}失败: HTTP ${shopResponse.status}`);
     }
 }
 // 完成生育
