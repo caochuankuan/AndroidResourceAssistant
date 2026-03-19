@@ -136,6 +136,17 @@
       background: #6c63ff18;
     }
 
+    .sort-group select {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      padding-right: 28px;
+      background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b8fa8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+
+
     .dl-selected-btn {
       display: inline-flex;
       align-items: center;
@@ -524,6 +535,16 @@
     <span class="dir-path" id="dir-path"></span>
   </div>
   <div class="header-right">
+    <div class="sort-group" id="sort-group" style="display:none">
+      <select id="sort-select" class="invert-btn">
+        <option value="path-asc">路径 (A-Z)</option>
+        <option value="path-desc">路径 (Z-A)</option>
+        <option value="size-desc">大小 (大→小)</option>
+        <option value="size-asc">大小 (小→大)</option>
+        <option value="date-desc">修改日期 (新→旧)</option>
+        <option value="date-asc">修改日期 (旧→新)</option>
+      </select>
+    </div>
     <span class="stats" id="stats"></span>
     <div class="mode-switch" id="mode-switch">
       <button class="mode-btn active" id="mode-flat-btn" title="平铺模式">
@@ -633,6 +654,8 @@
   const pickDirBtn      = document.getElementById('pick-dir-btn');
   const dirPathEl       = document.getElementById('dir-path');
   const statsEl         = document.getElementById('stats');
+  const sortGroup       = document.getElementById('sort-group');
+  const sortSelect      = document.getElementById('sort-select');
   const checkAllWrap    = document.getElementById('check-all-wrap');
   const checkAll        = document.getElementById('check-all');
   const invertBtn       = document.getElementById('invert-btn');
@@ -706,10 +729,41 @@
     checkAllWrap.style.display = 'flex';
     invertBtn.style.display = 'inline-flex';
     modeSwitch.style.display = 'flex';
+    sortGroup.style.display = 'block';
     thumbSizeGroup.style.display = displayMode === 'flat' ? 'flex' : 'none';
+    sortFiles();
     buildFolders();
     renderByMode();
     updateSelUI();
+  }
+
+  sortSelect.addEventListener('change', () => {
+    sortFiles();
+    renderByMode();
+  });
+
+  function sortFiles() {
+    const option = sortSelect.value;
+    switch (option) {
+      case 'path-asc':
+        allFiles.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+        break;
+      case 'path-desc':
+        allFiles.sort((a, b) => b.relativePath.localeCompare(a.relativePath));
+        break;
+      case 'size-asc':
+        allFiles.sort((a, b) => a.size - b.size);
+        break;
+      case 'size-desc':
+        allFiles.sort((a, b) => b.size - a.size);
+        break;
+      case 'date-asc':
+        allFiles.sort((a, b) => a.lastModified - b.lastModified);
+        break;
+      case 'date-desc':
+        allFiles.sort((a, b) => b.lastModified - a.lastModified);
+        break;
+    }
   }
 
   async function openRootSelect(dirHandle) {
@@ -778,7 +832,7 @@
           const file = await handle.getFile();
           const url  = URL.createObjectURL(file);
           const relativePath = prefix ? `${prefix}/${name}` : name;
-          allFiles.push({ file, url, name, relativePath, size: file.size });
+          allFiles.push({ file, url, name, relativePath, size: file.size, lastModified: file.lastModified });
         }
       }
     }
@@ -792,7 +846,7 @@
           const file = await handle.getFile();
           const url  = URL.createObjectURL(file);
           const relativePath = name;
-          allFiles.push({ file, url, name, relativePath, size: file.size });
+          allFiles.push({ file, url, name, relativePath, size: file.size, lastModified: file.lastModified });
         }
       }
     }
@@ -844,7 +898,7 @@
         </div>
         <div class="file-info">
           <div class="file-name" title="${item.relativePath}">${item.relativePath}</div>
-          <div class="file-meta">${formatSize(item.size)}</div>
+          <div class="file-meta">${formatSize(item.size)} · ${formatDate(item.lastModified)}</div>
         </div>
         <div class="row-actions">
           <button class="action-btn copy-btn" data-idx="${idx}" data-type="file">
@@ -898,7 +952,7 @@
           </div>
           <div class="file-info">
             <div class="file-name" title="${item.relativePath}">${baseName}</div>
-            <div class="file-meta">${formatSize(item.size)}</div>
+            <div class="file-meta">${formatSize(item.size)} · ${formatDate(item.lastModified)}</div>
           </div>
           <div class="row-actions">
             <button class="action-btn copy-btn" data-idx="${idx}" data-type="file">
@@ -1199,6 +1253,11 @@
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function formatDate(timestamp) {
+    const d = new Date(timestamp);
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   }
   function uniqueName(name, used) {
     if (!used.has(name)) { used.add(name); return name; }
