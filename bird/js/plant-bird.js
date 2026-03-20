@@ -166,6 +166,7 @@ async function useProps(base, headers, propGid) {
             if (res.code === 200) {
                 usedCount++;
                 addOutput(`  ✅ 道具使用成功 targetId=${targetId}`, 'success');
+                await sleep(1000);
             } else if (res.msg && (res.msg.includes('道具不足') || res.msg.includes('没有') || res.msg.includes('可用'))) {
                 // 道具不足，检查是否开启自动购买
                 const autoBuy = document.getElementById('autoBuySwitch').checked;
