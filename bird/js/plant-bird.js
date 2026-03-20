@@ -86,8 +86,8 @@ function populateBaitSelect() {
         opt.textContent = `${b.n}（${b.func}）- ${b.fp}金币`;
         sel.appendChild(opt);
     });
-    // 默认选中小神龙(id=55)
-    sel.value = '55';
+    // 默认选中谷子(id=1)
+    sel.value = '1';
     updateBaitDesc();
 }
 
