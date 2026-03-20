@@ -39,6 +39,11 @@ function goToBirdBook() {
     window.location.href = 'html/bird-book.html';
 }
 
+function goToPlantBird() {
+    // 跳转到一键种鸟页面
+    window.location.href = 'html/plant-bird.html';
+}
+
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('首页加载完成');

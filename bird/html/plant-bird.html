@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一键种鸟</title>
+    <link rel="stylesheet" href="../css/one-click.css">
+    <link rel="stylesheet" href="../css/plant-bird.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌱 一键种鸟</h1>
+            <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
+        </div>
+
+        <div class="content">
+            <!-- 用户选择 -->
+            <div class="user-selector" style="text-align: center;">
+                <select id="userSelect" class="user-select">
+                    <option value="">请选择用户</option>
+                </select>
+            </div>
+
+            <!-- 配置区域 -->
+            <div class="config-area">
+                <div class="bait-select-wrap">
+                    <label class="config-label">选择诱饵：</label>
+                    <select id="baitSelect" class="bait-select" onchange="updateBaitDesc()"></select>
+                    <div id="baitDesc" class="bait-desc"></div>
+                </div>
+                <label class="config-label">购买数量：
+                    <input type="number" id="baitNum" value="100" min="1" class="config-input">
+                </label>
+                <label class="config-label">执行轮数：
+                    <input type="number" id="maxRounds" value="100" min="1" class="config-input">
+                </label>
+                <label class="config-label">轮间隔（秒）：
+                    <input type="number" id="roundInterval" value="5" min="0" class="config-input">
+                </label>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div style="margin-bottom: 20px; text-align: center; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                <button class="action-btn" id="startBtn" onclick="startPlantBird()" style="background: #28a745; font-size: 17px; padding: 14px 28px;">🌱 开始种鸟</button>
+                <button class="action-btn" id="stopBtn" onclick="stopPlantBird()" style="background: #dc3545; font-size: 17px; padding: 14px 28px;" disabled>⏹ 停止</button>
+                <button class="action-btn" onclick="clearOutput()" style="background: #6c757d; font-size: 17px; padding: 14px 28px;">🗑 清空日志</button>
+            </div>
+
+            <!-- 状态显示 -->
+            <div id="statusBar" class="status-bar">
+                <span id="statusText">等待操作...</span>
+                <span id="countdownText" class="countdown"></span>
+            </div>
+
+            <!-- 输出区域 -->
+            <div class="output-area">
+                <h3>运行日志</h3>
+                <div id="outputContent" class="output-content empty">等待操作...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/plant-bird.js"></script>
+</body>
+</html>
