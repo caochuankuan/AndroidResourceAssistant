@@ -101,6 +101,114 @@ function updateBaitDesc() {
     }
 }
 
+// 切换用户时重置状态
+function onUserChange() {
+    clearOutput();
+    setStatus('等待操作...');
+    setCountdown('');
+    // 如果道具开关开启，重新加载道具列表
+    if (document.getElementById('usePropSwitch').checked) {
+        document.getElementById('propSelect').innerHTML = '<option value="">请重新加载</option>';
+        loadProps();
+    }
+}
+
+
+function onPropSwitchChange() {
+    const enabled = document.getElementById('usePropSwitch').checked;
+    document.getElementById('propSelectWrap').style.display = enabled ? 'flex' : 'none';
+    document.getElementById('autoBuyWrap').style.display = enabled ? 'flex' : 'none';
+    if (enabled) loadProps();
+}
+
+// 加载加速道具列表（遍历所有页直到无数据）
+async function loadProps() {
+    const user = getSelectedUser();
+    if (!user) return;
+    const base = getApiBaseUrl(user);
+    const headers = { 'authorization': user.sso };
+    const sel = document.getElementById('propSelect');
+    sel.innerHTML = '<option value="">加载中...</option>';
+
+    const allProps = [];
+    let page = 0;
+    while (true) {
+        const res = await apiGet(`${base}/api/pack/props?page=${page}&ft=-1&et=trap`, headers);
+        const content = res?.data?.content || [];
+        if (!content.length) break;
+        allProps.push(...content);
+        page++;
+    }
+
+    sel.innerHTML = '';
+    if (!allProps.length) {
+        sel.innerHTML = '<option value="21">紫藤花（小鸟捕捉加速50%）</option>';
+        addOutput(`⚠️ 未获取到道具，默认使用紫藤花`, 'warning');
+        return;
+    }
+    allProps.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.gid;
+        opt.dataset.num = p.num;
+        opt.textContent = `${p.name}（${p.func}）x${p.num}`;
+        sel.appendChild(opt);
+    });
+    addOutput(`✅ 加载到 ${allProps.length} 种加速道具`, 'success');
+}
+
+// 使用道具：对 targetId=1~6 依次使用，每个 targetId 一直用到返回500为止
+async function useProps(base, headers, propGid) {
+    addOutput(`🔧 开始使用道具 gid=${propGid}...`, 'info');
+    let usedCount = 0;
+    for (let targetId = 1; targetId <= 6; targetId++) {
+        while (true) {
+            const res = await apiPost(`${base}/api/prop/use?id=${propGid}&targetId=${targetId}`, headers);
+            if (res.code === 200) {
+                usedCount++;
+                addOutput(`  ✅ 道具使用成功 targetId=${targetId}`, 'success');
+            } else if (res.msg && (res.msg.includes('道具不足') || res.msg.includes('没有') || res.msg.includes('可用'))) {
+                // 道具不足，检查是否开启自动购买
+                const autoBuy = document.getElementById('autoBuySwitch').checked;
+                if (!autoBuy) {
+                    addOutput(`⛔ 道具不足且未开启自动购买，停止运行`, 'error');
+                    isRunning = false;
+                    break;
+                }
+                // 购买后重试
+                // 道具不足，尝试购买后重试
+                await ensureProp(base, headers, propGid);
+                // 购买后再试一次，失败则跳出
+                const retry = await apiPost(`${base}/api/prop/use?id=${propGid}&targetId=${targetId}`, headers);
+                if (retry.code === 200) {
+                    usedCount++;
+                    addOutput(`  ✅ 补购后使用成功 targetId=${targetId}`, 'success');
+                } else {
+                    addOutput(`  ⏭ targetId=${targetId} 结束: ${retry.msg}`, 'info');
+                    break;
+                }
+            } else {
+                // 500 或其他错误（如已完成），切换下一个 targetId
+                addOutput(`  ⏭ targetId=${targetId} 结束: ${res.msg}`, 'info');
+                break;
+            }
+        }
+    }
+    addOutput(`🔧 道具使用完毕，共使用 ${usedCount} 次`, 'info');
+}
+
+// 检查并购买道具
+async function ensureProp(base, headers, propGid) {
+    const autoBuy = document.getElementById('autoBuySwitch').checked;
+    if (!autoBuy) return;
+    addOutput(`🛒 道具不足，正在购买 gid=${propGid} ...`, 'warning');
+    const res = await apiPost(`${base}/api/shop/buy/goods?func=PROP&id=${propGid}&num=${parseInt(document.getElementById('propBuyNum').value) || 50}`, headers);
+    if (res.code === 200) {
+        addOutput(`✅ 购买道具成功`, 'success');
+    } else {
+        addOutput(`❌ 购买道具失败: ${res.msg}`, 'error');
+    }
+}
+
 function getSelectedUser() {
     const sel = document.getElementById('userSelect');
     if (!sel.value) { addOutput('请先选择用户', 'warning'); return null; }
@@ -217,6 +325,20 @@ async function startPlantBird() {
                 // 从返回数据中取最大 finishTime
                 finishTime = getMaxFinishTime(placeRes.data);
                 addOutput(`📋 种鸟数量: ${Array.isArray(placeRes.data) ? placeRes.data.length : '-'} 个`, 'info');
+
+                // 种鸟成功后使用加速道具
+                if (document.getElementById('usePropSwitch').checked) {
+                    const propGid = parseInt(document.getElementById('propSelect').value) || 21;
+                    addOutput(`🔍 道具开关已开，propGid=${propGid}`, 'info');
+                    if (propGid) {
+                        await useProps(base, headers, propGid);
+                        // 道具用完说明已加速完成，清空 finishTime 直接收鸟
+                        finishTime = null;
+                        addOutput(`⚡ 道具加速完成，直接收鸟`, 'success');
+                    } else {
+                        addOutput(`⚠️ 未选择道具或道具列表未加载`, 'warning');
+                    }
+                }
             } else if (placeRes.code === 500 && placeRes.msg && placeRes.msg.includes('没有该饵')) {
                 // 没有诱饵，先购买
                 addOutput(`⚠️ 没有诱饵，正在购买 ${baitNum} 个...`, 'warning');
@@ -244,7 +366,7 @@ async function startPlantBird() {
 
         if (!isRunning) break;
 
-        // ── 步骤2：等待 finishTime ────────────────────────────────
+        // ── 步骤2：等待 finishTime（使用道具后跳过）────────────────
         if (finishTime) {
             const now = Math.floor(Date.now() / 1000);
             const waitSec = finishTime - now;
@@ -253,12 +375,8 @@ async function startPlantBird() {
                 setStatus('⏳ 等待收鸟中...');
                 await waitUntil(finishTime);
             }
-        } else {
-            // 没拿到 finishTime，等 60 秒后重试
-            addOutput(`⚠️ 未获取到完成时间，60秒后重试`, 'warning');
-            setStatus('⚠️ 等待重试...');
-            await waitUntil(Math.floor(Date.now() / 1000) + 60);
         }
+        // finishTime 为 null 时（道具加速完成）直接跳过等待
 
         if (!isRunning) break;
 
@@ -332,6 +450,13 @@ function getMaxFinishTime(data) {
 // 封装 POST 请求，统一返回解析后的 JSON
 async function apiPost(url, headers) {
     const res = await fetch(url, { method: 'POST', headers });
+    const text = await res.text();
+    try { return JSON.parse(text); } catch (e) { return { code: -1, msg: text }; }
+}
+
+// 封装 GET 请求，统一返回解析后的 JSON
+async function apiGet(url, headers) {
+    const res = await fetch(url, { method: 'GET', headers });
     const text = await res.text();
     try { return JSON.parse(text); } catch (e) { return { code: -1, msg: text }; }
 }

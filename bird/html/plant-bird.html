@@ -17,9 +17,38 @@
         <div class="content">
             <!-- 用户选择 -->
             <div class="user-selector" style="text-align: center;">
-                <select id="userSelect" class="user-select">
+                <select id="userSelect" class="user-select" onchange="onUserChange()">
                     <option value="">请选择用户</option>
                 </select>
+            </div>
+
+            <!-- 道具开关区域 -->
+            <div class="prop-area" id="propArea">
+                <div class="prop-row">
+                    <label class="switch-label">
+                        <span>使用加速道具</span>
+                        <div class="toggle-wrap">
+                            <input type="checkbox" id="usePropSwitch" onchange="onPropSwitchChange()">
+                            <span class="toggle"></span>
+                        </div>
+                    </label>
+                    <label class="switch-label" id="autoBuyWrap" style="display:none;">
+                        <span>道具不足自动购买</span>
+                        <div class="toggle-wrap">
+                            <input type="checkbox" id="autoBuySwitch">
+                            <span class="toggle"></span>
+                        </div>
+                    </label>
+                </div>
+                <div id="propSelectWrap" style="display:none;">
+                    <select id="propSelect" class="bait-select">
+                        <option value="">加载中...</option>
+                    </select>
+                    <button class="refresh-btn" onclick="loadProps()" title="刷新道具列表">🔄</button>
+                    <label class="config-label" style="margin-left:8px;">购买数量：
+                        <input type="number" id="propBuyNum" value="50" min="1" class="config-input">
+                    </label>
+                </div>
             </div>
 
             <!-- 配置区域 -->

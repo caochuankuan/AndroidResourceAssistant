@@ -77,3 +77,137 @@
     outline: none;
     border-color: #667eea;
 }
+
+/* 道具开关区域 */
+.prop-area {
+    background: #f0f4ff;
+    border: 1.5px solid #c7d2fe;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.prop-row {
+    display: flex;
+    gap: 30px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.switch-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    color: #333;
+    cursor: pointer;
+}
+
+.toggle-wrap {
+    position: relative;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-wrap input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.toggle {
+    position: absolute;
+    inset: 0;
+    background: #ccc;
+    border-radius: 24px;
+    transition: background 0.3s;
+    cursor: pointer;
+}
+
+.toggle::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    top: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s;
+}
+
+.toggle-wrap input:checked + .toggle {
+    background: #667eea;
+}
+
+.toggle-wrap input:checked + .toggle::before {
+    transform: translateX(20px);
+}
+
+#propSelectWrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.refresh-btn {
+    background: #e9ecef;
+    border: 1.5px solid #dee2e6;
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: background 0.2s;
+}
+
+.refresh-btn:hover {
+    background: #dee2e6;
+}
+
+@media (max-width: 768px) {
+    .prop-area {
+        padding: 12px;
+    }
+
+    .prop-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    #propSelectWrap {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .bait-select {
+        min-width: unset;
+        width: 100%;
+    }
+
+    .config-area {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .bait-select-wrap {
+        width: 100%;
+    }
+
+    .config-label {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .config-input {
+        width: 80px;
+    }
+
+    #propSelectWrap label.config-label {
+        margin-left: 0 !important;
+    }
+}
