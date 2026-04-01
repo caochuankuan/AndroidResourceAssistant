@@ -792,7 +792,7 @@
         const row = document.createElement('div');
         row.className = 'root-row';
         row.innerHTML = `
-          <input type="checkbox" class="root-check" data-idx="${idx}" checked />
+          <input type="checkbox" class="root-check" data-idx="${idx}" ${d.name.toLowerCase().includes('assets') ? 'checked' : ''} />
           <span>${d.name}</span>
         `;
         rootList.appendChild(row);
