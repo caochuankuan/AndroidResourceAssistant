@@ -517,6 +517,57 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== COCOS 使用情况 ===== */
+    .cocos-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color .2s, border-color .2s, background .2s;
+      white-space: nowrap;
+    }
+    .cocos-btn:hover { color: var(--text); border-color: #f0a500; background: #f0a50018; }
+    .cocos-btn.active { color: #f0a500; border-color: #f0a500; background: #f0a50018; }
+    .cocos-btn:disabled { opacity: .35; cursor: default; }
+
+    /* 图片行高亮：被引用 */
+    .img-row.cocos-used {
+      border-left: 3px solid var(--success);
+    }
+    .img-row.cocos-used .file-name { color: var(--success); }
+
+    /* 图片行高亮：未被引用 */
+    .img-row.cocos-unused {
+      border-left: 3px solid var(--danger);
+      opacity: .55;
+    }
+
+    .cocos-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 600;
+      flex-shrink: 0;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: default;
+    }
+    .cocos-badge.used { background: #4caf8222; color: var(--success); border: 1px solid #4caf8244; }
+    .cocos-badge.unused { background: #ff6b6b22; color: var(--danger); border: 1px solid #ff6b6b44; }
+    .cocos-badge.no-meta { background: #8b8fa822; color: var(--text-muted); border: 1px solid #8b8fa844; }
   </style>
 </head>
 <body>
@@ -573,6 +624,10 @@
     <button class="invert-btn" id="invert-btn" style="display:none" title="反选">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 6H3"/><path d="M10 12H3"/><path d="M10 18H3"/><polyline points="15 12 18 15 22 11"/></svg>
       反选
+    </button>
+    <button class="cocos-btn" id="cocos-btn" style="display:none" title="分析图片在 Cocos assets 中的引用情况">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      Cocos 使用情况
     </button>
     <button class="dl-selected-btn" id="dl-selected-btn" disabled>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -645,6 +700,9 @@
   let previewScaleMode = 'fit'; // 'fit' or 'actual'
   let thumbFitMode = 'cover'; // 'cover' or 'contain'
   let rootDirs = []; // [{name, handle}]
+  let rootDirHandle = null; // 项目根目录 handle
+  let cocosUsageMap = null; // Map<idx, 'used'|'unused'|'no-meta'> null 表示未分析
+  let cocosActive = false;
 
   const IMAGE_EXTS = new Set([
     'jpg','jpeg','png','gif','webp','svg','bmp','avif','ico','tiff','tif','heic','heif'
@@ -678,6 +736,7 @@
   const modeFlatBtn     = document.getElementById('mode-flat-btn');
   const modeFolderBtn   = document.getElementById('mode-folder-btn');
   const scaleModeBtn    = document.getElementById('scale-mode-btn');
+  const cocosBtn        = document.getElementById('cocos-btn');
   const rootSelectModal = document.getElementById('root-select-modal');
   const rootList        = document.getElementById('root-list');
   const rootConfirmBtn  = document.getElementById('root-confirm');
@@ -703,6 +762,9 @@
     selected.clear();
 
     dirPathEl.textContent = dirHandle.name;
+    rootDirHandle = dirHandle;
+    cocosUsageMap = null;
+    cocosActive = false;
     emptyState.style.display = 'none';
     listContainer.style.display = 'block';
 
@@ -731,6 +793,10 @@
     modeSwitch.style.display = 'flex';
     sortGroup.style.display = 'block';
     thumbSizeGroup.style.display = displayMode === 'flat' ? 'flex' : 'none';
+    cocosBtn.style.display = 'inline-flex';
+    cocosBtn.classList.remove('active');
+    cocosBtn.textContent = '';
+    cocosBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Cocos 使用情况`;
     sortFiles();
     buildFolders();
     renderByMode();
@@ -890,6 +956,13 @@
       const row = document.createElement('div');
       row.className = 'img-row';
       row.dataset.idx = idx;
+      // cocos 高亮
+      const cocosBadgeHtml = buildCocosBadge(idx);
+      if (cocosActive && cocosUsageMap) {
+        const s = cocosUsageMap.get(idx);
+        if (s && s.status === 'used') row.classList.add('cocos-used');
+        else if (s && s.status === 'unused') row.classList.add('cocos-unused');
+      }
 
       row.innerHTML = `
         <input class="row-check" type="checkbox" data-idx="${idx}" />
@@ -901,6 +974,7 @@
           <div class="file-meta">${formatSize(item.size)} · ${formatDate(item.lastModified)}</div>
         </div>
         <div class="row-actions">
+          ${cocosBadgeHtml}
           <button class="action-btn copy-btn" data-idx="${idx}" data-type="file">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             复制路径
@@ -945,6 +1019,12 @@
         row.className = 'img-row';
         row.dataset.idx = idx;
         const baseName = item.relativePath.split('/').pop();
+        const cocosBadgeHtml = buildCocosBadge(idx);
+        if (cocosActive && cocosUsageMap) {
+          const s = cocosUsageMap.get(idx);
+          if (s && s.status === 'used') row.classList.add('cocos-used');
+          else if (s && s.status === 'unused') row.classList.add('cocos-unused');
+        }
         row.innerHTML = `
           <input class="row-check" type="checkbox" data-idx="${idx}" />
           <div class="thumb-wrap" data-idx="${idx}">
@@ -955,6 +1035,7 @@
             <div class="file-meta">${formatSize(item.size)} · ${formatDate(item.lastModified)}</div>
           </div>
           <div class="row-actions">
+            ${cocosBadgeHtml}
             <button class="action-btn copy-btn" data-idx="${idx}" data-type="file">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               复制路径
@@ -1296,6 +1377,152 @@
   });
 
   function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // 生成 cocos badge html
+  function buildCocosBadge(idx) {
+    if (!cocosActive || !cocosUsageMap) return '';
+    const entry = cocosUsageMap.get(idx);
+    if (!entry) return '';
+    if (entry.status === 'unused')  return `<span class="cocos-badge unused">✗ 未引用</span>`;
+    if (entry.status === 'no-meta') return `<span class="cocos-badge no-meta">无 meta</span>`;
+    if (entry.status === 'used') {
+      // 显示引用文件列表，最多展示 3 个，超出显示 +N
+      const files = entry.refFiles;
+      const names = files.map(f => f.split('/').pop());
+      const preview = names.slice(0, 3).join(', ');
+      const extra = names.length > 3 ? ` +${names.length - 3}` : '';
+      const title = files.join('\n');
+      return `<span class="cocos-badge used" title="${title}">✓ ${preview}${extra}</span>`;
+    }
+    return '';
+  }
+
+  // ─── Cocos 使用情况分析 ──────────────────────────────────────────────────────
+
+  cocosBtn.addEventListener('click', async () => {
+    if (cocosActive) {
+      // 取消高亮
+      cocosActive = false;
+      cocosUsageMap = null;
+      cocosBtn.classList.remove('active');
+      cocosBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Cocos 使用情况`;
+      renderByMode();
+      return;
+    }
+    cocosBtn.disabled = true;
+    cocosBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg> 分析中…`;
+    try {
+      cocosUsageMap = await analyzeCocosUsage();
+      cocosActive = true;
+      cocosBtn.classList.add('active');
+      const usedCount = [...cocosUsageMap.values()].filter(v => v.status === 'used').length;
+      const unusedCount = [...cocosUsageMap.values()].filter(v => v.status === 'unused').length;
+      cocosBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/></svg> 已引用 ${usedCount} · 未引用 ${unusedCount}`;
+      renderByMode();
+    } catch (err) {
+      showToast('分析失败：' + err.message);
+      cocosBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Cocos 使用情况`;
+    } finally {
+      cocosBtn.disabled = false;
+    }
+  });
+
+  async function analyzeCocosUsage() {
+    // 1. 找到 assets 目录 handle
+    let assetsHandle = null;
+    for await (const [name, handle] of rootDirHandle.entries()) {
+      if (handle.kind === 'directory' && name === 'assets') {
+        assetsHandle = handle;
+        break;
+      }
+    }
+    if (!assetsHandle) throw new Error('未找到 assets 目录');
+
+    // 2. 读取 assets 下所有非 meta 文件内容
+    showToast('正在读取 assets 文件内容…');
+    const assetFiles = await readAllNonMetaFiles(assetsHandle, 'assets');
+
+    // 3. 对每张图片，读取对应 .meta，提取 uuid，搜索引用文件
+    const result = new Map(); // idx -> { status, refFiles: [] }
+    for (let idx = 0; idx < allFiles.length; idx++) {
+      const item = allFiles[idx];
+      const metaContent = await readMetaForImage(item);
+      if (!metaContent) {
+        result.set(idx, { status: 'no-meta', refFiles: [] });
+        continue;
+      }
+      let meta;
+      try { meta = JSON.parse(metaContent); } catch { result.set(idx, { status: 'no-meta', refFiles: [] }); continue; }
+
+      const uuids = collectSubMetaUuids(meta);
+      if (uuids.length === 0 && meta.uuid) uuids.push(meta.uuid);
+
+      // 找出所有包含这些 uuid 的文件
+      const refFiles = [];
+      for (const { path, text } of assetFiles) {
+        if (uuids.some(uuid => text.includes(uuid))) {
+          refFiles.push(path);
+        }
+      }
+      result.set(idx, { status: refFiles.length > 0 ? 'used' : 'unused', refFiles });
+    }
+    return result;
+  }
+
+  // 递归读取目录下所有非 .meta 文件，返回 [{path, text}]
+  async function readAllNonMetaFiles(dirHandle, prefix) {
+    const files = [];
+    for await (const [name, handle] of dirHandle.entries()) {
+      const filePath = prefix ? `${prefix}/${name}` : name;
+      if (handle.kind === 'directory') {
+        files.push(...await readAllNonMetaFiles(handle, filePath));
+      } else if (!name.endsWith('.meta')) {
+        try {
+          const file = await handle.getFile();
+          if (file.size < 5 * 1024 * 1024) {
+            const text = await file.text();
+            files.push({ path: filePath, text });
+          }
+        } catch {}
+      }
+    }
+    return files;
+  }
+
+  // 根据图片的 relativePath 找到对应的 .meta 文件并读取内容
+  async function readMetaForImage(item) {
+    // relativePath 例如 "assets/ui/djtj_dk.png"
+    // 需要从 rootDirHandle 按路径导航
+    const parts = item.relativePath.split('/');
+    try {
+      let cur = rootDirHandle;
+      for (let i = 0; i < parts.length - 1; i++) {
+        cur = await cur.getDirectoryHandle(parts[i]);
+      }
+      const metaName = parts[parts.length - 1] + '.meta';
+      const metaHandle = await cur.getFileHandle(metaName);
+      const metaFile = await metaHandle.getFile();
+      return await metaFile.text();
+    } catch {
+      return null;
+    }
+  }
+
+  // 递归收集 subMetas 里所有的 uuid
+  function collectSubMetaUuids(obj) {
+    const uuids = [];
+    if (obj && typeof obj === 'object') {
+      if (obj.subMetas && typeof obj.subMetas === 'object') {
+        for (const key of Object.keys(obj.subMetas)) {
+          const sub = obj.subMetas[key];
+          if (sub && sub.uuid) uuids.push(sub.uuid);
+          // 递归嵌套
+          uuids.push(...collectSubMetaUuids(sub));
+        }
+      }
+    }
+    return uuids;
+  }
 </script>
 </body>
 </html>
