@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Cocos 图集高级拆分工具 (暗色 ZIP 版)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        /* === 1. 暗色调主题 CSS === */
+        :root {
+            --bg-color: #1e1e1e; /* 网页背景 */
+            --container-bg: #2d2d2d; /* 容器背景 */
+            --text-main: #e0e0e0; /* 主要文字 */
+            --text-sub: #aaaaaa; /* 次要文字 */
+            --border-color: #444444; /* 边框 */
+            --upload-bg: #333333; /* 上传区背景 */
+            --item-bg: #383838; /* 图集列表项背景 */
+            --card-bg: #333333; /* 碎图卡片背景 */
+            --accent-color: #409eff; /* 蓝色强调色 */
+            --success-color: #67c23a; /* 绿色成功色 */
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 20px;
+            background: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: var(--container-bg);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        h2 { margin-top: 0; color: #ffffff; }
+        h3 { color: #ffffff; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-top: 30px; }
+        
+        p { color: var(--text-sub); }
+
+        .upload-area {
+            border: 2px dashed var(--accent-color);
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background: var(--upload-bg);
+            margin-bottom: 20px;
+            transition: 0.3s;
+        }
+        .upload-area:hover { background: #3a3a3a; }
+
+        input[type="file"] { display: none; }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+            transition: 0.2s;
+            text-decoration: none; /* 为a标签形式的按钮准备 */
+        }
+        .btn:hover { background: #66b1ff; }
+        .btn:disabled { background: #555555; cursor: not-allowed; }
+        
+        .btn-small { padding: 5px 10px; font-size: 12px; }
+        .btn-success { background: var(--success-color); margin-left: 15px; }
+        .btn-success:hover { background: #85ce61; }
+        
+        .atlas-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: var(--item-bg);
+            transition: 0.2s;
+        }
+        .atlas-item:hover { border-color: var(--accent-color); }
+
+        .atlas-info { display: flex; flex-direction: column; }
+        .atlas-name { font-weight: bold; font-size: 16px; color: #ffffff; }
+        .atlas-path { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+        
+        #output { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 15px; }
+        
+        .img-card {
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            width: 160px; /* 固定宽度，整齐排列 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: 0.2s;
+        }
+        .img-card:hover { border-color: var(--accent-color); transform: translateY(-2px); }
+
+        .img-card img {
+            max-width: 140px;
+            max-height: 140px;
+            /* 棋盘格背景，用于预览透明图片 */
+            background-image: linear-gradient(45deg, #222 25%, transparent 25%), 
+                              linear-gradient(-45deg, #222 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #222 75%),
+                              linear-gradient(-45deg, transparent 75%, #222 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #333;
+            border-radius: 2px;
+            margin-bottom: 10px;
+        }
+
+        .img-name {
+            font-size: 12px;
+            color: var(--text-sub);
+            word-break: break-all;
+            width: 100%;
+            margin-bottom: 8px;
+            flex-grow: 1; /* 让名字占据剩余空间 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* === 2. 单张下载按钮样式 === */
+        .single-download-btn {
+            font-size: 18px; /* 图标大小 */
+            color: var(--text-sub);
+            cursor: pointer;
+            text-decoration: none;
+            transition: 0.2s;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .single-download-btn:hover {
+            color: var(--success-color);
+            background-color: rgba(103, 194, 58, 0.1);
+        }
+
+        #statusMessage {
+            margin-top: 15px;
+            font-weight: bold;
+            color: #e6a23c; /* 警告色用于提示 */
+            padding: 10px;
+            border-radius: 4px;
+            background: rgba(230, 162, 60, 0.1);
+            display: none; /* 默认隐藏 */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧩 Cocos 图集高级拆分工具</h2>
+    <p>选择包含图集的文件夹，自动拆解，支持预览、单独下载和打包下载为 <b>.zip</b>。</p>
+
+    <div class="upload-area">
+        <label for="folderInput" class="btn">📂 选择图集文件夹</label>
+        <input type="file" id="folderInput" webkitdirectory directory multiple>
+    </div>
+
+    <div id="atlasListContainer" style="display: none;">
+        <h3>识别到的图集 <span id="atlasCount" style="color:var(--accent-color); font-size:16px;"></span></h3>
+        <div id="atlasList"></div>
+    </div>
+
+    <div id="outputContainer" style="display: none;">
+        <h3>正在预览: <span id="currentAtlasName" style="color:var(--accent-color);"></span>
+            <button id="downloadZipBtn" class="btn btn-small btn-success" style="display: none;">⬇️ 打包下载 ZIP</button>
+        </h3>
+        <div id="statusMessage"></div>
+        <div id="output"></div>
+    </div>
+</div>
+
+<script>
+    let atlasMap = {}; 
+    let currentZip = null; 
+    let currentAtlasBaseName = "";
+
+    document.getElementById('folderInput').addEventListener('change', function(e) {
+        const files = e.target.files;
+        if (files.length === 0) return;
+
+        atlasMap = {}; 
+        const listDiv = document.getElementById('atlasList');
+        listDiv.innerHTML = '';
+        document.getElementById('outputContainer').style.display = 'none';
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const path = file.webkitRelativePath;
+            const ext = path.split('.').pop().toLowerCase();
+            const baseKey = path.substring(0, path.lastIndexOf('.'));
+
+            if (ext === 'png' || ext === 'json' || ext === 'plist') {
+                if (!atlasMap[baseKey]) {
+                    atlasMap[baseKey] = { name: file.name.substring(0, file.name.lastIndexOf('.')), path: baseKey };
+                }
+                if (ext === 'png') atlasMap[baseKey].png = file;
+                if (ext === 'json') { atlasMap[baseKey].data = file; atlasMap[baseKey].type = 'json'; }
+                if (ext === 'plist') { atlasMap[baseKey].data = file; atlasMap[baseKey].type = 'plist'; }
+            }
+        }
+
+        let validCount = 0;
+        for (const key in atlasMap) {
+            const atlas = atlasMap[key];
+            if (atlas.png && atlas.data) {
+                validCount++;
+                const item = document.createElement('div');
+                item.className = 'atlas-item';
+                item.innerHTML = `
+                    <div class="atlas-info">
+                        <span class="atlas-name">${atlas.name} (${atlas.type.toUpperCase()})</span>
+                        <span class="atlas-path">${atlas.path}</span>
+                    </div>
+                    <button class="btn btn-small" onclick="unpackAtlas('${key}')">拆解此图集</button>
+                `;
+                listDiv.appendChild(item);
+            }
+        }
+
+        document.getElementById('atlasListContainer').style.display = validCount > 0 ? 'block' : 'none';
+        document.getElementById('atlasCount').innerText = `(共 ${validCount} 个)`;
+    });
+
+    async function unpackAtlas(baseKey) {
+        const atlas = atlasMap[baseKey];
+        currentAtlasBaseName = atlas.name;
+        
+        document.getElementById('outputContainer').style.display = 'block';
+        document.getElementById('currentAtlasName').innerText = atlas.name;
+        const outputDiv = document.getElementById('output');
+        const statusMsg = document.getElementById('statusMessage');
+        const downloadBtn = document.getElementById('downloadZipBtn');
+        
+        outputDiv.innerHTML = '';
+        statusMsg.style.display = 'block';
+        statusMsg.innerText = '⏳ 正在读取和拆解图片，请稍候...';
+        statusMsg.style.color = '#e6a23c';
+        statusMsg.style.background = 'rgba(230, 162, 60, 0.1)';
+        downloadBtn.style.display = 'none';
+
+        // 滚动到预览区域
+        document.getElementById('outputContainer').scrollIntoView({ behavior: 'smooth' });
+
+        try {
+            const imgUrl = await readFileAsDataURL(atlas.png);
+            const img = await loadImage(imgUrl);
+            const dataText = await readFileAsText(atlas.data);
+            let framesData = {};
+
+            if (atlas.type === 'json') {
+                const jsonObj = JSON.parse(dataText);
+                framesData = normalizeFrames(jsonObj.frames, 'json');
+            } else if (atlas.type === 'plist') {
+                const dictObj = parsePlistText(dataText);
+                framesData = normalizeFrames(dictObj.frames, 'plist');
+            }
+
+            currentZip = new JSZip();
+            const folder = currentZip.folder(atlas.name); 
+
+            let processedCount = 0;
+            const totalFrames = Object.keys(framesData).length;
+
+            for (const picName in framesData) {
+                const fd = framesData[picName];
+                const canvas = document.createElement('canvas');
+                canvas.width = fd.sourceSize.w;
+                canvas.height = fd.sourceSize.h;
+                const ctx = canvas.getContext('2d');
+
+                const cropW = fd.rotated ? fd.frame.h : fd.frame.w;
+                const cropH = fd.rotated ? fd.frame.w : fd.frame.h;
+                const pasteX = (fd.sourceSize.w - cropW) / 2 + fd.offset.x;
+                const pasteY = (fd.sourceSize.h - cropH) / 2 - fd.offset.y;
+
+                ctx.save();
+                if (fd.rotated) {
+                    ctx.translate(pasteX + cropW / 2, pasteY + cropH / 2);
+                    ctx.rotate(-Math.PI / 2);
+                    ctx.drawImage(img, fd.frame.x, fd.frame.y, fd.frame.h, fd.frame.w, -fd.frame.h/2, -fd.frame.w/2, fd.frame.h, fd.frame.w);
+                } else {
+                    ctx.drawImage(img, fd.frame.x, fd.frame.y, fd.frame.w, fd.frame.h, pasteX, pasteY, fd.frame.w, fd.frame.h);
+                }
+                ctx.restore();
+
+                // --- 预览生成 (含单张下载按钮) ---
+                const imgDataUrl = canvas.toDataURL('image/png');
+                
+                // 确保文件名有 .png 后缀用于下载
+                let saveName = picName;
+                if (!saveName.toLowerCase().endsWith('.png')) {
+                    saveName += '.png';
+                }
+
+                const card = document.createElement('div');
+                card.className = 'img-card';
+                card.innerHTML = `
+                    <img src="${imgDataUrl}" title="${picName}">
+                    <div class="img-name">${picName}</div>
+                    <a class="single-download-btn" href="${imgDataUrl}" download="${saveName}" title="下载此图片">💾</a>
+                `;
+                outputDiv.appendChild(card);
+
+                // --- 塞入 ZIP ---
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                folder.file(saveName, blob);
+                
+                processedCount++;
+                statusMsg.innerText = `⏳ 正在处理: ${processedCount} / ${totalFrames}`;
+            }
+
+            statusMsg.innerText = `✅ 拆解完成！共 ${totalFrames} 张图片。你可以单独下载，也可以打包下载。`;
+            statusMsg.style.color = 'var(--success-color)';
+            statusMsg.style.background = 'rgba(103, 194, 58, 0.1)';
+            downloadBtn.style.display = 'inline-block';
+
+        } catch (e) {
+            statusMsg.innerText = `❌ 拆解失败: ${e.message}`;
+            statusMsg.style.color = '#f56c6c';
+            statusMsg.style.background = 'rgba(245, 108, 108, 0.1)';
+            console.error(e);
+        }
+    }
+
+    // 触发 ZIP 下载事件
+    document.getElementById('downloadZipBtn').addEventListener('click', function() {
+        if (!currentZip) return;
+        
+        const btn = this;
+        const originalText = btn.innerText;
+        btn.innerText = '📦 打包中...';
+        btn.disabled = true;
+
+        currentZip.generateAsync({type:"blob"}).then(function(content) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `${currentAtlasBaseName}_unpacked.zip`;
+            link.click();
+            
+            URL.revokeObjectURL(link.href);
+            btn.innerText = originalText;
+            btn.disabled = false;
+        });
+    });
+
+    // ================= 工具函数 (保持不变) =================
+    function normalizeFrames(frames, type) {
+        let normalized = {};
+        for (let key in frames) {
+            let fd = frames[key];
+            if (type === 'plist' || typeof fd.frame === 'string') {
+                const parseStr = (str) => (str || "").replace(/\{|\}/g, '').split(',').map(Number);
+                const f = parseStr(fd.frame);
+                const s = parseStr(fd.sourceSize);
+                const o = parseStr(fd.offset);
+                normalized[key] = {
+                    frame: {x: f[0], y: f[1], w: f[2], h: f[3]},
+                    sourceSize: {w: s[0], h: s[1]},
+                    offset: {x: o[0], y: o[1]},
+                    rotated: fd.rotated || false
+                };
+            } else {
+                normalized[key] = fd; 
+            }
+        }
+        return normalized;
+    }
+
+    function parsePlistText(xmlStr) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlStr, "text/xml");
+        const rootDict = xmlDoc.querySelector("plist > dict");
+        
+        function parseDict(node) {
+            let obj = {};
+            let currentKey = null;
+            for (let i = 0; i < node.children.length; i++) {
+                const child = node.children[i];
+                if (child.tagName === 'key') currentKey = child.textContent;
+                else if (currentKey) {
+                    if (child.tagName === 'dict') obj[currentKey] = parseDict(child);
+                    else if (child.tagName === 'string') obj[currentKey] = child.textContent;
+                    else if (child.tagName === 'true') obj[currentKey] = true;
+                    else if (child.tagName === 'false') obj[currentKey] = false;
+                    else if (child.tagName === 'integer' || child.tagName === 'real') obj[currentKey] = Number(child.textContent);
+                    currentKey = null;
+                }
+            }
+            return obj;
+        }
+        return parseDict(rootDict);
+    }
+
+    function readFileAsDataURL(file) { return new Promise(resolve => { const reader = new FileReader(); reader.onload = e => resolve(e.target.result); reader.readAsDataURL(file); }); }
+    function readFileAsText(file) { return new Promise(resolve => { const reader = new FileReader(); reader.onload = e => resolve(e.target.result); reader.readAsText(file); }); }
+    function loadImage(url) { return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = url; }); }
+</script>
+
+</body>
+</html>

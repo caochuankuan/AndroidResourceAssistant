@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Cocos 图集打包工具 (自定义命名)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #1e1e1e; --container-bg: #2d2d2d; --text-main: #e0e0e0;
+            --text-sub: #aaaaaa; --border-color: #444444; --accent-color: #409eff;
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; background: var(--bg-color); color: var(--text-main); margin: 0; }
+        .container { max-width: 1000px; margin: 0 auto; background: var(--container-bg); padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        h2 { margin-top: 0; color: #fff; }
+        
+        .upload-area { 
+            border: 2px dashed var(--accent-color); 
+            padding: 40px 20px; 
+            text-align: center; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+            background: #333;
+            position: relative;
+        }
+        .upload-area:hover { background: #3a3a3a; }
+        .upload-area.drag-over {
+            background: rgba(64, 158, 255, 0.1);
+            border-color: #67c23a;
+            transform: scale(1.02);
+        }
+        
+        input[type="file"] { display: none; }
+        .btn { padding: 10px 20px; background: var(--accent-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .btn:hover { background: #66b1ff; }
+        .btn-success { background: #67c23a; } .btn-success:hover { background: #85ce61; }
+        
+        /* 调整设置栏样式，使其更紧凑 */
+        #settings { display: flex; flex-wrap: wrap; gap: 15px; margin: 20px 0; padding: 15px; background: #333; border-radius: 8px; align-items: center; }
+        #settings label { display: flex; align-items: center; font-size: 14px; }
+        #settings input[type="number"], #settings input[type="text"], #settings select { 
+            margin-left: 8px; padding: 6px; background: #222; border: 1px solid var(--border-color); color: white; border-radius: 4px; 
+        }
+        
+        #previewContainer { overflow: auto; max-height: 500px; border: 1px solid var(--border-color); background-image: linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; background-color: #333; margin-top: 15px;}
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📦 Cocos 图集自动打包工具</h2>
+    <p>支持拖拽排版，自定义图集名称，确保数据文件与贴图同名关联。</p>
+
+    <div class="upload-area" id="dropZone" onclick="document.getElementById('filesInput').click()">
+        <span style="font-size: 32px;">📥</span><br><br>
+        <span style="color: var(--text-main); font-size: 16px; font-weight: bold;">点击选择图片，或将图片拖拽到此处</span><br>
+        <span style="color: var(--text-sub); font-size: 12px; margin-top: 8px; display: inline-block;">(支持多选 PNG/JPG)</span>
+        <input type="file" id="filesInput" multiple accept="image/png, image/jpeg">
+    </div>
+
+    <div id="settings">
+        <label style="color: #67c23a; font-weight: bold;">图集命名: 
+            <input type="text" id="exportName" value="my_atlas" style="width: 120px;" placeholder="输入英文名">
+        </label>
+        
+        <label style="border-left: 1px solid #555; padding-left: 15px;">最大宽: <input type="number" id="maxWidth" value="1024" style="width: 60px;"></label>
+        <label>间隙: <input type="number" id="padding" value="2" style="width: 40px;"></label>
+        
+        <label style="border-left: 1px solid #555; padding-left: 15px;">格式: 
+            <select id="exportFormat">
+                <option value="json">JSON (.json)</option>
+                <option value="plist">Plist (.plist)</option>
+            </select>
+        </label>
+
+        <button id="packBtn" class="btn" style="display:none;">重新排版</button>
+        <button id="downloadBtn" class="btn btn-success" style="display:none; margin-left:auto;">⬇️ 打包下载</button>
+    </div>
+
+    <div id="status" style="font-weight: bold;"></div>
+    <div id="previewContainer">
+        <canvas id="atlasCanvas"></canvas>
+    </div>
+</div>
+
+<script>
+    let rawImages = [];
+    let atlasDataObj = null;
+    const dropZone = document.getElementById('dropZone');
+
+    // ================= 1. 拖拽与文件读取逻辑 =================
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+    ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false));
+    ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false));
+
+    dropZone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+    document.getElementById('filesInput').addEventListener('change', (e) => handleFiles(e.target.files));
+
+    async function handleFiles(files) {
+        if (!files || files.length === 0) return;
+        
+        rawImages = [];
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = `⏳ 正在读取 ${files.length} 张图片...`;
+        statusEl.style.color = '#e6a23c';
+        
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (!file.type.startsWith('image/')) continue;
+            const img = await loadImage(URL.createObjectURL(file));
+            rawImages.push({ name: file.name, img: img, w: img.width, h: img.height });
+        }
+        
+        document.getElementById('packBtn').style.display = 'inline-block';
+        document.getElementById('packBtn').click(); 
+    }
+
+    // ================= 2. 核心打包算法 =================
+    document.getElementById('packBtn').addEventListener('click', function() {
+        if (rawImages.length === 0) return;
+
+        const maxWidth = parseInt(document.getElementById('maxWidth').value) || 1024;
+        const padding = parseInt(document.getElementById('padding').value) || 2;
+
+        rawImages.sort((a, b) => b.h - a.h); 
+
+        let currentX = padding; let currentY = padding; let rowHeight = 0;
+        let finalAtlasWidth = 0; let finalAtlasHeight = 0;
+
+        atlasDataObj = { frames: {}, meta: { format: "RGBA8888", size: {"w":0,"h":0} } };
+
+        for (let item of rawImages) {
+            if (currentX + item.w + padding > maxWidth) {
+                currentX = padding; currentY += rowHeight + padding; rowHeight = 0; 
+            }
+
+            item.x = currentX; item.y = currentY;
+
+            atlasDataObj.frames[item.name] = {
+                frame: { x: item.x, y: item.y, w: item.w, h: item.h },
+                rotated: false,
+                sourceSize: { w: item.w, h: item.h },
+                offset: { x: 0, y: 0 }
+            };
+
+            rowHeight = Math.max(rowHeight, item.h);
+            currentX += item.w + padding;
+            finalAtlasWidth = Math.max(finalAtlasWidth, currentX);
+            finalAtlasHeight = Math.max(finalAtlasHeight, currentY + rowHeight + padding);
+        }
+
+        const canvas = document.getElementById('atlasCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = finalAtlasWidth; canvas.height = finalAtlasHeight;
+        atlasDataObj.meta.size = { w: finalAtlasWidth, h: finalAtlasHeight };
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let item of rawImages) { ctx.drawImage(item.img, item.x, item.y); }
+
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = `✅ 排版成功！包含 ${rawImages.length} 张图，总尺寸: ${finalAtlasWidth} x ${finalAtlasHeight}`;
+        statusEl.style.color = '#67c23a';
+        document.getElementById('downloadBtn').style.display = 'inline-block';
+    });
+
+    // ================= 3. 导出 ZIP (同名关联逻辑) =================
+    document.getElementById('downloadBtn').addEventListener('click', async function() {
+        if (!atlasDataObj) return;
+        
+        // 1. 获取用户输入的基础名称，如果为空则设置默认值
+        let baseName = document.getElementById('exportName').value.trim();
+        if (!baseName) baseName = 'unnamed_atlas';
+        
+        // 确保文件名不带非法字符（简单过滤）
+        baseName = baseName.replace(/[\\/:*?"<>|]/g, '');
+
+        const zip = new JSZip();
+        const canvas = document.getElementById('atlasCanvas');
+        const imgBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        // 2. 贴图和数据文件使用相同的基准名
+        const textureName = `${baseName}.png`;
+        zip.file(textureName, imgBlob);
+
+        const format = document.getElementById('exportFormat').value;
+        if (format === 'json') {
+            // JSON 内部通常不强绑定图片名，但为了规范也可以写进 meta 中
+            atlasDataObj.meta.image = textureName;
+            zip.file(`${baseName}.json`, JSON.stringify(atlasDataObj, null, 2));
+        } else if (format === 'plist') {
+            // Plist 内部必须强绑定图片名，这里把图片名传进去
+            const plistString = generatePlistXML(atlasDataObj, textureName);
+            zip.file(`${baseName}.plist`, plistString);
+        }
+
+        const btn = this;
+        btn.innerText = '📦 打包中...';
+        const content = await zip.generateAsync({type: "blob"});
+        
+        // 3. ZIP 压缩包也使用同名下载
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `${baseName}.zip`; 
+        link.click();
+        
+        URL.revokeObjectURL(link.href);
+        btn.innerText = '⬇️ 打包下载';
+    });
+
+    // ================= 4. 工具函数 =================
+    function loadImage(url) { return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = url; }); }
+
+    // Plist 生成器，接收指定的图片名称
+    function generatePlistXML(data, textureFileName) {
+        let plist = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        plist += `<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n`;
+        plist += `<plist version="1.0">\n    <dict>\n        <key>frames</key>\n        <dict>\n`;
+        
+        for (let name in data.frames) {
+            let f = data.frames[name];
+            plist += `            <key>${name}</key>\n            <dict>\n`;
+            plist += `                <key>frame</key>\n                <string>{{${f.frame.x},${f.frame.y}},{${f.frame.w},${f.frame.h}}}</string>\n`;
+            plist += `                <key>offset</key>\n                <string>{${f.offset.x},${f.offset.y}}</string>\n`;
+            plist += `                <key>rotated</key>\n                <${f.rotated ? 'true' : 'false'}/>\n`;
+            plist += `                <key>sourceColorRect</key>\n                <string>{{0,0},{${f.sourceSize.w},${f.sourceSize.h}}}</string>\n`;
+            plist += `                <key>sourceSize</key>\n                <string>{${f.sourceSize.w},${f.sourceSize.h}}</string>\n`;
+            plist += `            </dict>\n`;
+        }
+        
+        plist += `        </dict>\n        <key>metadata</key>\n        <dict>\n`;
+        plist += `            <key>format</key>\n            <integer>2</integer>\n`;
+        // 核心：这里动态写入了同名的 PNG 文件名，确保引擎能正确关联
+        plist += `            <key>realTextureFileName</key>\n            <string>${textureFileName}</string>\n`;
+        plist += `            <key>size</key>\n            <string>{${data.meta.size.w},${data.meta.size.h}}</string>\n`;
+        plist += `            <key>smartupdate</key>\n            <string>$TexturePacker:SmartUpdate:mocked$</string>\n`;
+        plist += `            <key>textureFileName</key>\n            <string>${textureFileName}</string>\n`;
+        plist += `        </dict>\n    </dict>\n</plist>`;
+        
+        return plist;
+    }
+</script>
+
+</body>
+</html>
