@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Cocos 图集局部替换 (全视觉列表版)</title>
+    <title>Cocos 图集局部替换 (全视觉列表 + 纯净导出版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root { --bg-color: #1e1e1e; --container-bg: #2d2d2d; --text-main: #e0e0e0; --text-sub: #aaaaaa; --border-color: #444444; --accent-color: #e6a23c; --success-color: #67c23a; }
@@ -32,7 +32,6 @@
             background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0px; background-color: #333;
         }
         
-        /* 列表内的小缩略图 */
         .list-thumbnail {
             width: 36px; height: 36px; object-fit: contain; border-radius: 4px; border: 1px solid #555; margin-right: 12px;
             background-image: linear-gradient(45deg, #444 25%, transparent 25%), linear-gradient(-45deg, #444 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #444 75%), linear-gradient(-45deg, transparent 75%, #444 75%); 
@@ -42,19 +41,9 @@
         .mapping-info { display: flex; align-items: center; width: 150px; flex-direction: column; justify-content: center; text-align: center; }
         .mapping-name { font-size: 14px; color: #fff; margin-top: 8px; word-break: break-all; }
         
-        /* === 优化的可视列表容器 === */
         .target-list {
-            flex: 1;
-            height: 250px; /* 加高列表，展示更多缩略图 */
-            overflow-y: auto;
-            background: #111;
-            border: 1px solid #555;
-            border-radius: 6px;
-            padding: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            margin-left: 20px;
+            flex: 1; height: 250px; overflow-y: auto; background: #111; border: 1px solid #555;
+            border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; margin-left: 20px;
         }
         
         .target-list::-webkit-scrollbar { width: 8px; }
@@ -62,25 +51,12 @@
         .target-list::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
         .target-list::-webkit-scrollbar-thumb:hover { background: #777; }
 
-        .target-option {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: 0.1s;
-            border: 1px solid transparent;
-            background: #1a1a1a;
-        }
+        .target-option { display: flex; align-items: center; padding: 8px 12px; cursor: pointer; border-radius: 4px; transition: 0.1s; border: 1px solid transparent; background: #1a1a1a; }
         .target-option:hover { background: #2a2a2a; border-color: #444; }
         .target-option input[type="radio"] { margin-right: 15px; cursor: pointer; accent-color: var(--success-color); transform: scale(1.2); }
         .target-option span { font-size: 14px; color: #ccc; }
         
-        /* 选中状态高亮 */
-        .target-option:has(input:checked) {
-            background: rgba(103, 194, 58, 0.15);
-            border-color: var(--success-color);
-        }
+        .target-option:has(input:checked) { background: rgba(103, 194, 58, 0.15); border-color: var(--success-color); }
         .target-option:has(input:checked) span { color: var(--success-color); font-weight: bold; }
         
         #previewContainer { overflow: auto; max-height: 500px; border: 1px solid var(--border-color); background-image: linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px; background-color: #333; }
@@ -93,8 +69,8 @@
 <body>
 
 <div class="container">
-    <h2>🩹 Cocos 图集补丁工具 (全视觉列表版)</h2>
-    <p>拖入原图集和新补丁，<b>所有图集内的图标均已生成缩略图</b>，所见即所得，拒绝盲选！</p>
+    <h2>🩹 Cocos 图集补丁工具 (双画布纯净导出版)</h2>
+    <p>拖入原图集和新补丁，<b>预览时提供高亮提示，导出的文件绝对纯净、无冗余遮罩！</b></p>
 
     <div class="flex-row">
         <div class="upload-area" id="baseDrop" onclick="document.getElementById('baseInput').click()">
@@ -141,7 +117,10 @@
     let atlasFrameNames = []; 
     
     let patchImages = []; 
-    let thumbnailCache = {}; // 新增：性能优化核心！缓存缩略图 Base64
+    let thumbnailCache = {}; 
+    
+    // ⭐ 新增核心：创建一个隐藏在内存中的“纯净版”画布，专门用来导出
+    let exportCanvas = document.createElement('canvas'); 
 
     const logArea = document.getElementById('logArea');
     function log(msg, type = 'normal') {
@@ -184,7 +163,7 @@
         }
 
         atlasFrameNames = Object.keys(framesData);
-        thumbnailCache = {}; // 换图集时清空缓存
+        thumbnailCache = {}; 
         
         document.getElementById('baseDrop').classList.add('has-file');
         document.getElementById('baseStatus').innerText = `✅ 已加载: 包含 ${atlasFrameNames.length} 张图`;
@@ -216,7 +195,7 @@
 
     // ================= 3. 高性能生成缩略图 =================
     function getThumbnail(targetName) {
-        if (thumbnailCache[targetName]) return thumbnailCache[targetName]; // 命中缓存直接返回
+        if (thumbnailCache[targetName]) return thumbnailCache[targetName]; 
 
         const fd = framesData[targetName];
         const canvas = document.createElement('canvas');
@@ -237,7 +216,6 @@
         }
         ctx.restore();
 
-        // 存入缓存
         thumbnailCache[targetName] = canvas.toDataURL("image/png");
         return thumbnailCache[targetName];
     }
@@ -263,7 +241,6 @@
             const item = document.createElement('div');
             item.className = 'mapping-item';
             
-            // 智能匹配名字
             let autoMatchValue = "";
             let nameWithoutExt = patch.name.replace(/\.[^/.]+$/, "");
             if (atlasFrameNames.includes(patch.name)) autoMatchValue = patch.name;
@@ -272,11 +249,10 @@
 
             const groupName = `target_${index}`; 
 
-            // 一次性生成所有选项的 HTML，包含真实缩略图
             let optionsHtml = '';
             for (let name of sortedNames) {
                 let isChecked = (name === autoMatchValue) ? 'checked' : '';
-                let thumbSrc = getThumbnail(name); // 调用缓存方法获取图片
+                let thumbSrc = getThumbnail(name); 
                 
                 optionsHtml += `
                     <label class="target-option" id="label-${index}-${name.replace(/[^a-zA-Z0-9]/g, '')}">
@@ -301,7 +277,6 @@
             `;
             listDiv.appendChild(item);
 
-            // 智能滚动到匹配项
             if (autoMatchValue) {
                 setTimeout(() => {
                     const scrollContainer = document.getElementById(`list-${index}`);
@@ -317,24 +292,30 @@
         applyBtn.disabled = false;
     }
 
-    // ================= 5. 执行替换逻辑 =================
+    // ================= 5. 执行替换逻辑 (双画布核心) =================
     document.getElementById('applyBtn').addEventListener('click', function() {
         logArea.innerHTML = ''; 
         document.getElementById('previewContainer').style.display = 'block';
 
+        // 1. 设置展示画布 (可见，带红框)
         const canvas = document.getElementById('atlasCanvas');
         const ctx = canvas.getContext('2d');
         canvas.width = baseImg.width;
         canvas.height = baseImg.height;
-
         ctx.drawImage(baseImg, 0, 0);
+
+        // 2. 设置纯净导出画布 (内存中，不画红框)
+        exportCanvas.width = baseImg.width;
+        exportCanvas.height = baseImg.height;
+        const exportCtx = exportCanvas.getContext('2d');
+        exportCtx.drawImage(baseImg, 0, 0);
 
         let successCount = 0;
 
         patchImages.forEach((patch, index) => {
             const checkedRadio = document.querySelector(`input[name="target_${index}"]:checked`);
             if (!checkedRadio) {
-                log(`跳过：新图 "${patch.name}" 未指定替换目标（没有勾选列表项）。`, 'error');
+                log(`跳过：新图 "${patch.name}" 未指定替换目标。`, 'error');
                 return;
             }
 
@@ -344,22 +325,32 @@
             const maxH = fd.rotated ? fd.frame.w : fd.frame.h;
 
             if (patch.img.width > maxW || patch.img.height > maxH) {
-                log(`失败：新图 "${patch.name}"(${patch.img.width}x${patch.img.height}) 尺寸大于目标空间(${maxW}x${maxH})，会导致溢出黑边。`, 'error');
+                log(`失败：新图 "${patch.name}" 尺寸过大。`, 'error');
                 return;
             }
 
+            // 同步擦除原区域
             ctx.clearRect(fd.frame.x, fd.frame.y, fd.frame.w, fd.frame.h);
+            exportCtx.clearRect(fd.frame.x, fd.frame.y, fd.frame.w, fd.frame.h);
 
-            ctx.save();
+            // 同步绘制新图
+            ctx.save(); exportCtx.save();
             if (fd.rotated) {
+                // 画展示板
                 ctx.translate(fd.frame.x + fd.frame.h / 2, fd.frame.y + fd.frame.w / 2);
                 ctx.rotate(-Math.PI / 2);
                 ctx.drawImage(patch.img, -fd.frame.h / 2, -fd.frame.w / 2);
+                // 画纯净板
+                exportCtx.translate(fd.frame.x + fd.frame.h / 2, fd.frame.y + fd.frame.w / 2);
+                exportCtx.rotate(-Math.PI / 2);
+                exportCtx.drawImage(patch.img, -fd.frame.h / 2, -fd.frame.w / 2);
             } else {
                 ctx.drawImage(patch.img, fd.frame.x, fd.frame.y);
+                exportCtx.drawImage(patch.img, fd.frame.x, fd.frame.y);
             }
-            ctx.restore();
+            ctx.restore(); exportCtx.restore();
 
+            // ⭐ 核心区别：仅在展示板上绘制红色半透明提示框
             ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
             ctx.fillRect(fd.frame.x, fd.frame.y, fd.frame.w, fd.frame.h);
 
@@ -373,11 +364,12 @@
         }
     });
 
-    // ================= 6. 导出压缩包 =================
+    // ================= 6. 导出压缩包 (使用纯净画布) =================
     document.getElementById('downloadBtn').addEventListener('click', async function() {
         const zip = new JSZip();
-        const canvas = document.getElementById('atlasCanvas');
-        const imgBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        // ⭐ 改动：这里不再使用 atlasCanvas，而是从 exportCanvas 取出纯净图片
+        const imgBlob = await new Promise(resolve => exportCanvas.toBlob(resolve, 'image/png'));
         zip.file(`${baseDataName}.png`, imgBlob);
 
         if (baseDataType === 'json') zip.file(`${baseDataName}.json`, baseDataText);
