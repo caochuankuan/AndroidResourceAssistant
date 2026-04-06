@@ -225,6 +225,11 @@ async function startLadder() {
                         if (result.withdrew) withdrawCount++;
                     }
 
+                    // 银行余额不足，停止当前账号
+                    if (result.bankEmpty) {
+                        addOutput(`🔚 [${user.name}] 银行余额不足无法取钱，停止当前账号`, 'warning');
+                        break;
+                    }
                     // 多账号模式：次数耗尽则停止当前账号
                     if (isMulti && result.exhausted) {
                         addOutput(`🔚 [${user.name}] 战斗次数已耗尽，切换下一个账号`, 'warning');
@@ -318,7 +323,8 @@ async function doFight(user, targetUid, withdrawAmount, cardCount, round, isMult
                 addOutput(`❌ 第 ${round} 次战斗失败（取钱后）: ${retryData.msg}`, 'error');
                 return { success: false, withdrew: true };
             }
-            addOutput(`❌ 取钱失败: ${wData.msg}`, 'error');
+            addOutput(`❌ 取钱失败: ${wData.msg}，银行余额不足，停止当前账号`, 'error');
+            return { success: false, bankEmpty: true };
         } else {
             addOutput(`⚠️ 未设置取钱金额，跳过`, 'warning');
         }
@@ -683,8 +689,9 @@ async function startVipLadder() {
                                     failCount++;
                                 }
                             } else {
-                                addOutput(`❌ 取钱失败: ${wData.msg}`, 'error');
+                                addOutput(`❌ 取钱失败: ${wData.msg}，银行余额不足，停止当前账号`, 'error');
                                 failCount++;
+                                break;
                             }
                         } else {
                             addOutput(`⚠️ 未设置取钱金额，跳过`, 'warning');
