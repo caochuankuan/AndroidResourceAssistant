@@ -18,22 +18,26 @@ function getApiBaseUrl(user) {
 document.addEventListener('DOMContentLoaded', function() {
     loadUsers();
     populateUserSelect();
-    
-    // 监听输入框变化
+    populateVipUserSelect();
+
+    // 监听普通版输入框变化
     const battleCountInput = document.getElementById('battleCount');
     const withdrawAmountInput = document.getElementById('withdrawAmount');
     const cardCountInput = document.getElementById('cardCount');
-    if (battleCountInput) {
-        battleCountInput.addEventListener('input', updateStartButtonState);
-    }
-    if (withdrawAmountInput) {
-        withdrawAmountInput.addEventListener('input', updateStartButtonState);
-    }
-    if (cardCountInput) {
-        cardCountInput.addEventListener('input', updateStartButtonState);
-    }
-    
+    if (battleCountInput) battleCountInput.addEventListener('input', updateStartButtonState);
+    if (withdrawAmountInput) withdrawAmountInput.addEventListener('input', updateStartButtonState);
+    if (cardCountInput) cardCountInput.addEventListener('input', updateStartButtonState);
+
+    // 监听VIP版输入框变化
+    const vipBattleCountInput = document.getElementById('vipBattleCount');
+    const vipWithdrawAmountInput = document.getElementById('vipWithdrawAmount');
+    const vipCardCountInput = document.getElementById('vipCardCount');
+    if (vipBattleCountInput) vipBattleCountInput.addEventListener('input', updateVipStartButtonState);
+    if (vipWithdrawAmountInput) vipWithdrawAmountInput.addEventListener('input', updateVipStartButtonState);
+    if (vipCardCountInput) vipCardCountInput.addEventListener('input', updateVipStartButtonState);
+
     updateStartButtonState();
+    updateVipStartButtonState();
 });
 
 // 返回首页
@@ -62,7 +66,17 @@ function populateUserSelect() {
     users.forEach(user => {
         const label = document.createElement('label');
         label.className = 'checkbox-item';
-        label.innerHTML = `<input type="checkbox" value="${user.id}" onchange="updateStartButtonState()"><span>${user.name}</span>`;
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = user.id;
+        cb.addEventListener('change', function() {
+            label.classList.toggle('checked', cb.checked);
+            updateStartButtonState();
+        });
+        const span = document.createElement('span');
+        span.textContent = user.name;
+        label.appendChild(cb);
+        label.appendChild(span);
         list.appendChild(label);
     });
 }
@@ -465,7 +479,17 @@ function populateVipUserSelect() {
     users.forEach(user => {
         const label = document.createElement('label');
         label.className = 'checkbox-item';
-        label.innerHTML = `<input type="checkbox" value="${user.id}" onchange="updateVipStartButtonState()"><span>${user.name}</span>`;
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = user.id;
+        cb.addEventListener('change', function() {
+            label.classList.toggle('checked', cb.checked);
+            updateVipStartButtonState();
+        });
+        const span = document.createElement('span');
+        span.textContent = user.name;
+        label.appendChild(cb);
+        label.appendChild(span);
         list.appendChild(label);
     });
 }
@@ -686,26 +710,4 @@ async function startVipLadder() {
     }
 }
 
-// 页面加载时也初始化VIP部分
-document.addEventListener('DOMContentLoaded', function() {
-    // 原有的初始化代码已存在
-    
-    // 添加VIP部分的初始化
-    populateVipUserSelect();
-    
-    // 监听VIP输入框变化
-    const vipBattleCountInput = document.getElementById('vipBattleCount');
-    const vipWithdrawAmountInput = document.getElementById('vipWithdrawAmount');
-    const vipCardCountInput = document.getElementById('vipCardCount');
-    if (vipBattleCountInput) {
-        vipBattleCountInput.addEventListener('input', updateVipStartButtonState);
-    }
-    if (vipWithdrawAmountInput) {
-        vipWithdrawAmountInput.addEventListener('input', updateVipStartButtonState);
-    }
-    if (vipCardCountInput) {
-        vipCardCountInput.addEventListener('input', updateVipStartButtonState);
-    }
-    
-    updateVipStartButtonState();
-});
+// 页面加载时也初始化VIP部分（已合并到上方 DOMContentLoaded）

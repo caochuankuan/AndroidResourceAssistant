@@ -264,7 +264,8 @@ body {
     cursor: pointer;
 }
 
-.checkbox-item:has(input:checked) {
+.checkbox-item:has(input:checked),
+.checkbox-item.checked {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-color: #667eea;
     color: white;
