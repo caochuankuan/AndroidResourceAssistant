@@ -215,6 +215,10 @@ async function startLadder() {
                 } catch (error) {
                     addOutput(`❌ 第 ${round} 次操作失败: ${error.message}`, 'error');
                     failCount++;
+                    if (error.message.includes('登录已过期') || error.message.includes('登陆已过期')) {
+                        addOutput(`🔚 [${user.name}] 登录已过期，切换下一个账号`, 'warning');
+                        break;
+                    }
                     // 遇到异常也继续，除非是多账号且已耗尽
                     await new Promise(r => setTimeout(r, 200));
                 }
@@ -658,6 +662,10 @@ async function startVipLadder() {
                 } catch (error) {
                     addOutput(`❌ 第 ${round} 次操作失败: ${error.message}`, 'error');
                     failCount++;
+                    if (error.message.includes('登录已过期') || error.message.includes('登陆已过期')) {
+                        addOutput(`🔚 [${user.name}] 登录已过期，切换下一个账号`, 'warning');
+                        break;
+                    }
                     await new Promise(r => setTimeout(r, 200));
                 }
             }
