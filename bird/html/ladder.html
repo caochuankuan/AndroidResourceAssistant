@@ -17,13 +17,14 @@
             <!-- 用户选择区域 -->
             <div id="userSelectionArea" class="user-selection-area">
                 <div class="battle-config">
-                    <div class="config-item">
-                        <label for="userSelect">选择用户（普通版）：</label>
-                        <select id="userSelect" onchange="updateStartButtonState()">
-                            <option value="">请选择用户</option>
-                        </select>
+                    <div class="config-item config-item--top">
+                        <label>选择用户（普通版）：</label>
+                        <div id="userCheckboxList" class="checkbox-list"></div>
                     </div>
-                    <div class="config-item">
+                    <div class="config-item multi-hint" id="multiHint" style="display:none;">
+                        <span class="hint-text">⚠️ 多账号模式：每个账号各战斗1次，战斗次数和购买恢复卡数量不可修改</span>
+                    </div>
+                    <div class="config-item" id="battleCountItem">
                         <label for="battleCount">战斗次数：</label>
                         <input type="number" id="battleCount" min="1" max="100" value="15" placeholder="请输入战斗次数">
                     </div>
@@ -35,14 +36,14 @@
                         <label for="withdrawAmount">金币不足时取钱：</label>
                         <input type="number" id="withdrawAmount" min="0" value="100000" placeholder="请输入取钱金额">
                     </div>
-                    <div class="config-item">
+                    <div class="config-item" id="cardCountItem">
                         <label for="cardCount">购买恢复卡数量：</label>
                         <input type="number" id="cardCount" min="1" value="10" placeholder="请输入购买数量">
                     </div>
                 </div>
 
                 <div class="action-area">
-                    <button id="startBtn" class="action-btn primary" onclick="startLadder()">
+                    <button id="startBtn" class="action-btn primary" onclick="startLadder()" disabled>
                         ⚔️ 开始天梯战斗
                     </button>
                 </div>
@@ -51,13 +52,14 @@
             <!-- VIP版用户选择区域 -->
             <div id="vipUserSelectionArea" class="user-selection-area">
                 <div class="battle-config">
-                    <div class="config-item">
-                        <label for="vipUserSelect">选择用户（游戏VIP版）：</label>
-                        <select id="vipUserSelect" onchange="updateVipStartButtonState()">
-                            <option value="">请选择用户</option>
-                        </select>
+                    <div class="config-item config-item--top">
+                        <label>选择用户（游戏VIP版）：</label>
+                        <div id="vipUserCheckboxList" class="checkbox-list"></div>
                     </div>
-                    <div class="config-item">
+                    <div class="config-item multi-hint" id="vipMultiHint" style="display:none;">
+                        <span class="hint-text">⚠️ 多账号模式：每个账号各战斗1次，战斗次数和购买恢复卡数量不可修改</span>
+                    </div>
+                    <div class="config-item" id="vipBattleCountItem">
                         <label for="vipBattleCount">战斗次数：</label>
                         <input type="number" id="vipBattleCount" min="1" max="100" value="15" placeholder="请输入战斗次数">
                     </div>
@@ -65,14 +67,14 @@
                         <label for="vipWithdrawAmount">金币不足时取钱：</label>
                         <input type="number" id="vipWithdrawAmount" min="0" value="100000" placeholder="请输入取钱金额">
                     </div>
-                    <div class="config-item">
+                    <div class="config-item" id="vipCardCountItem">
                         <label for="vipCardCount">购买恢复卡数量：</label>
                         <input type="number" id="vipCardCount" min="1" value="10" placeholder="请输入购买数量">
                     </div>
                 </div>
 
                 <div class="action-area">
-                    <button id="vipStartBtn" class="action-btn primary" onclick="startVipLadder()">
+                    <button id="vipStartBtn" class="action-btn primary" onclick="startVipLadder()" disabled>
                         👑 VIP天梯战斗
                     </button>
                 </div>

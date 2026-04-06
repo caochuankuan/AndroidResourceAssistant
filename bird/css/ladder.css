@@ -225,6 +225,79 @@ body {
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+/* checkbox 用户列表 */
+.checkbox-list {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    background: white;
+    min-height: 48px;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1.5px solid #e9ecef;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.checkbox-item:hover {
+    border-color: #667eea;
+    background: #f0f2ff;
+}
+
+.checkbox-item input[type=checkbox] {
+    accent-color: #667eea;
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+.checkbox-item:has(input:checked) {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: #667eea;
+    color: white;
+}
+
+.checkbox-empty {
+    font-size: 14px;
+    color: #adb5bd;
+    padding: 4px 6px;
+}
+
+/* 多账号提示 */
+.multi-hint {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    padding: 8px 12px;
+}
+
+.hint-text {
+    font-size: 13px;
+    color: #856404;
+}
+
+/* label 对齐顶部（用于 checkbox 列表） */
+.config-item--top {
+    align-items: flex-start;
+}
+
+.config-item--top > label {
+    padding-top: 12px;
+}
+
 /* 按钮样式 */
 .action-btn {
     padding: 12px 24px;

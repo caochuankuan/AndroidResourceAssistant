@@ -49,79 +49,91 @@ function loadUsers() {
     }
 }
 
-// 填充用户下拉列表
+// 填充用户勾选列表
 function populateUserSelect() {
-    const userSelect = document.getElementById('userSelect');
-    
-    // 清空现有选项（保留第一个默认选项）
-    userSelect.innerHTML = '<option value="">请选择用户</option>';
-    
+    const list = document.getElementById('userCheckboxList');
+    list.innerHTML = '';
+
     if (users.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = '暂无用户，请先添加用户';
-        option.disabled = true;
-        userSelect.appendChild(option);
+        list.innerHTML = '<span class="checkbox-empty">暂无用户，请先添加用户</span>';
         return;
     }
-    
+
     users.forEach(user => {
-        const option = document.createElement('option');
-        option.value = user.id;
-        option.textContent = user.name;
-        userSelect.appendChild(option);
+        const label = document.createElement('label');
+        label.className = 'checkbox-item';
+        label.innerHTML = `<input type="checkbox" value="${user.id}" onchange="updateStartButtonState()"><span>${user.name}</span>`;
+        list.appendChild(label);
     });
 }
 
-// 获取选中的用户
+// 获取选中的用户（checkbox 多选）
+function getSelectedUsers() {
+    const checked = document.querySelectorAll('#userCheckboxList input[type=checkbox]:checked');
+    const ids = Array.from(checked).map(c => c.value);
+    return users.filter(u => ids.includes(u.id));
+}
+
+// 兼容旧调用
 function getSelectedUser() {
-    const userSelect = document.getElementById('userSelect');
-    const selectedUserId = userSelect.value;
-    if (!selectedUserId) return null;
-    return users.find(u => u.id === selectedUserId);
+    const selected = getSelectedUsers();
+    return selected.length > 0 ? selected[0] : null;
 }
 
 // 更新开始按钮状态
 function updateStartButtonState() {
     const startBtn = document.getElementById('startBtn');
-    const userSelect = document.getElementById('userSelect');
-    const battleCount = document.getElementById('battleCount').value;
-    const selectedUserId = userSelect.value;
-    
-    if (!selectedUserId) {
+    const selectedUsers = getSelectedUsers();
+    const isMulti = selectedUsers.length > 1;
+    const battleCountInput = document.getElementById('battleCount');
+    const cardCountInput = document.getElementById('cardCount');
+    const multiHint = document.getElementById('multiHint');
+
+    // 多账号时隐藏战斗次数和购买恢复卡
+    document.getElementById('battleCountItem').style.display = isMulti ? 'none' : '';
+    document.getElementById('cardCountItem').style.display = isMulti ? 'none' : '';
+    battleCountInput.disabled = false;
+    cardCountInput.disabled = false;
+    multiHint.style.display = isMulti ? 'flex' : 'none';
+
+    const battleCount = battleCountInput.value;
+
+    if (selectedUsers.length === 0) {
         startBtn.disabled = true;
         startBtn.textContent = '⚔️ 请先选择用户';
-    } else if (!battleCount || battleCount < 1) {
+    } else if (!isMulti && (!battleCount || battleCount < 1)) {
         startBtn.disabled = true;
         startBtn.textContent = '⚔️ 请输入战斗次数';
     } else {
         startBtn.disabled = false;
-        const user = users.find(u => u.id === selectedUserId);
-        startBtn.textContent = `⚔️ 开始天梯战斗 (${user?.name} - ${battleCount}次)`;
+        if (isMulti) {
+            startBtn.textContent = `⚔️ 开始天梯战斗 (${selectedUsers.length}个账号，各打到耗尽)`;
+        } else {
+            startBtn.textContent = `⚔️ 开始天梯战斗 (${selectedUsers[0]?.name} - ${battleCount}次)`;
+        }
     }
 }
 
 // 开始一键天梯
 async function startLadder() {
-    const user = getSelectedUser();
-    if (!user) {
-        alert('请先选择一个用户');
+    const selectedUsers = getSelectedUsers();
+    if (selectedUsers.length === 0) {
+        alert('请先选择用户');
         return;
     }
 
-    const battleCount = parseInt(document.getElementById('battleCount').value);
-    if (!battleCount || battleCount < 1) {
+    const isMulti = selectedUsers.length > 1;
+    const battleCount = isMulti ? 0 : parseInt(document.getElementById('battleCount').value);
+    if (!isMulti && (!battleCount || battleCount < 1)) {
         alert('请输入有效的战斗次数（至少1次）');
         return;
     }
 
     const targetIndexInput = document.getElementById('targetIndex');
     const targetIndex = targetIndexInput && targetIndexInput.value ? parseInt(targetIndexInput.value) : null;
-
     const withdrawAmount = parseInt(document.getElementById('withdrawAmount').value) || 0;
-    const cardCount = parseInt(document.getElementById('cardCount').value) || 10;
+    const cardCount = isMulti ? 10 : (parseInt(document.getElementById('cardCount').value) || 10);
 
-    // 隐藏用户选择区域，显示输出区域
     document.getElementById('userSelectionArea').style.display = 'none';
     document.getElementById('outputArea').style.display = 'flex';
 
@@ -131,411 +143,201 @@ async function startLadder() {
     startBtn.textContent = '执行中...';
 
     try {
-        addOutput(`⚔️ 开始一键天梯操作...`, 'info');
-        addOutput(`用户: ${user.name}`, 'info');
-        addOutput(`战斗次数: ${battleCount}`, 'info');
-        if (targetIndex) {
-            addOutput(`指定攻击对手位置: 第 ${targetIndex} 个`, 'info');
+        if (isMulti) {
+            addOutput(`⚔️ 多账号天梯模式，共 ${selectedUsers.length} 个账号，每账号打到次数耗尽为止`, 'info');
         } else {
-            addOutput(`攻击策略: 默认攻击最后一个`, 'info');
+            addOutput(`⚔️ 开始一键天梯操作...`, 'info');
         }
-        addOutput(`金币不足时取钱: ${withdrawAmount} 金币`, 'info');
-        addOutput(`购买恢复卡数量: ${cardCount} 张`, 'info');
-        addOutput(`将进行${battleCount}次战斗，每次都会重新获取最后一个对手`, 'info');
-        addOutput(`\n=== 天梯战斗开始 ===\n`, 'info');
 
-        let successCount = 0;
-        let failCount = 0;
-        let withdrawCount = 0;
-        let winCount = 0;
-        let loseCount = 0;
+        // 遍历每个账号
+        for (const user of selectedUsers) {
+            addOutput(`\n👤 账号: ${user.name}${isMulti ? '，打到次数耗尽为止' : `，战斗 ${battleCount} 次`}`, 'info');
+            if (targetIndex) addOutput(`指定攻击对手位置: 第 ${targetIndex} 个`, 'info');
+            addOutput(`金币不足时取钱: ${withdrawAmount}，购买恢复卡: ${cardCount} 张`, 'info');
+            addOutput(`=== 开始战斗 ===`, 'info');
 
-        // 连续N次战斗，每次都重新获取目标
-        for (let i = 1; i <= battleCount; i++) {
-            try {
-                // 获取天梯列表
-                addOutput(`第 ${i}/${battleCount} 次 - 正在获取天梯列表...`, 'info');
-                const surroundResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/surround`, {
-                    method: 'GET',
-                    headers: {
-                        'authorization': user.sso,
-                        'Content-Type': 'application/json'
+            let successCount = 0, failCount = 0, withdrawCount = 0, winCount = 0, loseCount = 0;
+            let round = 0;
+
+            while (true) {
+                round++;
+                // 单账号模式：达到指定次数就停
+                if (!isMulti && round > battleCount) break;
+
+                try {
+                    addOutput(`第 ${round} 次 - 正在获取天梯列表...`, 'info');
+                    const surroundResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/surround`, {
+                        method: 'GET',
+                        headers: { 'authorization': user.sso, 'Content-Type': 'application/json' }
+                    });
+
+                    if (!surroundResponse.ok) throw new Error(`获取天梯列表失败: HTTP ${surroundResponse.status}`);
+
+                    const surroundData = JSON.parse(await surroundResponse.text());
+                    if (surroundData.code !== 200) throw new Error(`获取天梯列表失败: ${surroundData.msg || '未知错误'}`);
+
+                    const ladderList = surroundData.data || [];
+                    if (ladderList.length === 0) {
+                        addOutput(`第 ${round} 次 - 天梯列表为空，跳过`, 'warning');
+                        failCount++;
+                        await new Promise(r => setTimeout(r, 200));
+                        continue;
                     }
-                });
 
-                if (!surroundResponse.ok) {
-                    throw new Error(`获取天梯列表失败: HTTP ${surroundResponse.status}`);
-                }
-
-                const surroundText = await surroundResponse.text();
-                const surroundData = JSON.parse(surroundText);
-
-                if (surroundData.code !== 200) {
-                    throw new Error(`获取天梯列表失败: ${surroundData.msg || '未知错误'}`);
-                }
-
-                const ladderList = surroundData.data || [];
-                if (ladderList.length === 0) {
-                    addOutput(`第 ${i} 次 - 天梯列表为空，跳过此次战斗`, 'warning');
-                    failCount++;
-                    continue;
-                }
-
-                // 获取目标对手
-                let targetPlayer;
-                if (targetIndex && targetIndex > 0) {
-                    if (targetIndex <= ladderList.length) {
-                        targetPlayer = ladderList[targetIndex - 1];
+                    let targetPlayer;
+                    if (targetIndex && targetIndex > 0) {
+                        targetPlayer = targetIndex <= ladderList.length ? ladderList[targetIndex - 1] : ladderList[ladderList.length - 1];
+                        if (targetIndex > ladderList.length) addOutput(`⚠️ 指定位置超出列表，攻击最后一个`, 'warning');
                     } else {
-                        addOutput(`⚠️ 指定位置 ${targetIndex} 超出列表长度 (${ladderList.length})，将攻击最后一个`, 'warning');
                         targetPlayer = ladderList[ladderList.length - 1];
                     }
-                } else {
-                    targetPlayer = ladderList[ladderList.length - 1];
-                }
 
-                const targetUid = targetPlayer.uid;
-                
-                addOutput(`第 ${i}/${battleCount} 次 - 目标对手: UID ${targetUid}, 积分: ${targetPlayer.points}, 排名: ${targetPlayer.rank}`, 'info');
+                    const targetUid = targetPlayer.uid;
+                    addOutput(`第 ${round} 次 - 目标: UID ${targetUid}, 积分: ${targetPlayer.points}, 排名: ${targetPlayer.rank}`, 'info');
 
-                // 进行战斗
-                const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
-                    method: 'POST',
-                    headers: {
-                        'authorization': user.sso,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const fightText = await fightResponse.text();
-                
-                if (fightResponse.ok) {
-                    try {
-                        const fightData = JSON.parse(fightText);
-                        if (fightData.code === 200) {
-                            const isWin = fightData.data?.win === true;
-                            const winResult = isWin ? '赢了 🎉' : '输了 😢';
-                            addOutput(`✅ 第 ${i} 次战斗成功 - ${winResult}`, 'success');
-                            if (fightData.data) {
-                                const resultStr = JSON.stringify(fightData.data);
-                                addOutput(`战斗结果: ${resultStr.length > 50 ? resultStr.substring(0, 50) + '...' : resultStr}`, 'info');
-                            }
-                            successCount++;
-                            if (isWin) {
-                                winCount++;
-                            } else {
-                                loseCount++;
-                            }
-                        } else if (fightData.code === 500 && fightData.msg && fightData.msg.includes('战斗次数不足')) {
-                            // 战斗次数不足，使用战斗恢复卡
-                            addOutput(`⚠️ 第 ${i} 次战斗失败: ${fightData.msg}`, 'warning');
-                            addOutput(`🎴 尝试使用战斗恢复卡（道具ID: 32）...`, 'info');
-                            
-                            const usePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
-                                method: 'POST',
-                                headers: {
-                                    'authorization': user.sso,
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-
-                            const usePropText = await usePropResponse.text();
-                            
-                            if (usePropResponse.ok) {
-                                try {
-                                    const usePropData = JSON.parse(usePropText);
-                                    if (usePropData.code === 200) {
-                                        addOutput(`✅ 战斗恢复卡使用成功`, 'success');
-                                        
-                                        // 使用道具成功后重新战斗
-                                        addOutput(`🔄 重新进行第 ${i} 次战斗...`, 'info');
-                                        
-                                        const retryFightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
-                                            method: 'POST',
-                                            headers: {
-                                                'authorization': user.sso,
-                                                'Content-Type': 'application/json'
-                                            }
-                                        });
-
-                                        const retryFightText = await retryFightResponse.text();
-                                        
-                                        if (retryFightResponse.ok) {
-                                            const retryFightData = JSON.parse(retryFightText);
-                                            if (retryFightData.code === 200) {
-                                                const isWin = retryFightData.data?.win === true;
-                                                const winResult = isWin ? '赢了 🎉' : '输了 😢';
-                                                addOutput(`✅ 第 ${i} 次战斗成功（使用恢复卡后）- ${winResult}`, 'success');
-                                                if (retryFightData.data) {
-                                                    const resultStr = JSON.stringify(retryFightData.data);
-                                                    addOutput(`战斗结果: ${resultStr.length > 50 ? resultStr.substring(0, 50) + '...' : resultStr}`, 'info');
-                                                }
-                                                successCount++;
-                                                if (isWin) {
-                                                    winCount++;
-                                                } else {
-                                                    loseCount++;
-                                                }
-                                            } else {
-                                                addOutput(`❌ 第 ${i} 次战斗失败（使用恢复卡后）: ${retryFightData.msg || '未知错误'}`, 'error');
-                                                failCount++;
-                                            }
-                                        } else {
-                                            addOutput(`❌ 第 ${i} 次战斗失败（使用恢复卡后）: HTTP ${retryFightResponse.status}`, 'error');
-                                            failCount++;
-                                        }
-                                    } else if (usePropData.code === 500 && usePropData.msg && usePropData.msg.includes('你没有战斗恢复卡可用')) {
-                                        // 没有恢复卡，尝试购买
-                                        addOutput(`⚠️ 没有战斗恢复卡可用`, 'warning');
-                                        addOutput(`🛒 尝试购买 ${cardCount} 张战斗恢复卡...`, 'info');
-                                        
-                                        const buyResponse = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
-                                            method: 'POST',
-                                            headers: {
-                                                'authorization': user.sso,
-                                                'Content-Type': 'application/json'
-                                            }
-                                        });
-
-                                        const buyText = await buyResponse.text();
-                                        
-                                        if (buyResponse.ok) {
-                                            try {
-                                                const buyData = JSON.parse(buyText);
-                                                if (buyData.code === 200) {
-                                                    addOutput(`✅ 购买战斗恢复卡成功，已购买 ${cardCount} 张`, 'success');
-                                                    
-                                                    // 购买成功后再次使用恢复卡
-                                                    addOutput(`🎴 再次尝试使用战斗恢复卡...`, 'info');
-                                                    
-                                                    const retryUsePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
-                                                        method: 'POST',
-                                                        headers: {
-                                                            'authorization': user.sso,
-                                                            'Content-Type': 'application/json'
-                                                        }
-                                                    });
-
-                                                    const retryUsePropText = await retryUsePropResponse.text();
-                                                    
-                                                    if (retryUsePropResponse.ok) {
-                                                        const retryUsePropData = JSON.parse(retryUsePropText);
-                                                        if (retryUsePropData.code === 200) {
-                                                            addOutput(`✅ 战斗恢复卡使用成功`, 'success');
-                                                            
-                                                            // 使用道具成功后重新战斗
-                                                            addOutput(`🔄 重新进行第 ${i} 次战斗...`, 'info');
-                                                            
-                                                            const retryFightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
-                                                                method: 'POST',
-                                                                headers: {
-                                                                    'authorization': user.sso,
-                                                                    'Content-Type': 'application/json'
-                                                                }
-                                                            });
-
-                                                            const retryFightText = await retryFightResponse.text();
-                                                            
-                                                            if (retryFightResponse.ok) {
-                                                                const retryFightData = JSON.parse(retryFightText);
-                                                                if (retryFightData.code === 200) {
-                                                                    const isWin = retryFightData.data?.win === true;
-                                                                    const winResult = isWin ? '赢了 🎉' : '输了 😢';
-                                                                    addOutput(`✅ 第 ${i} 次战斗成功（购买并使用恢复卡后）- ${winResult}`, 'success');
-                                                                    if (retryFightData.data) {
-                                                                        const resultStr = JSON.stringify(retryFightData.data);
-                                                                        addOutput(`战斗结果: ${resultStr.length > 50 ? resultStr.substring(0, 50) + '...' : resultStr}`, 'info');
-                                                                    }
-                                                                    successCount++;
-                                                                    if (isWin) {
-                                                                        winCount++;
-                                                                    } else {
-                                                                        loseCount++;
-                                                                    }
-                                                                } else {
-                                                                    addOutput(`❌ 第 ${i} 次战斗失败（购买并使用恢复卡后）: ${retryFightData.msg || '未知错误'}`, 'error');
-                                                                    failCount++;
-                                                                }
-                                                            } else {
-                                                                addOutput(`❌ 第 ${i} 次战斗失败（购买并使用恢复卡后）: HTTP ${retryFightResponse.status}`, 'error');
-                                                                failCount++;
-                                                            }
-                                                        } else {
-                                                            addOutput(`❌ 使用战斗恢复卡失败: ${retryUsePropData.msg || '未知错误'}`, 'error');
-                                                            failCount++;
-                                                        }
-                                                    } else {
-                                                        addOutput(`❌ 使用战斗恢复卡失败: HTTP ${retryUsePropResponse.status}`, 'error');
-                                                        failCount++;
-                                                    }
-                                                } else {
-                                                    addOutput(`❌ 购买战斗恢复卡失败: ${buyData.msg || '未知错误'}`, 'error');
-                                                    addOutput(`第 ${i} 次战斗因战斗次数不足失败`, 'error');
-                                                    failCount++;
-                                                }
-                                            } catch (parseError) {
-                                                addOutput(`❌ 购买响应解析错误`, 'error');
-                                                failCount++;
-                                            }
-                                        } else {
-                                            addOutput(`❌ 购买战斗恢复卡失败: HTTP ${buyResponse.status}`, 'error');
-                                            failCount++;
-                                        }
-                                    } else {
-                                        addOutput(`❌ 使用战斗恢复卡失败: ${usePropData.msg || '未知错误'}`, 'error');
-                                        addOutput(`第 ${i} 次战斗因战斗次数不足失败`, 'error');
-                                        failCount++;
-                                    }
-                                } catch (parseError) {
-                                    addOutput(`❌ 使用道具响应解析错误`, 'error');
-                                    failCount++;
-                                }
-                            } else {
-                                addOutput(`❌ 使用战斗恢复卡失败: HTTP ${usePropResponse.status}`, 'error');
-                                failCount++;
-                            }
-                        } else if (fightData.code === 500 && fightData.msg && fightData.msg.includes('金币不足')) {
-                            // 金币不足，尝试取钱
-                            addOutput(`⚠️ 第 ${i} 次战斗失败: ${fightData.msg}`, 'warning');
-                            
-                            if (withdrawAmount > 0) {
-                                addOutput(`💰 尝试从钱庄取钱 ${withdrawAmount} 金币...`, 'info');
-                                
-                                const withdrawResponse = await fetch(`${getApiBaseUrl(user)}/api/qianzhuang/qk?num=${withdrawAmount}`, {
-                                    method: 'PUT',
-                                    headers: {
-                                        'authorization': user.sso,
-                                        'Content-Type': 'application/json'
-                                    }
-                                });
-
-                                const withdrawText = await withdrawResponse.text();
-                                
-                                if (withdrawResponse.ok) {
-                                    try {
-                                        const withdrawData = JSON.parse(withdrawText);
-                                        if (withdrawData.code === 200) {
-                                            addOutput(`✅ 取钱成功，已取出 ${withdrawAmount} 金币`, 'success');
-                                            withdrawCount++;
-                                            
-                                            // 取钱成功后重新战斗
-                                            addOutput(`🔄 重新进行第 ${i} 次战斗...`, 'info');
-                                            
-                                            const retryFightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`, {
-                                                method: 'POST',
-                                                headers: {
-                                                    'authorization': user.sso,
-                                                    'Content-Type': 'application/json'
-                                                }
-                                            });
-
-                                            const retryFightText = await retryFightResponse.text();
-                                            
-                                            if (retryFightResponse.ok) {
-                                                const retryFightData = JSON.parse(retryFightText);
-                                                if (retryFightData.code === 200) {
-                                                    const isWin = retryFightData.data?.win === true;
-                                                    const winResult = isWin ? '赢了 🎉' : '输了 😢';
-                                                    addOutput(`✅ 第 ${i} 次战斗成功（重试后）- ${winResult}`, 'success');
-                                                    if (retryFightData.data) {
-                                                        const resultStr = JSON.stringify(retryFightData.data);
-                                                        addOutput(`战斗结果: ${resultStr.length > 50 ? resultStr.substring(0, 50) + '...' : resultStr}`, 'info');
-                                                    }
-                                                    successCount++;
-                                                    if (isWin) {
-                                                        winCount++;
-                                                    } else {
-                                                        loseCount++;
-                                                    }
-                                                } else {
-                                                    addOutput(`❌ 第 ${i} 次战斗失败（重试后）: ${retryFightData.msg || '未知错误'}`, 'error');
-                                                    failCount++;
-                                                }
-                                            } else {
-                                                addOutput(`❌ 第 ${i} 次战斗失败（重试后）: HTTP ${retryFightResponse.status}`, 'error');
-                                                failCount++;
-                                            }
-                                        } else {
-                                            addOutput(`❌ 取钱失败: ${withdrawData.msg || '未知错误'}`, 'error');
-                                            addOutput(`第 ${i} 次战斗因金币不足失败`, 'error');
-                                            failCount++;
-                                        }
-                                    } catch (parseError) {
-                                        addOutput(`❌ 取钱响应解析错误`, 'error');
-                                        failCount++;
-                                    }
-                                } else {
-                                    addOutput(`❌ 取钱失败: HTTP ${withdrawResponse.status}`, 'error');
-                                    failCount++;
-                                }
-                            } else {
-                                addOutput(`⚠️ 未设置取钱金额，跳过此次战斗`, 'warning');
-                                failCount++;
-                            }
-                        } else {
-                            addOutput(`❌ 第 ${i} 次战斗失败: ${fightData.msg || '未知错误'}`, 'error');
-                            if (fightData.data) {
-                                addOutput(`错误数据: ${JSON.stringify(fightData.data)}`, 'error');
-                            }
-                            failCount++;
-                        }
-                    } catch (parseError) {
-                        addOutput(`❌ 第 ${i} 次战斗失败: 响应解析错误`, 'error');
-                        addOutput(`原始响应: ${fightText}`, 'error');
+                    // 执行战斗（含恢复卡/取钱重试逻辑）
+                    const result = await doFight(user, targetUid, withdrawAmount, cardCount, round, isMulti);
+                    if (result.success) {
+                        successCount++;
+                        if (result.win) winCount++; else loseCount++;
+                    } else {
                         failCount++;
+                        if (result.withdrew) withdrawCount++;
                     }
-                } else {
-                    addOutput(`❌ 第 ${i} 次战斗失败: HTTP ${fightResponse.status}`, 'error');
+
+                    // 多账号模式：次数耗尽则停止当前账号
+                    if (isMulti && result.exhausted) {
+                        addOutput(`🔚 [${user.name}] 战斗次数已耗尽，切换下一个账号`, 'warning');
+                        break;
+                    }
+
+                    await new Promise(r => setTimeout(r, 200));
+                } catch (error) {
+                    addOutput(`❌ 第 ${round} 次操作失败: ${error.message}`, 'error');
                     failCount++;
+                    // 遇到异常也继续，除非是多账号且已耗尽
+                    await new Promise(r => setTimeout(r, 200));
                 }
-
-                // 添加延迟避免请求过快
-                if (i < battleCount) {
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                }
-
-            } catch (error) {
-                addOutput(`❌ 第 ${i} 次操作失败: ${error.message}`, 'error');
-                failCount++;
             }
+
+            addOutput(`\n📊 [${user.name}] 统计: 共${round - (isMulti ? 1 : 0)}次 成功${successCount} 失败${failCount} 胜${winCount} 负${loseCount} 取钱${withdrawCount}次`, 'info');
         }
 
-        // 输出战斗总结
-        addOutput(`\n🎉 === 一键天梯操作完成 ===`, 'info');
-        addOutput(`📊 执行统计:`, 'info');
-        addOutput(`   • 总计战斗: ${battleCount} 次`, 'info');
-        addOutput(`   • 战斗成功: ${successCount} 次`, 'success');
-        addOutput(`   • 战斗失败: ${failCount} 次`, failCount > 0 ? 'error' : 'info');
-        addOutput(`   • 胜利次数: ${winCount} 次 🎉`, winCount > 0 ? 'success' : 'info');
-        addOutput(`   • 失败次数: ${loseCount} 次 😢`, loseCount > 0 ? 'warning' : 'info');
-        addOutput(`   • 取钱次数: ${withdrawCount} 次`, withdrawCount > 0 ? 'info' : 'info');
-        addOutput(`   • 成功率: ${((successCount / battleCount) * 100).toFixed(1)}%`, 
-                    successCount === battleCount ? 'success' : 'warning');
-        if (successCount > 0) {
-            addOutput(`   • 胜率: ${((winCount / successCount) * 100).toFixed(1)}%`, 
-                        winCount > loseCount ? 'success' : 'warning');
-        }
-        
-        if (successCount === battleCount) {
-            addOutput(`🎊 恭喜！所有战斗都成功了！`, 'success');
-            showNotification('天梯战斗完成！全部成功', 'success');
-        } else if (successCount > 0) {
-            addOutput(`⚠️ 部分战斗成功，请检查失败的战斗`, 'warning');
-            showNotification('天梯战斗完成！部分成功', 'warning');
-        } else {
-            addOutput(`😞 所有战斗都失败了，请检查网络连接和用户权限`, 'error');
-            showNotification('天梯战斗失败！请检查网络和权限', 'error');
-        }
+        addOutput(`\n🎉 === 全部账号天梯完成 ===`, 'info');
+        showNotification('天梯战斗完成！', 'success');
 
     } catch (error) {
-        addOutput(`💥 一键天梯过程中发生严重错误: ${error.message}`, 'error');
-        console.error('一键天梯错误:', error);
-        showNotification(`一键天梯发生错误: ${error.message}`, 'error');
+        addOutput(`💥 发生严重错误: ${error.message}`, 'error');
+        showNotification(`天梯发生错误: ${error.message}`, 'error');
     } finally {
         startBtn.disabled = false;
         startBtn.classList.remove('loading');
         startBtn.textContent = '⚔️ 开始天梯战斗';
     }
+}
+
+// 执行单次战斗（含恢复卡/取钱重试），返回 {success, win, withdrew, exhausted}
+async function doFight(user, targetUid, withdrawAmount, cardCount, round, isMultiMode = false) {
+    const fightUrl = `${getApiBaseUrl(user)}/api/fight/fight?uid=${targetUid}`;
+    const headers = { 'authorization': user.sso, 'Content-Type': 'application/json' };
+
+    const fightResp = await fetch(fightUrl, { method: 'POST', headers });
+    const fightData = JSON.parse(await fightResp.text());
+
+    if (fightData.code === 200) {
+        const isWin = fightData.data?.win === true;
+        addOutput(`✅ 第 ${round} 次战斗成功 - ${isWin ? '赢了 🎉' : '输了 😢'}`, 'success');
+        return { success: true, win: isWin };
+    }
+
+    if (fightData.code === 500 && fightData.msg?.includes('战斗次数不足')) {
+        if (!isMultiMode) {
+            addOutput(`⚠️ 战斗次数不足，尝试使用恢复卡...`, 'warning');
+            const cardUsed = await useOrBuyCard(user, cardCount, round);
+            if (cardUsed) {
+                const retry = await fetch(fightUrl, { method: 'POST', headers });
+                const retryData = JSON.parse(await retry.text());
+                if (retryData.code === 200) {
+                    const isWin = retryData.data?.win === true;
+                    addOutput(`✅ 第 ${round} 次战斗成功（使用恢复卡后）- ${isWin ? '赢了 🎉' : '输了 😢'}`, 'success');
+                    return { success: true, win: isWin };
+                }
+                addOutput(`❌ 第 ${round} 次战斗失败（使用恢复卡后）: ${retryData.msg}`, 'error');
+            }
+        } else {
+            addOutput(`⚠️ 战斗次数不足，多账号模式不使用恢复卡，停止当前账号`, 'warning');
+        }
+        // 次数耗尽
+        return { success: false, exhausted: true };
+    }
+
+    if (fightData.code === 500 && fightData.msg?.includes('金币不足')) {
+        addOutput(`⚠️ 金币不足，尝试取钱 ${withdrawAmount}...`, 'warning');
+        if (withdrawAmount > 0) {
+            const wResp = await fetch(`${getApiBaseUrl(user)}/api/qianzhuang/qk?num=${withdrawAmount}`, {
+                method: 'PUT', headers
+            });
+            const wData = JSON.parse(await wResp.text());
+            if (wData.code === 200) {
+                addOutput(`✅ 取钱成功`, 'success');
+                const retry = await fetch(fightUrl, { method: 'POST', headers });
+                const retryData = JSON.parse(await retry.text());
+                if (retryData.code === 200) {
+                    const isWin = retryData.data?.win === true;
+                    addOutput(`✅ 第 ${round} 次战斗成功（取钱后）- ${isWin ? '赢了 🎉' : '输了 😢'}`, 'success');
+                    return { success: true, win: isWin, withdrew: true };
+                }
+                addOutput(`❌ 第 ${round} 次战斗失败（取钱后）: ${retryData.msg}`, 'error');
+                return { success: false, withdrew: true };
+            }
+            addOutput(`❌ 取钱失败: ${wData.msg}`, 'error');
+        } else {
+            addOutput(`⚠️ 未设置取钱金额，跳过`, 'warning');
+        }
+        return { success: false };
+    }
+
+    addOutput(`❌ 第 ${round} 次战斗失败: ${fightData.msg || '未知错误'}`, 'error');
+    return { success: false };
+}
+
+// 使用或购买恢复卡，返回是否成功使用
+async function useOrBuyCard(user, cardCount, round, allowBuy = true) {
+    const headers = { 'authorization': user.sso, 'Content-Type': 'application/json' };
+    const useResp = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, { method: 'POST', headers });
+    const useData = JSON.parse(await useResp.text());
+
+    if (useData.code === 200) {
+        addOutput(`✅ 恢复卡使用成功`, 'success');
+        return true;
+    }
+
+    if (useData.msg?.includes('你没有战斗恢复卡可用')) {
+        if (!allowBuy) {
+            addOutput(`⚠️ 没有恢复卡，多账号模式不购买`, 'warning');
+            return false;
+        }
+        addOutput(`🛒 没有恢复卡，尝试购买 ${cardCount} 张...`, 'info');
+        const buyResp = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
+            method: 'POST', headers
+        });
+        const buyData = JSON.parse(await buyResp.text());
+        if (buyData.code === 200) {
+            addOutput(`✅ 购买恢复卡成功`, 'success');
+            const retryUse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, { method: 'POST', headers });
+            const retryData = JSON.parse(await retryUse.text());
+            if (retryData.code === 200) {
+                addOutput(`✅ 恢复卡使用成功`, 'success');
+                return true;
+            }
+            addOutput(`❌ 使用恢复卡失败: ${retryData.msg}`, 'error');
+        } else {
+            addOutput(`❌ 购买恢复卡失败: ${buyData.msg}`, 'error');
+        }
+    } else {
+        addOutput(`❌ 使用恢复卡失败: ${useData.msg}`, 'error');
+    }
+    return false;
 }
 
 // 添加输出内容
@@ -569,17 +371,28 @@ function clearOutput() {
 // 显示用户选择区域
 function showUserSelection() {
     document.getElementById('userSelectionArea').style.display = 'flex';
+    document.getElementById('vipUserSelectionArea').style.display = 'flex';
     document.getElementById('outputArea').style.display = 'none';
     
     // 重置选择状态
-    document.getElementById('userSelect').value = '';
+    document.querySelectorAll('#userCheckboxList input[type=checkbox]').forEach(c => c.checked = false);
+    document.querySelectorAll('#vipUserCheckboxList input[type=checkbox]').forEach(c => c.checked = false);
+
     document.getElementById('battleCount').value = 15;
+    document.getElementById('cardCount').value = 10;
+    document.getElementById('multiHint').style.display = 'none';
+
+    document.getElementById('vipBattleCount').value = 15;
+    document.getElementById('vipCardCount').value = 10;
+    document.getElementById('vipMultiHint').style.display = 'none';
+
     if (document.getElementById('targetIndex')) {
         document.getElementById('targetIndex').value = '';
     }
     document.getElementById('withdrawAmount').value = 100000;
-    document.getElementById('cardCount').value = 10;
+    document.getElementById('vipWithdrawAmount').value = 100000;
     updateStartButtonState();
+    updateVipStartButtonState();
     clearOutput();
 }
 
@@ -635,76 +448,88 @@ function showNotification(message, type = 'info') {
 
 // ============ VIP版天梯功能 ============
 
-// 填充VIP用户下拉列表
+// 填充VIP用户勾选列表
 function populateVipUserSelect() {
-    const vipUserSelect = document.getElementById('vipUserSelect');
-    
-    // 清空现有选项（保留第一个默认选项）
-    vipUserSelect.innerHTML = '<option value="">请选择用户</option>';
-    
+    const list = document.getElementById('vipUserCheckboxList');
+    list.innerHTML = '';
+
     if (users.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = '暂无用户，请先添加用户';
-        option.disabled = true;
-        vipUserSelect.appendChild(option);
+        list.innerHTML = '<span class="checkbox-empty">暂无用户，请先添加用户</span>';
         return;
     }
-    
+
     users.forEach(user => {
-        const option = document.createElement('option');
-        option.value = user.id;
-        option.textContent = user.name;
-        vipUserSelect.appendChild(option);
+        const label = document.createElement('label');
+        label.className = 'checkbox-item';
+        label.innerHTML = `<input type="checkbox" value="${user.id}" onchange="updateVipStartButtonState()"><span>${user.name}</span>`;
+        list.appendChild(label);
     });
 }
 
-// 获取VIP选中的用户
+// 获取VIP选中的用户（checkbox 多选）
+function getVipSelectedUsers() {
+    const checked = document.querySelectorAll('#vipUserCheckboxList input[type=checkbox]:checked');
+    const ids = Array.from(checked).map(c => c.value);
+    return users.filter(u => ids.includes(u.id));
+}
+
 function getVipSelectedUser() {
-    const vipUserSelect = document.getElementById('vipUserSelect');
-    const selectedUserId = vipUserSelect.value;
-    if (!selectedUserId) return null;
-    return users.find(u => u.id === selectedUserId);
+    const selected = getVipSelectedUsers();
+    return selected.length > 0 ? selected[0] : null;
 }
 
 // 更新VIP开始按钮状态
 function updateVipStartButtonState() {
     const vipStartBtn = document.getElementById('vipStartBtn');
-    const vipUserSelect = document.getElementById('vipUserSelect');
-    const vipBattleCount = document.getElementById('vipBattleCount').value;
-    const selectedUserId = vipUserSelect.value;
-    
-    if (!selectedUserId) {
+    const selectedUsers = getVipSelectedUsers();
+    const isMulti = selectedUsers.length > 1;
+    const vipBattleCountInput = document.getElementById('vipBattleCount');
+    const vipCardCountInput = document.getElementById('vipCardCount');
+    const vipMultiHint = document.getElementById('vipMultiHint');
+
+    // 多账号时隐藏战斗次数和购买恢复卡
+    document.getElementById('vipBattleCountItem').style.display = isMulti ? 'none' : '';
+    document.getElementById('vipCardCountItem').style.display = isMulti ? 'none' : '';
+    vipBattleCountInput.disabled = false;
+    vipCardCountInput.disabled = false;
+    vipMultiHint.style.display = isMulti ? 'flex' : 'none';
+
+    const vipBattleCount = vipBattleCountInput.value;
+
+    if (selectedUsers.length === 0) {
         vipStartBtn.disabled = true;
         vipStartBtn.textContent = '👑 请先选择用户';
-    } else if (!vipBattleCount || vipBattleCount < 1) {
+    } else if (!isMulti && (!vipBattleCount || vipBattleCount < 1)) {
         vipStartBtn.disabled = true;
         vipStartBtn.textContent = '👑 请输入战斗次数';
     } else {
         vipStartBtn.disabled = false;
-        const user = users.find(u => u.id === selectedUserId);
-        vipStartBtn.textContent = `👑 VIP天梯战斗 (${user?.name} - ${vipBattleCount}次)`;
+        if (isMulti) {
+            vipStartBtn.textContent = `👑 VIP天梯战斗 (${selectedUsers.length}个账号，各打到耗尽)`;
+        } else {
+            vipStartBtn.textContent = `👑 VIP天梯战斗 (${selectedUsers[0]?.name} - ${vipBattleCount}次)`;
+        }
     }
 }
 
-// 开始VIP天梯（简化版）
+// 开始VIP天梯（支持多账号）
 async function startVipLadder() {
-    const user = getVipSelectedUser();
-    if (!user) {
-        alert('请先选择一个用户');
+    const selectedUsers = getVipSelectedUsers();
+    if (selectedUsers.length === 0) {
+        alert('请先选择用户');
         return;
     }
 
-    const battleCount = parseInt(document.getElementById('vipBattleCount').value);
-    if (!battleCount || battleCount < 1) {
+    const isMulti = selectedUsers.length > 1;
+    const battleCount = isMulti ? 0 : parseInt(document.getElementById('vipBattleCount').value);
+    if (!isMulti && (!battleCount || battleCount < 1)) {
         alert('请输入有效的战斗次数（至少1次）');
         return;
     }
 
     const withdrawAmount = parseInt(document.getElementById('vipWithdrawAmount').value) || 0;
-    const cardCount = parseInt(document.getElementById('vipCardCount').value) || 10;
+    const cardCount = isMulti ? 10 : (parseInt(document.getElementById('vipCardCount').value) || 10);
 
-    // 隐藏用户选择区域，显示输出区域
     document.getElementById('vipUserSelectionArea').style.display = 'none';
     document.getElementById('outputArea').style.display = 'flex';
 
@@ -714,327 +539,137 @@ async function startVipLadder() {
     vipStartBtn.textContent = '执行中...';
 
     try {
-        addOutput(`👑 开始VIP天梯操作...`, 'info');
-        addOutput(`用户: ${user.name}`, 'info');
-        addOutput(`战斗次数: ${battleCount}`, 'info');
-        addOutput(`金币不足时取钱: ${withdrawAmount} 金币`, 'info');
-        addOutput(`购买恢复卡数量: ${cardCount} 张`, 'info');
-        addOutput(`\n=== VIP天梯战斗开始 ===\n`, 'info');
+        if (isMulti) {
+            addOutput(`👑 多账号VIP天梯模式，共 ${selectedUsers.length} 个账号，每账号打到次数耗尽为止`, 'info');
+        } else {
+            addOutput(`👑 开始VIP天梯操作...`, 'info');
+        }
 
-        let successCount = 0;
-        let failCount = 0;
+        for (const user of selectedUsers) {
+            addOutput(`\n👤 账号: ${user.name}${isMulti ? '，打到次数耗尽为止' : `，VIP战斗 ${battleCount} 次`}`, 'info');
+            addOutput(`金币不足时取钱: ${withdrawAmount}，购买恢复卡: ${cardCount} 张`, 'info');
+            addOutput(`=== VIP战斗开始 ===`, 'info');
 
-        // 连续N次战斗
-        for (let i = 1; i <= battleCount; i++) {
-            try {
-                addOutput(`第 ${i}/${battleCount} 次 - 正在进行VIP战斗...`, 'info');
+            let successCount = 0, failCount = 0;
+            let round = 0;
 
-                // 战斗前先使用两次恢复卡
-                addOutput(`🎴 战斗前使用恢复卡（第1次）...`, 'info');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                let useCard1Response = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
-                    method: 'POST',
-                    headers: {
-                        'authorization': user.sso,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                let useCard1Data = JSON.parse(await useCard1Response.text());
-                if (useCard1Data.code === 200) {
-                    addOutput(`✅ 恢复卡使用成功（第1次）`, 'success');
-                } else if (useCard1Data.msg && useCard1Data.msg.includes('你没有战斗恢复卡可用')) {
-                    addOutput(`⚠️ 没有恢复卡，尝试购买 ${cardCount} 张...`, 'warning');
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    const buyResponse = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
-                        method: 'POST',
-                        headers: {
-                            'authorization': user.sso,
-                            'Content-Type': 'application/json'
+            while (true) {
+                round++;
+                if (!isMulti && round > battleCount) break;
+
+                try {
+                    addOutput(`第 ${round} 次 - 正在进行VIP战斗...`, 'info');
+                    const headers = { 'authorization': user.sso, 'Content-Type': 'application/json' };
+
+                    // 单账号模式才战斗前使用两次恢复卡
+                    if (!isMulti) {
+                        addOutput(`🎴 战斗前使用恢复卡（第1次）...`, 'info');
+                        await new Promise(r => setTimeout(r, 500));
+                        await useOrBuyCard(user, cardCount, round);
+
+                        addOutput(`🎴 战斗前使用恢复卡（第2次）...`, 'info');
+                        await new Promise(r => setTimeout(r, 500));
+                        const card2Resp = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, { method: 'POST', headers });
+                        const card2Data = JSON.parse(await card2Resp.text());
+                        if (card2Data.code === 200) {
+                            addOutput(`✅ 恢复卡使用成功（第2次）`, 'success');
+                        } else {
+                            addOutput(`⚠️ 恢复卡使用失败（第2次）: ${card2Data.msg}`, 'warning');
                         }
-                    });
-                    
-                    const buyData = JSON.parse(await buyResponse.text());
-                    if (buyData.code === 200) {
-                        addOutput(`✅ 购买恢复卡成功`, 'success');
-                        
-                        // 购买后重新使用
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        useCard1Response = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
-                            method: 'POST',
-                            headers: {
-                                'authorization': user.sso,
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        useCard1Data = JSON.parse(await useCard1Response.text());
-                        if (useCard1Data.code === 200) {
-                            addOutput(`✅ 恢复卡使用成功（第1次）`, 'success');
-                        }
+
+                        await new Promise(r => setTimeout(r, 2000));
                     } else {
-                        addOutput(`❌ 购买恢复卡失败: ${buyData.msg}`, 'error');
+                        // 多账号模式保持和单账号相同的间隔
+                        await new Promise(r => setTimeout(r, 1000));
                     }
-                } else {
-                    addOutput(`⚠️ 恢复卡使用失败（第1次）: ${useCard1Data.msg}`, 'warning');
-                }
 
-                // 第二次使用恢复卡
-                addOutput(`🎴 战斗前使用恢复卡（第2次）...`, 'info');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                const useCard2Response = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
-                    method: 'POST',
-                    headers: {
-                        'authorization': user.sso,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const useCard2Data = JSON.parse(await useCard2Response.text());
-                if (useCard2Data.code === 200) {
-                    addOutput(`✅ 恢复卡使用成功（第2次）`, 'success');
-                } else {
-                    addOutput(`⚠️ 恢复卡使用失败（第2次）: ${useCard2Data.msg}`, 'warning');
-                }
+                    // 执行 VIP 战斗
+                    const fightResp = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, { method: 'POST', headers });
+                    const fightData = JSON.parse(await fightResp.text());
 
-                // 延迟后开始战斗
-                await new Promise(resolve => setTimeout(resolve, 2000));
-
-                // 直接调用 /api/fight/fight/all
-                const fightResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
-                    method: 'POST',
-                    headers: {
-                        'authorization': user.sso,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const fightText = await fightResponse.text();
-                
-                if (fightResponse.ok) {
-                    try {
-                        const fightData = JSON.parse(fightText);
-                        if (fightData.code === 200) {
-                            addOutput(`✅ 第 ${i} 次VIP战斗成功`, 'success');
-                            if (fightData.data) {
-                                const resultStr = JSON.stringify(fightData.data);
-                                addOutput(`战斗结果: ${resultStr.length > 100 ? resultStr.substring(0, 100) + '...' : resultStr}`, 'info');
-                            }
-                            successCount++;
-                        } else if (fightData.code === 500 && fightData.msg && fightData.msg.includes('战斗次数已用完')) {
-                            // 战斗次数不足，先尝试使用恢复卡
-                            addOutput(`⚠️ 第 ${i} 次战斗失败: ${fightData.msg}`, 'warning');
-                            addOutput(`🎴 尝试使用战斗恢复卡（道具ID: 32）...`, 'info');
-                            
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                            
-                            const usePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
-                                method: 'POST',
-                                headers: {
-                                    'authorization': user.sso,
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-
-                            const usePropText = await usePropResponse.text();
-                            
-                            if (usePropResponse.ok) {
-                                const usePropData = JSON.parse(usePropText);
-                                if (usePropData.code === 200) {
-                                    addOutput(`✅ 战斗恢复卡使用成功，等待500毫秒后重试战斗...`, 'success');
-                                    
-                                    // 延迟500毫秒后重试战斗
-                                    await new Promise(resolve => setTimeout(resolve, 500));
-                                    
-                                    const retryResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
-                                        method: 'POST',
-                                        headers: {
-                                            'authorization': user.sso,
-                                            'Content-Type': 'application/json'
-                                        }
-                                    });
-
-                                    const retryData = JSON.parse(await retryResponse.text());
-                                    if (retryData.code === 200) {
-                                        addOutput(`✅ 第 ${i} 次VIP战斗成功（使用恢复卡后）`, 'success');
-                                        successCount++;
-                                    } else {
-                                        addOutput(`❌ 第 ${i} 次战斗失败（使用恢复卡后）: ${retryData.msg}`, 'error');
-                                        failCount++;
-                                    }
-                                } else if (usePropData.code === 500 && usePropData.msg && usePropData.msg.includes('你没有战斗恢复卡可用')) {
-                                    // 没有恢复卡，尝试购买
-                                    addOutput(`⚠️ 没有战斗恢复卡可用`, 'warning');
-                                    addOutput(`🛒 尝试购买 ${cardCount} 张战斗恢复卡...`, 'info');
-                                    
-                                    await new Promise(resolve => setTimeout(resolve, 500));
-                                    
-                                    const buyResponse = await fetch(`${getApiBaseUrl(user)}/api/shop/buy/goods?func=PROP&id=32&num=${cardCount}`, {
-                                        method: 'POST',
-                                        headers: {
-                                            'authorization': user.sso,
-                                            'Content-Type': 'application/json'
-                                        }
-                                    });
-
-                                    const buyText = await buyResponse.text();
-                                    
-                                    if (buyResponse.ok) {
-                                        const buyData = JSON.parse(buyText);
-                                        if (buyData.code === 200) {
-                                            addOutput(`✅ 购买战斗恢复卡成功，已购买 ${cardCount} 张`, 'success');
-                                            
-                                            // 购买成功后再次使用恢复卡
-                                            addOutput(`🎴 再次尝试使用战斗恢复卡...`, 'info');
-                                            
-                                            await new Promise(resolve => setTimeout(resolve, 500));
-                                            
-                                            const retryUsePropResponse = await fetch(`${getApiBaseUrl(user)}/api/prop/use?id=32`, {
-                                                method: 'POST',
-                                                headers: {
-                                                    'authorization': user.sso,
-                                                    'Content-Type': 'application/json'
-                                                }
-                                            });
-
-                                            const retryUsePropData = JSON.parse(await retryUsePropResponse.text());
-                                            if (retryUsePropData.code === 200) {
-                                                addOutput(`✅ 战斗恢复卡使用成功，等待500毫秒后重试战斗...`, 'success');
-                                                
-                                                // 延迟500毫秒后重试战斗
-                                                await new Promise(resolve => setTimeout(resolve, 500));
-                                                
-                                                const retryResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
-                                                    method: 'POST',
-                                                    headers: {
-                                                        'authorization': user.sso,
-                                                        'Content-Type': 'application/json'
-                                                    }
-                                                });
-
-                                                const retryData = JSON.parse(await retryResponse.text());
-                                                if (retryData.code === 200) {
-                                                    addOutput(`✅ 第 ${i} 次VIP战斗成功（购买并使用恢复卡后）`, 'success');
-                                                    successCount++;
-                                                } else {
-                                                    addOutput(`❌ 第 ${i} 次战斗失败（购买并使用恢复卡后）: ${retryData.msg}`, 'error');
-                                                    failCount++;
-                                                }
-                                            } else {
-                                                addOutput(`❌ 使用战斗恢复卡失败: ${retryUsePropData.msg}`, 'error');
-                                                failCount++;
-                                            }
-                                        } else {
-                                            addOutput(`❌ 购买战斗恢复卡失败: ${buyData.msg}`, 'error');
-                                            failCount++;
-                                        }
-                                    } else {
-                                        addOutput(`❌ 购买战斗恢复卡失败: HTTP ${buyResponse.status}`, 'error');
-                                        failCount++;
-                                    }
-                                } else {
-                                    addOutput(`❌ 使用战斗恢复卡失败: ${usePropData.msg}`, 'error');
-                                    failCount++;
-                                }
+                    if (fightData.code === 200) {
+                        addOutput(`✅ 第 ${round} 次VIP战斗成功`, 'success');
+                        successCount++;
+                    } else if (fightData.code === 500 && fightData.msg?.includes('战斗次数已用完')) {
+                        if (isMulti) {
+                            addOutput(`⚠️ 战斗次数已用完，多账号模式不使用恢复卡，停止当前账号`, 'warning');
+                            failCount++;
+                            addOutput(`🔚 [${user.name}] 战斗次数已耗尽，切换下一个账号`, 'warning');
+                            break;
+                        }
+                        addOutput(`⚠️ 战斗次数已用完，尝试使用恢复卡...`, 'warning');
+                        await new Promise(r => setTimeout(r, 500));
+                        const cardUsed = await useOrBuyCard(user, cardCount, round);
+                        if (cardUsed) {
+                            await new Promise(r => setTimeout(r, 500));
+                            const retry = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, { method: 'POST', headers });
+                            const retryData = JSON.parse(await retry.text());
+                            if (retryData.code === 200) {
+                                addOutput(`✅ 第 ${round} 次VIP战斗成功（使用恢复卡后）`, 'success');
+                                successCount++;
                             } else {
-                                addOutput(`❌ 使用战斗恢复卡失败: HTTP ${usePropResponse.status}`, 'error');
+                                addOutput(`❌ 第 ${round} 次战斗失败（使用恢复卡后）: ${retryData.msg}`, 'error');
                                 failCount++;
+                                // 恢复卡用了但还是失败，次数耗尽
+                                if (isMulti) {
+                                    addOutput(`🔚 [${user.name}] 战斗次数已耗尽，切换下一个账号`, 'warning');
+                                    break;
+                                }
                             }
-                        } else if (fightData.code === 500 && fightData.msg && fightData.msg.includes('金币不足')) {
-                            // 金币不足，取钱
-                            addOutput(`⚠️ 第 ${i} 次战斗失败: ${fightData.msg}`, 'warning');
-                            
-                            if (withdrawAmount > 0) {
-                                addOutput(`💰 尝试从钱庄取钱 ${withdrawAmount} 金币...`, 'info');
-                                
-                                const withdrawResponse = await fetch(`${getApiBaseUrl(user)}/api/qianzhuang/qk?num=${withdrawAmount}`, {
-                                    method: 'PUT',
-                                    headers: {
-                                        'authorization': user.sso,
-                                        'Content-Type': 'application/json'
-                                    }
-                                });
-
-                                const withdrawData = JSON.parse(await withdrawResponse.text());
-                                if (withdrawData.code === 200) {
-                                    addOutput(`✅ 取钱成功，等待500毫秒后重试战斗...`, 'success');
-                                    
-                                    // 延迟500毫秒后重试战斗
-                                    await new Promise(resolve => setTimeout(resolve, 500));
-                                    
-                                    const retryResponse = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, {
-                                        method: 'POST',
-                                        headers: {
-                                            'authorization': user.sso,
-                                            'Content-Type': 'application/json'
-                                        }
-                                    });
-
-                                    const retryData = JSON.parse(await retryResponse.text());
-                                    if (retryData.code === 200) {
-                                        addOutput(`✅ 第 ${i} 次VIP战斗成功（重试后）`, 'success');
-                                        successCount++;
-                                    } else {
-                                        addOutput(`❌ 第 ${i} 次战斗失败（重试后）: ${retryData.msg}`, 'error');
-                                        failCount++;
-                                    }
+                        } else {
+                            // 恢复卡搞不到，次数耗尽
+                            failCount++;
+                            if (isMulti) {
+                                addOutput(`🔚 [${user.name}] 战斗次数已耗尽，切换下一个账号`, 'warning');
+                                break;
+                            }
+                        }
+                    } else if (fightData.code === 500 && fightData.msg?.includes('金币不足')) {
+                        addOutput(`⚠️ 金币不足，尝试取钱 ${withdrawAmount}...`, 'warning');
+                        if (withdrawAmount > 0) {
+                            const wResp = await fetch(`${getApiBaseUrl(user)}/api/qianzhuang/qk?num=${withdrawAmount}`, { method: 'PUT', headers });
+                            const wData = JSON.parse(await wResp.text());
+                            if (wData.code === 200) {
+                                addOutput(`✅ 取钱成功`, 'success');
+                                await new Promise(r => setTimeout(r, 500));
+                                const retry = await fetch(`${getApiBaseUrl(user)}/api/fight/fight/all`, { method: 'POST', headers });
+                                const retryData = JSON.parse(await retry.text());
+                                if (retryData.code === 200) {
+                                    addOutput(`✅ 第 ${round} 次VIP战斗成功（取钱后）`, 'success');
+                                    successCount++;
                                 } else {
-                                    addOutput(`❌ 取钱失败: ${withdrawData.msg}`, 'error');
+                                    addOutput(`❌ 第 ${round} 次战斗失败（取钱后）: ${retryData.msg}`, 'error');
                                     failCount++;
                                 }
                             } else {
-                                addOutput(`⚠️ 未设置取钱金额，跳过此次战斗`, 'warning');
+                                addOutput(`❌ 取钱失败: ${wData.msg}`, 'error');
                                 failCount++;
                             }
                         } else {
-                            addOutput(`❌ 第 ${i} 次战斗失败: ${fightData.msg || '未知错误'}`, 'error');
+                            addOutput(`⚠️ 未设置取钱金额，跳过`, 'warning');
                             failCount++;
                         }
-                    } catch (parseError) {
-                        addOutput(`❌ 第 ${i} 次战斗失败: 响应解析错误`, 'error');
+                    } else {
+                        addOutput(`❌ 第 ${round} 次战斗失败: ${fightData.msg || '未知错误'}`, 'error');
                         failCount++;
                     }
-                } else {
-                    addOutput(`❌ 第 ${i} 次战斗失败: HTTP ${fightResponse.status}`, 'error');
+
+                    await new Promise(r => setTimeout(r, 200));
+                } catch (error) {
+                    addOutput(`❌ 第 ${round} 次操作失败: ${error.message}`, 'error');
                     failCount++;
+                    await new Promise(r => setTimeout(r, 200));
                 }
-
-                // 添加延迟避免请求过快
-                if (i < battleCount) {
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                }
-
-            } catch (error) {
-                addOutput(`❌ 第 ${i} 次操作失败: ${error.message}`, 'error');
-                failCount++;
             }
+
+            addOutput(`\n📊 [${user.name}] VIP统计: 共${round - (isMulti ? 1 : 0)}次 成功${successCount} 失败${failCount}`, 'info');
         }
 
-        // 输出战斗总结
-        addOutput(`\n🎉 === VIP天梯操作完成 ===`, 'info');
-        addOutput(`📊 执行统计:`, 'info');
-        addOutput(`   • 总计战斗: ${battleCount} 次`, 'info');
-        addOutput(`   • 战斗成功: ${successCount} 次`, 'success');
-        addOutput(`   • 战斗失败: ${failCount} 次`, failCount > 0 ? 'error' : 'info');
-        addOutput(`   • 成功率: ${((successCount / battleCount) * 100).toFixed(1)}%`, 
-                    successCount === battleCount ? 'success' : 'warning');
-        
-        if (successCount === battleCount) {
-            addOutput(`🎊 恭喜！所有VIP战斗都成功了！`, 'success');
-            showNotification('VIP天梯战斗完成！全部成功', 'success');
-        } else if (successCount > 0) {
-            addOutput(`⚠️ 部分战斗成功，请检查失败的战斗`, 'warning');
-            showNotification('VIP天梯战斗完成！部分成功', 'warning');
-        } else {
-            addOutput(`😞 所有战斗都失败了，请检查网络连接和用户权限`, 'error');
-            showNotification('VIP天梯战斗失败！请检查网络和权限', 'error');
-        }
+        addOutput(`\n🎉 === 全部账号VIP天梯完成 ===`, 'info');
+        showNotification('VIP天梯战斗完成！', 'success');
 
     } catch (error) {
-        addOutput(`💥 VIP天梯过程中发生严重错误: ${error.message}`, 'error');
-        console.error('VIP天梯错误:', error);
+        addOutput(`💥 VIP天梯发生严重错误: ${error.message}`, 'error');
         showNotification(`VIP天梯发生错误: ${error.message}`, 'error');
     } finally {
         vipStartBtn.disabled = false;
