@@ -188,7 +188,13 @@ async function startLadder() {
                     if (!surroundResponse.ok) throw new Error(`获取天梯列表失败: HTTP ${surroundResponse.status}`);
 
                     const surroundData = JSON.parse(await surroundResponse.text());
-                    if (surroundData.code !== 200) throw new Error(`获取天梯列表失败: ${surroundData.msg || '未知错误'}`);
+                    if (surroundData.code !== 200) {
+                        if (surroundData.msg?.includes('过期') || surroundData.msg?.includes('未登录') || surroundData.msg?.includes('登录')) {
+                            addOutput(`🔚 [${user.name}] 登录已过期，切换下一个账号`, 'warning');
+                            break;
+                        }
+                        throw new Error(`获取天梯列表失败: ${surroundData.msg || '未知错误'}`);
+                    }
 
                     const ladderList = surroundData.data || [];
                     if (ladderList.length === 0) {
@@ -222,6 +228,10 @@ async function startLadder() {
                     // 多账号模式：次数耗尽则停止当前账号
                     if (isMulti && result.exhausted) {
                         addOutput(`🔚 [${user.name}] 战斗次数已耗尽，切换下一个账号`, 'warning');
+                        break;
+                    }
+                    if (result.expired) {
+                        addOutput(`🔚 [${user.name}] 登录已过期，切换下一个账号`, 'warning');
                         break;
                     }
 
@@ -316,6 +326,9 @@ async function doFight(user, targetUid, withdrawAmount, cardCount, round, isMult
     }
 
     addOutput(`❌ 第 ${round} 次战斗失败: ${fightData.msg || '未知错误'}`, 'error');
+    if (fightData.msg?.includes('过期') || fightData.msg?.includes('未登录') || fightData.msg?.includes('登录')) {
+        return { success: false, expired: true };
+    }
     return { success: false };
 }
 
@@ -680,6 +693,10 @@ async function startVipLadder() {
                     } else {
                         addOutput(`❌ 第 ${round} 次战斗失败: ${fightData.msg || '未知错误'}`, 'error');
                         failCount++;
+                        if (fightData.msg?.includes('过期') || fightData.msg?.includes('未登录') || fightData.msg?.includes('登录')) {
+                            addOutput(`🔚 [${user.name}] 登录已过期，切换下一个账号`, 'warning');
+                            break;
+                        }
                     }
 
                     await new Promise(r => setTimeout(r, 200));
