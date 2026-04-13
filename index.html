@@ -10,22 +10,14 @@
     <style>
         :root {
             --bg-color: #0f172a;
-            /* Slate 900 */
             --glass-bg: rgba(30, 41, 59, 0.4);
-            /* Slate 800 with opacity */
             --glass-border: rgba(255, 255, 255, 0.1);
             --text-primary: #f8fafc;
             --text-secondary: #94a3b8;
             --accent-glow: rgba(99, 102, 241, 0.5);
-            /* Indigo glow */
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Outfit', sans-serif;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
 
         body {
             background-color: var(--bg-color);
@@ -35,267 +27,228 @@
             flex-direction: column;
             align-items: center;
             overflow-x: hidden;
-            position: relative;
         }
 
-        /* Animated Background Gradients */
-        .bg-shapes {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-            overflow: hidden;
-            pointer-events: none;
-        }
-
-        .shape {
-            position: absolute;
-            filter: blur(80px);
-            opacity: 0.6;
-            animation: float 20s infinite alternate ease-in-out;
-            border-radius: 50%;
-        }
-
-        .shape-1 {
-            top: -10%;
-            left: -10%;
-            width: 50vw;
-            height: 50vw;
-            background: radial-gradient(circle, #6366f1 0%, transparent 70%);
-            animation-delay: 0s;
-        }
-
-        .shape-2 {
-            bottom: -10%;
-            right: -10%;
-            width: 40vw;
-            height: 40vw;
-            background: radial-gradient(circle, #ec4899 0%, transparent 70%);
-            animation-delay: -5s;
-        }
-
-        .shape-3 {
-            top: 40%;
-            left: 60%;
-            width: 30vw;
-            height: 30vw;
-            background: radial-gradient(circle, #8b5cf6 0%, transparent 70%);
-            animation-delay: -10s;
-        }
+        /* 背景动画 */
+        .bg-shapes { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+        .shape { position: absolute; filter: blur(80px); opacity: 0.6; animation: float 20s infinite alternate ease-in-out; border-radius: 50%; }
+        .shape-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: radial-gradient(circle, #6366f1 0%, transparent 70%); }
+        .shape-2 { bottom: -10%; right: -10%; width: 40vw; height: 40vw; background: radial-gradient(circle, #ec4899 0%, transparent 70%); animation-delay: -5s; }
+        .shape-3 { top: 40%; left: 60%; width: 30vw; height: 30vw; background: radial-gradient(circle, #8b5cf6 0%, transparent 70%); animation-delay: -10s; }
 
         @keyframes float {
-            0% {
-                transform: translate(0, 0) scale(1);
-            }
-
-            50% {
-                transform: translate(10vw, 5vh) scale(1.1);
-            }
-
-            100% {
-                transform: translate(-5vw, 15vh) scale(0.9);
-            }
+            0%   { transform: translate(0, 0) scale(1); }
+            50%  { transform: translate(10vw, 5vh) scale(1.1); }
+            100% { transform: translate(-5vw, 15vh) scale(0.9); }
         }
 
         header {
             text-align: center;
-            margin-top: 80px;
-            margin-bottom: 60px;
+            margin-top: 70px;
+            margin-bottom: 36px;
             z-index: 10;
-            animation: fadeInDown 1s ease-out;
+            animation: fadeInDown 0.8s ease-out;
         }
 
         h1 {
-            font-size: 3.5rem;
+            font-size: 3rem;
             font-weight: 700;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             background: linear-gradient(135deg, #fff, #cbd5e1);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
         }
 
-        p.subtitle {
-            font-size: 1.2rem;
-            color: var(--text-secondary);
-            font-weight: 300;
-            letter-spacing: 1px;
-        }
+        p.subtitle { font-size: 1.1rem; color: var(--text-secondary); font-weight: 300; letter-spacing: 1px; }
 
-        .container {
+        /* 搜索 + 过滤区 */
+        .toolbar {
             width: 90%;
             max-width: 1200px;
             z-index: 10;
+            margin-bottom: 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            animation: fadeInDown 0.8s ease-out 0.15s backwards;
         }
 
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 30px;
-            padding-bottom: 80px;
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 11px 20px;
+            max-width: 440px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
 
+        .search-box:focus-within {
+            border-color: rgba(99, 102, 241, 0.6);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        /* SVG 搜索图标，避免 emoji 渲染问题 */
+        .search-icon {
+            width: 16px; height: 16px;
+            flex-shrink: 0;
+            opacity: 0.5;
+        }
+
+        .search-box input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .search-box input::placeholder { color: var(--text-secondary); }
+
+        .search-clear {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0;
+            display: none;
+            line-height: 1;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .search-clear:hover { opacity: 1; }
+        .search-clear.visible { display: block; }
+
+        /* 分类标签 */
+        .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .filter-tab {
+            padding: 5px 14px;
+            border-radius: 50px;
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            user-select: none;
+        }
+
+        .filter-tab:hover { border-color: rgba(99,102,241,0.5); color: var(--text-primary); }
+        .filter-tab.active { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.7); color: #a5b4fc; }
+
+        /* 卡片网格 */
+        .container { width: 90%; max-width: 1200px; z-index: 10; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+
+        /* 卡片 */
         .card {
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 30px;
+            border-top: 2px solid var(--card-color, rgba(99,102,241,0.5));
+            border-radius: 18px;
+            padding: 24px;
             text-decoration: none;
             color: var(--text-primary);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 10px;
             position: relative;
             overflow: hidden;
-            animation: fadeInUp 0.8s ease-out backwards;
-            border-top: 2px solid transparent;
-        }
-
-        /* Staggered animation delays for cards */
-        .card:nth-child(1) {
-            animation-delay: 0.1s;
-            border-top-color: rgba(99, 102, 241, 0.5);
-        }
-
-        .card:nth-child(2) {
-            animation-delay: 0.2s;
-            border-top-color: rgba(236, 72, 153, 0.5);
-        }
-
-        .card:nth-child(3) {
-            animation-delay: 0.3s;
-            border-top-color: rgba(139, 92, 246, 0.5);
-        }
-
-        .card:nth-child(4) {
-            animation-delay: 0.4s;
-            border-top-color: rgba(16, 185, 129, 0.5);
-        }
-
-        .card:nth-child(5) {
-            animation-delay: 0.5s;
-            border-top-color: rgba(245, 158, 11, 0.5);
-        }
-
-        .card:nth-child(6) {
-            animation-delay: 0.6s;
-            border-top-color: rgba(59, 130, 246, 0.5);
-        }
-
-        .card:nth-child(7) {
-            animation-delay: 0.7s;
-            border-top-color: rgba(239, 68, 68, 0.5);
+            animation: fadeInUp 0.7s ease-out backwards;
         }
 
         .card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: -100%;
-            width: 50%;
-            height: 100%;
-            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.05), transparent);
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.05), transparent);
             transform: skewX(-20deg);
-            transition: all 0.6s ease;
+            transition: left 0.6s ease;
         }
 
         .card:hover {
-            transform: translateY(-10px) scale(1.02);
-            background: rgba(30, 41, 59, 0.6);
-            border-color: rgba(255, 255, 255, 0.3);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4),
-                0 0 20px var(--accent-glow);
+            transform: translateY(-7px) scale(1.02);
+            background: rgba(30, 41, 59, 0.65);
+            border-color: rgba(255,255,255,0.25);
+            box-shadow: 0 16px 36px rgba(0,0,0,0.4), 0 0 18px var(--accent-glow);
         }
 
-        .card:hover::before {
-            left: 200%;
-        }
+        .card:hover::before { left: 200%; }
 
+        /* 卡片图标：用带背景的 SVG icon，不依赖 emoji */
         .card-icon {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            display: inline-block;
+            width: 44px; height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.07);
+            margin-bottom: 4px;
             transition: transform 0.3s ease;
+            flex-shrink: 0;
         }
 
-        .card:hover .card-icon {
-            transform: scale(1.1) rotate(5deg);
-        }
+        .card:hover .card-icon { transform: scale(1.1) rotate(4deg); }
 
-        .card-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
+        .card-icon svg { width: 22px; height: 22px; }
 
-        .card-desc {
-            font-size: 0.95rem;
-            color: var(--text-secondary);
-            line-height: 1.5;
-            flex-grow: 1;
-        }
+        .card-title { font-size: 1.15rem; font-weight: 600; }
+
+        .card-desc { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; flex-grow: 1; }
 
         .card-footer {
-            margin-top: auto;
+            margin-top: 4px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 0.9rem;
-            color: #6366f1;
+            font-size: 0.82rem;
+            color: #818cf8;
             font-weight: 600;
             opacity: 0.8;
             transition: opacity 0.3s;
         }
 
-        .card:hover .card-footer {
-            opacity: 1;
-        }
+        .card:hover .card-footer { opacity: 1; }
+        .card-footer-arrow { transition: transform 0.3s ease; }
+        .card:hover .card-footer-arrow { transform: translateX(4px); }
 
-        .card-footer-arrow {
-            transition: transform 0.3s ease;
-        }
+        /* 无结果 */
+        .no-results { display: none; text-align: center; padding: 60px 0; color: var(--text-secondary); font-size: 1rem; }
+        .no-results.visible { display: block; }
 
-        .card:hover .card-footer-arrow {
-            transform: translateX(5px);
-        }
+        .card.hidden { display: none; }
+
+        .spacer { height: 80px; }
 
         @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(40px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
-
         @keyframes fadeInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-20px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
-            h1 {
-                font-size: 2.5rem;
-            }
-
-            .grid {
-                grid-template-columns: 1fr;
-            }
+            h1 { font-size: 2.2rem; }
+            .grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -312,119 +265,192 @@
         <p class="subtitle">Android Tools & Utility Collection</p>
     </header>
 
-    <div class="container">
-        <div class="grid">
-            <a href="astools/index.html" class="card" id="card-astools">
-                <div class="card-icon">🛠️</div>
-                <div class="card-title">Android 资源助手</div>
-                <div class="card-desc">全面的 Android 资源管理与辅助工具集，提升开发与操作效率。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <!-- <a href="bird/index.html" class="card" id="card-bird">
-                <div class="card-icon">🦅</div>
-                <div class="card-title">愤怒小鸟工具集</div>
-                <div class="card-desc">针对《愤怒的小鸟》提供的各项快捷操作、用户管理与图鉴。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="xiaoniao/index.html" class="card" id="card-xiaoniao">
-                <div class="card-icon">🐦</div>
-                <div class="card-title">愤怒小鸟 V2</div>
-                <div class="card-desc">小鸟管理系统的稳定新版本，包含一键配鸟、批量祝福和用户管理等。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a> -->
-
-            <a href="flybird/index.html" class="card" id="card-flybird">
-                <div class="card-icon">🚁</div>
-                <div class="card-title">飞翔的小鸟</div>
-                <div class="card-desc">复刻经典的“Flappy Bird”风格迷你游戏操作面板。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="file-manager/index.html" class="card" id="card-file-manager">
-                <div class="card-icon">📁</div>
-                <div class="card-title">文件夹大小查看</div>
-                <div class="card-desc">快捷分析和概览系统中各文件夹的占用空间，便于清理与管理内存。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="image-finder/index.html" class="card" id="card-image-finder">
-                <div class="card-icon">🔍</div>
-                <div class="card-title">图片查找器</div>
-                <div class="card-desc">快速检索匹配本地或项目资源中的图片文件，大幅提升找图效率。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="color-tools/index.html" class="card" id="card-color-tools">
-                <div class="card-icon">🎨</div>
-                <div class="card-title">颜色吸取工具</div>
-                <div class="card-desc">支持 P3 与 sRGB 宽广色域的高精度的屏幕取色和色彩转换工具。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="https://multisquoosh.vercel.app/" class="card" id="card-squoosh" target="_blank">
-                <div class="card-icon">🖼️</div>
-                <div class="card-title">批量图片压缩</div>
-                <div class="card-desc">基于 Squoosh 的批量图片压缩工具，支持多格式转换与质量调节。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="cocos-atlas-unpacker/index.html" class="card">
-                <div class="card-icon">✂️</div>
-                <div class="card-title">Cocos 图集拆分</div>
-                <div class="card-desc">上传图集 PNG + plist，自动拆分为独立碎图并打包下载。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="cocos-atlas-unpacker/packer.html" class="card">
-                <div class="card-icon">📦</div>
-                <div class="card-title">Cocos 图集打包</div>
-                <div class="card-desc">将多张碎图重新打包为图集 PNG + plist，支持自定义命名。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
-
-            <a href="cocos-atlas-unpacker/replacer.html" class="card">
-                <div class="card-icon">🔄</div>
-                <div class="card-title">Cocos 图集替换</div>
-                <div class="card-desc">在现有图集中局部替换指定碎图，保留其余帧不变并重新导出。</div>
-                <div class="card-footer">
-                    <span>进入工具</span>
-                    <span class="card-footer-arrow">→</span>
-                </div>
-            </a>
+    <div class="toolbar">
+        <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="searchInput" placeholder="搜索工具…" autocomplete="off" />
+            <button class="search-clear" id="searchClear" title="清除">✕</button>
+        </div>
+        <div class="filter-tabs">
+            <div class="filter-tab active" data-cat="all">全部</div>
+            <div class="filter-tab" data-cat="dev">开发工具</div>
+            <div class="filter-tab" data-cat="image">图片处理</div>
+            <div class="filter-tab" data-cat="cocos">Cocos 图集</div>
+            <div class="filter-tab" data-cat="system">系统工具</div>
+            <div class="filter-tab" data-cat="game">游戏</div>
         </div>
     </div>
+
+    <div class="container">
+        <div class="grid" id="cardGrid">
+
+            <!-- 开发工具 -->
+            <a href="astools/index.html" class="card" data-cat="dev" style="--card-color:rgba(99,102,241,0.6); animation-delay:0.05s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                    </svg>
+                </div>
+                <div class="card-title">Android 资源助手</div>
+                <div class="card-desc">全面的 Android 资源管理与辅助工具集，提升开发与操作效率。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <a href="color-tools/index.html" class="card" data-cat="dev" style="--card-color:rgba(16,185,129,0.6); animation-delay:0.1s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="13.5" cy="6.5" r="2.5"/><circle cx="19" cy="13" r="2.5"/><circle cx="6" cy="14" r="2.5"/><circle cx="10.5" cy="20" r="2.5"/>
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-opacity="0.3"/>
+                    </svg>
+                </div>
+                <div class="card-title">颜色吸取工具</div>
+                <div class="card-desc">支持 P3 与 sRGB 宽广色域的高精度屏幕取色和色彩转换工具。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <!-- 图片处理 -->
+            <a href="image-finder/index.html" class="card" data-cat="image" style="--card-color:rgba(59,130,246,0.6); animation-delay:0.15s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                        <circle cx="15" cy="15" r="4"/><line x1="18.5" y1="18.5" x2="21" y2="21"/>
+                    </svg>
+                </div>
+                <div class="card-title">图片查找器</div>
+                <div class="card-desc">快速检索匹配本地或项目资源中的图片文件，大幅提升找图效率。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <a href="https://multisquoosh.vercel.app/" class="card" data-cat="image" style="--card-color:rgba(236,72,153,0.6); animation-delay:0.2s" target="_blank">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                        <path d="M12 17l-2-2 2-2 2 2z" fill="rgba(249,168,212,0.3)"/>
+                    </svg>
+                </div>
+                <div class="card-title">批量图片压缩</div>
+                <div class="card-desc">基于 Squoosh 的批量图片压缩工具，支持多格式转换与质量调节。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <!-- Cocos 图集 -->
+            <a href="cocos-atlas-unpacker/index.html" class="card" data-cat="cocos" style="--card-color:rgba(245,158,11,0.6); animation-delay:0.25s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 2v6l-2 2 2 2v6h12v-6l2-2-2-2V2z"/><line x1="6" y1="10" x2="18" y2="10"/><line x1="6" y1="14" x2="18" y2="14"/>
+                        <line x1="12" y1="2" x2="12" y2="22" stroke-dasharray="2 2"/>
+                    </svg>
+                </div>
+                <div class="card-title">Cocos 图集拆分</div>
+                <div class="card-desc">上传图集 PNG + plist，自动拆分为独立碎图并打包下载。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <a href="cocos-atlas-unpacker/packer.html" class="card" data-cat="cocos" style="--card-color:rgba(245,158,11,0.6); animation-delay:0.3s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                </div>
+                <div class="card-title">Cocos 图集打包</div>
+                <div class="card-desc">将多张碎图重新打包为图集 PNG + plist，支持自定义命名。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <a href="cocos-atlas-unpacker/replacer.html" class="card" data-cat="cocos" style="--card-color:rgba(245,158,11,0.6); animation-delay:0.35s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
+                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                    </svg>
+                </div>
+                <div class="card-title">Cocos 图集替换</div>
+                <div class="card-desc">在现有图集中局部替换指定碎图，保留其余帧不变并重新导出。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <!-- 系统工具 -->
+            <a href="file-manager/index.html" class="card" data-cat="system" style="--card-color:rgba(139,92,246,0.6); animation-delay:0.4s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                </div>
+                <div class="card-title">文件夹大小查看</div>
+                <div class="card-desc">快捷分析和概览系统中各文件夹的占用空间，便于清理与管理内存。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+            <!-- 游戏 -->
+            <a href="flybird/index.html" class="card" data-cat="game" style="--card-color:rgba(239,68,68,0.6); animation-delay:0.45s">
+                <div class="card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                        <path d="M8 12l2 2 4-4"/>
+                        <path d="M17 8c1.5 1 2 2.5 1.5 4" stroke-dasharray="2 1"/>
+                    </svg>
+                </div>
+                <div class="card-title">飞翔的小鸟</div>
+                <div class="card-desc">复刻经典的"Flappy Bird"风格迷你游戏操作面板。</div>
+                <div class="card-footer"><span>进入工具</span><span class="card-footer-arrow">→</span></div>
+            </a>
+
+        </div>
+
+        <div class="no-results" id="noResults">没有找到匹配的工具</div>
+        <div class="spacer"></div>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const searchClear = document.getElementById('searchClear');
+        const noResults = document.getElementById('noResults');
+        const filterTabs = document.querySelectorAll('.filter-tab');
+        const cards = document.querySelectorAll('.card');
+
+        let currentCat = 'all';
+        let currentQuery = '';
+
+        function applyFilter() {
+            let anyVisible = false;
+            cards.forEach(card => {
+                const catMatch = currentCat === 'all' || card.dataset.cat === currentCat;
+                const queryMatch = !currentQuery || card.innerText.toLowerCase().includes(currentQuery);
+                const show = catMatch && queryMatch;
+                card.classList.toggle('hidden', !show);
+                if (show) anyVisible = true;
+            });
+            noResults.classList.toggle('visible', !anyVisible);
+        }
+
+        searchInput.addEventListener('input', () => {
+            currentQuery = searchInput.value.trim().toLowerCase();
+            searchClear.classList.toggle('visible', currentQuery.length > 0);
+            applyFilter();
+        });
+
+        searchClear.addEventListener('click', () => {
+            searchInput.value = '';
+            currentQuery = '';
+            searchClear.classList.remove('visible');
+            searchInput.focus();
+            applyFilter();
+        });
+
+        filterTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                filterTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentCat = tab.dataset.cat;
+                applyFilter();
+            });
+        });
+    </script>
 </body>
 
 </html>
