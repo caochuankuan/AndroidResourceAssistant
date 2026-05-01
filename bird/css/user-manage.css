@@ -35,7 +35,7 @@
             align-items: center;
         }
 
-        .import-btn, .export-btn, .back-btn {
+        .import-btn, .export-btn, .switch-region-btn, .back-btn {
             background: rgba(255,255,255,0.2);
             color: white;
             border: none;
@@ -46,7 +46,7 @@
             font-size: 14px;
         }
 
-        .import-btn:hover, .export-btn:hover, .back-btn:hover {
+        .import-btn:hover, .export-btn:hover, .switch-region-btn:hover, .back-btn:hover {
             background: rgba(255,255,255,0.3);
         }
 
@@ -64,6 +64,14 @@
 
         .export-btn:hover {
             background: rgba(52, 152, 219, 1);
+        }
+
+        .switch-region-btn {
+            background: rgba(243, 156, 18, 0.85);
+        }
+
+        .switch-region-btn:hover {
+            background: rgba(243, 156, 18, 1);
         }
 
         .header h1 {
@@ -256,6 +264,13 @@
             display: flex;
             gap: 10px;
             justify-content: flex-end;
+        }
+
+        .switch-region-tip {
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #718096;
+            line-height: 1.6;
         }
 
         .btn {

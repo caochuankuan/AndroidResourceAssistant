@@ -13,6 +13,7 @@
             <div class="header-buttons">
                 <button class="import-btn" onclick="importUserConfig()">导入配置</button>
                 <button class="export-btn" onclick="exportUserConfig()">导出配置</button>
+                <button class="switch-region-btn" onclick="openSwitchRegionModal()">换区助手</button>
                 <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
             </div>
         </div>
@@ -65,6 +66,28 @@
                 <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">取消</button>
                 <button type="button" class="btn" style="background: #ff4757; color: white;" onclick="confirmDelete()">删除</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 换区助手弹窗 -->
+    <div id="switchRegionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">换区助手</div>
+            <form id="switchRegionForm">
+                <div class="form-group">
+                    <label for="oldIp">旧IP</label>
+                    <input type="text" id="oldIp" name="oldIp" required placeholder="请输入需要替换的旧IP">
+                </div>
+                <div class="form-group">
+                    <label for="newIp">新IP</label>
+                    <input type="text" id="newIp" name="newIp" required placeholder="请输入新的IP">
+                </div>
+                <p class="switch-region-tip">会批量替换当前用户配置中链接地址里的 IP。</p>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="closeSwitchRegionModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">开始替换</button>
+                </div>
+            </form>
         </div>
     </div>
 

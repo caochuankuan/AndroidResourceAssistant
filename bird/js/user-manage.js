@@ -116,6 +116,17 @@ function closeDeleteModal() {
     deleteUserId = null;
 }
 
+// 打开换区助手弹窗
+function openSwitchRegionModal() {
+    document.getElementById('switchRegionModal').style.display = 'block';
+    document.getElementById('switchRegionForm').reset();
+}
+
+// 关闭换区助手弹窗
+function closeSwitchRegionModal() {
+    document.getElementById('switchRegionModal').style.display = 'none';
+}
+
 // 确认删除用户
 function confirmDelete() {
     if (deleteUserId) {
@@ -170,6 +181,70 @@ document.getElementById('addUserForm').addEventListener('submit', function(e) {
     saveUsers();
     renderUsers();
     closeAddModal();
+});
+
+// 批量替换用户链接中的IP
+document.getElementById('switchRegionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    if (users.length === 0) {
+        alert('暂无用户数据可替换');
+        return;
+    }
+
+    const formData = new FormData(e.target);
+    const oldIp = formData.get('oldIp').trim();
+    const newIp = formData.get('newIp').trim();
+
+    if (!oldIp || !newIp) {
+        alert('请输入完整的旧IP和新IP');
+        return;
+    }
+
+    if (oldIp === newIp) {
+        alert('旧IP和新IP不能相同');
+        return;
+    }
+
+    let replaceCount = 0;
+    let invalidUrlCount = 0;
+
+    users = users.map(user => {
+        if (!user.originalUrl) {
+            return user;
+        }
+
+        try {
+            const url = new URL(user.originalUrl);
+            if (url.hostname !== oldIp) {
+                return user;
+            }
+
+            url.hostname = newIp;
+            replaceCount += 1;
+
+            return {
+                ...user,
+                originalUrl: url.toString()
+            };
+        } catch (error) {
+            invalidUrlCount += 1;
+            return user;
+        }
+    });
+
+    if (replaceCount === 0) {
+        const invalidTip = invalidUrlCount > 0 ? `，另有 ${invalidUrlCount} 条链接格式异常未处理` : '';
+        alert(`没有找到使用旧IP ${oldIp} 的用户配置${invalidTip}`);
+        return;
+    }
+
+    saveUsers();
+    renderUsers();
+    closeSwitchRegionModal();
+
+    const invalidTip = invalidUrlCount > 0 ? `，${invalidUrlCount} 条链接格式异常未处理` : '';
+    alert(`已成功替换 ${replaceCount} 个用户的IP${invalidTip}`);
 });
 
 // 打开原始URL
@@ -257,7 +332,7 @@ function handleFileImport(event) {
                 // 重新生成ID以避免冲突
                 const importedUsers = validUsers.map(user => ({
                     ...user,
-                    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                    id: Date.now().toString() + Math.random().toString(36).slice(2, 11),
                     importTime: new Date().toLocaleString()
                 }));
 
@@ -282,11 +357,15 @@ function handleFileImport(event) {
 window.addEventListener('click', function(e) {
     const addModal = document.getElementById('addModal');
     const deleteModal = document.getElementById('deleteModal');
+    const switchRegionModal = document.getElementById('switchRegionModal');
     
     if (e.target === addModal) {
         closeAddModal();
     }
     if (e.target === deleteModal) {
         closeDeleteModal();
+    }
+    if (e.target === switchRegionModal) {
+        closeSwitchRegionModal();
     }
 });
