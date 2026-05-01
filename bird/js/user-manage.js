@@ -73,7 +73,7 @@ function renderUsers() {
                 <div class="user-name">
                     ${escapeHtml(user.name)}
                     &nbsp;&nbsp;&nbsp;ip:${getUserIp(user) ? `<span style="font-size: 0.9rem; font-weight: 400; color: #667eea;">${escapeHtml(getUserIp(user))}</span>` : ''}
-                    &nbsp;&nbsp;&nbsp;打开游戏:${user.originalUrl ? `<span class="open-url-icon" onclick="openOriginalUrl('${escapeHtml(user.originalUrl)}')" title="打开原始页面">↗️</span>` : ''}
+                    &nbsp;&nbsp;&nbsp;${user.originalUrl ? `<span class="open-url-icon" onclick="openOriginalUrl('${escapeHtml(user.originalUrl)}')" title="打开原始页面">↗️</span>` : ''}
                 </div>
                 <div style="color: #667eea; font-size: 0.9rem; margin-bottom: 5px; word-break: break-all; overflow-wrap: anywhere; max-width: 100%; display: block;">
                     <strong>SSO:</strong> <span style="margin-left: 5px;">${escapeHtml(user.sso)}</span>
