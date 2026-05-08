@@ -44,6 +44,11 @@ function goToPlantBird() {
     window.location.href = 'html/plant-bird.html';
 }
 
+function goToBirdAnim1() {
+    // 跳转到小鸟动画1页面
+    window.location.href = 'bird1/index.html';
+}
+
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('首页加载完成');
