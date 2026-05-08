@@ -94,7 +94,13 @@ async function doFight(user, targetU) {
     return await jsonp(url, cb);
 }
 
-// ===================== 循环控制 =====================
+// 恢复竞技场战斗次数
+async function renewFight(user) {
+    const cb = 'jcb_arena_renew';
+    const now = Date.now();
+    const url = `https://m.abird.top/gs/s1/api/fight/renew.do?sso=${encodeURIComponent(user.sso)}&pid=32&v_now=${now}&_=${now}&jcb=${cb}`;
+    return await jsonp(url, cb);
+}
 
 async function startArena() {
     const user = getSelectedUser();
@@ -175,10 +181,45 @@ async function runOnce(user, targetRankValue) {
             } else {
                 addLog(`❌ 失败  对手: ${target.n}  ${result.fightJSON?.cont ?? ''}`, 'error');
             }
+        } else if (result.code === 2) {
+            // 战斗次数不足，先尝试恢复一次
+            addLog(`⚠️ 战斗次数不足，尝试恢复...`, 'warning');
+            try {
+                const renew = await renewFight(user);
+                if (renew.code === 0) {
+                    addLog(`🔋 恢复成功：${renew.msg}，重试战斗...`, 'success');
+                    // 重试一次战斗
+                    const retry = await doFight(user, target.u);
+                    totalFights++;
+                    if (retry.code === 0) {
+                        const win = retry.win === true;
+                        if (win) {
+                            totalWins++;
+                            addLog(`✅ 胜利！对手: ${target.n}  ${retry.fightJSON?.cont ?? ''}  奖励: ${retry.reward ?? ''}`, 'success');
+                        } else {
+                            addLog(`❌ 失败  对手: ${target.n}  ${retry.fightJSON?.cont ?? ''}`, 'error');
+                        }
+                    } else {
+                        // 恢复后重试仍然失败，判断是否明确不足
+                        addLog(`⚠️ 重试失败: code=${retry.code} msg=${retry.msg || ''}`, 'warning');
+                        if (/不足|不够|次数/.test(retry.msg || '')) {
+                            addLog('🛑 战斗次数耗尽，自动停止循环', 'error');
+                            stopArena();
+                        }
+                    }
+                } else {
+                    addLog(`🛑 恢复失败: ${renew.msg || ''}，自动停止循环`, 'error');
+                    stopArena();
+                }
+            } catch (e) {
+                addLog(`🛑 恢复请求出错: ${e.message}，自动停止循环`, 'error');
+                stopArena();
+            }
         } else {
             addLog(`⚠️ 战斗接口返回异常: code=${result.code} msg=${result.msg || ''}`, 'warning');
-            if (result.code === 2) {
-                addLog('🛑 战斗次数不足，自动停止循环', 'error');
+            // msg 中含明确不足提示时停止
+            if (/不足|不够|次数/.test(result.msg || '')) {
+                addLog('🛑 战斗资源耗尽，自动停止循环', 'error');
                 stopArena();
             }
         }
