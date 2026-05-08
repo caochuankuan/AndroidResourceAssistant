@@ -1,0 +1,333 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Microsoft YaHei', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 40px);
+}
+
+/* ===== Header ===== */
+.header {
+    background: #667eea;
+    color: white;
+    padding: 20px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.header h1 {
+    font-size: 1.8rem;
+    font-weight: 500;
+}
+
+.back-btn {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-size: 14px;
+}
+
+.back-btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* ===== Content ===== */
+.content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 30px;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+/* ===== Config Area ===== */
+.config-area {
+    background: #f8f9fa;
+    border-radius: 14px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.config-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.config-item label {
+    font-weight: 600;
+    color: #444;
+    font-size: 14px;
+}
+
+.user-select,
+.config-item input[type="number"] {
+    padding: 11px 14px;
+    border: 2px solid #e1e5e9;
+    border-radius: 10px;
+    font-size: 15px;
+    background: white;
+    transition: border-color 0.3s;
+    width: 100%;
+    max-width: 360px;
+}
+
+.user-select:focus,
+.config-item input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.config-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.btn-start, .btn-stop, .btn-clear {
+    padding: 11px 28px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-start {
+    background: #28a745;
+    color: white;
+    box-shadow: 0 3px 10px rgba(40,167,69,0.3);
+}
+
+.btn-start:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+}
+
+.btn-start:disabled {
+    background: #a0aec0;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn-stop {
+    background: #dc3545;
+    color: white;
+    box-shadow: 0 3px 10px rgba(220,53,69,0.3);
+}
+
+.btn-stop:hover:not(:disabled) {
+    background: #c82333;
+    transform: translateY(-1px);
+}
+
+.btn-stop:disabled {
+    background: #a0aec0;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn-clear {
+    background: #e2e8f0;
+    color: #4a5568;
+}
+
+.btn-clear:hover {
+    background: #cbd5e0;
+}
+
+/* ===== Status Bar ===== */
+.status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    background: #e2e8f0;
+    color: #4a5568;
+    transition: background 0.3s, color 0.3s;
+}
+
+.status-running {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-stopped {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.fight-count {
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+/* ===== Rank Area ===== */
+.rank-area {
+    background: #f8f9fa;
+    border-radius: 14px;
+    padding: 20px;
+}
+
+.rank-area h3 {
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.update-time {
+    font-size: 12px;
+    color: #999;
+    font-weight: 400;
+}
+
+.rank-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.rank-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    background: white;
+    border-radius: 8px;
+    font-size: 14px;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.rank-item.rank-target {
+    border-color: #667eea;
+    background: #eef0fd;
+}
+
+.rank-no {
+    width: 28px;
+    text-align: center;
+    font-weight: 700;
+    color: #667eea;
+    flex-shrink: 0;
+}
+
+.rank-name {
+    flex: 1;
+    color: #333;
+    font-weight: 500;
+}
+
+.rank-score {
+    color: #888;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.rank-tag {
+    background: #667eea;
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+}
+
+/* ===== Output Area ===== */
+.output-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 240px;
+}
+
+.output-area h3 {
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 12px;
+}
+
+.output-content {
+    flex: 1;
+    background: #1e1e2e;
+    border-radius: 10px;
+    padding: 16px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 400px;
+    color: #cdd6f4;
+}
+
+.output-content.empty {
+    color: #6c7086;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.output-content .success { color: #a6e3a1; }
+.output-content .error   { color: #f38ba8; }
+.output-content .info    { color: #89dceb; }
+.output-content .warning { color: #f9e2af; }
+
+/* ===== Responsive ===== */
+@media (max-width: 600px) {
+    body { padding: 10px; }
+
+    .header {
+        padding: 15px 20px;
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+
+    .content { padding: 16px; }
+
+    .config-actions { flex-direction: column; }
+
+    .btn-start, .btn-stop, .btn-clear { width: 100%; }
+
+    .user-select,
+    .config-item input[type="number"] { max-width: 100%; }
+}
