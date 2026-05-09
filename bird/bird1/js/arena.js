@@ -78,7 +78,7 @@ function jsonp(url, callbackName) {
 
 // 获取竞技场列表
 async function fetchArenaList(user, ps = 12) {
-    const cb = 'jcb_arena_list';
+    const cb = 'jcb_33';
     const now = Date.now();
     const url = `https://m.abird.top/gs/s1/api/fight/arena.do?sso=${encodeURIComponent(user.sso)}&ps=${ps}&v_now=${now}&_=${now}&jcb=${cb}`;
     const data = await jsonp(url, cb);
@@ -88,7 +88,7 @@ async function fetchArenaList(user, ps = 12) {
 
 // 发起竞技场战斗
 async function doFight(user, targetU) {
-    const cb = 'jcb_arena_fight';
+    const cb = 'jcb_25';
     const now = Date.now();
     const url = `https://m.abird.top/gs/s1/api/fight/fight.do?sso=${encodeURIComponent(user.sso)}&vk=&f=${encodeURIComponent(targetU)}&v_now=${now}&_=${now}&jcb=${cb}`;
     return await jsonp(url, cb);
@@ -96,9 +96,9 @@ async function doFight(user, targetU) {
 
 // 恢复竞技场战斗次数
 async function renewFight(user) {
-    const cb = 'jcb_arena_renew';
+    const cb = 'jcb_49';
     const now = Date.now();
-    const url = `https://m.abird.top/gs/s1/api/fight/renew.do?sso=${encodeURIComponent(user.sso)}&pid=32&v_now=${now}&_=${now}&jcb=${cb}`;
+    const url = `https://m.abird.top/gs/s1/api/fight/renew.do?sso=${encodeURIComponent(user.sso)}&vk=&pid=32&v_now=${now}&_=${now}&jcb=${cb}`;
     return await jsonp(url, cb);
 }
 
