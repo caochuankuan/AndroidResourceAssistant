@@ -80,7 +80,7 @@ function jsonp(url, callbackName) {
 async function fetchArenaList(user, ps = 12) {
     const cb = 'jcb_33';
     const now = Date.now();
-    const url = `https://m.abird.top/gs/s1/api/fight/arena.do?sso=${encodeURIComponent(user.sso)}&ps=${ps}&v_now=${now}&_=${now}&jcb=${cb}`;
+    const url = `https://124.222.161.50/gs/s1/api/fight/arena.do?sso=${encodeURIComponent(user.sso)}&ps=${ps}&v_now=${now}&_=${now}&jcb=${cb}`;
     const data = await jsonp(url, cb);
     if (data.code !== 0) throw new Error('接口返回错误: code=' + data.code);
     return data;
@@ -90,7 +90,7 @@ async function fetchArenaList(user, ps = 12) {
 async function doFight(user, targetU) {
     const cb = 'jcb_25';
     const now = Date.now();
-    const url = `https://m.abird.top/gs/s1/api/fight/fight.do?sso=${encodeURIComponent(user.sso)}&vk=&f=${encodeURIComponent(targetU)}&v_now=${now}&_=${now}&jcb=${cb}`;
+    const url = `https://124.222.161.50/gs/s1/api/fight/fight.do?sso=${encodeURIComponent(user.sso)}&vk=&f=${encodeURIComponent(targetU)}&v_now=${now}&_=${now}&jcb=${cb}`;
     return await jsonp(url, cb);
 }
 
@@ -98,7 +98,7 @@ async function doFight(user, targetU) {
 async function renewFight(user) {
     const cb = 'jcb_49';
     const now = Date.now();
-    const url = `https://m.abird.top/gs/s1/api/fight/renew.do?sso=${encodeURIComponent(user.sso)}&vk=&pid=32&v_now=${now}&_=${now}&jcb=${cb}`;
+    const url = `https://124.222.161.50/gs/s1/api/fight/renew.do?sso=${encodeURIComponent(user.sso)}&vk=&pid=32&v_now=${now}&_=${now}&jcb=${cb}`;
     return await jsonp(url, cb);
 }
 
