@@ -29,6 +29,11 @@ function goToLadder() {
     window.location.href = 'html/ladder.html';
 }
 
+function goToGuildWar() {
+    // 跳转到公会战页面
+    window.location.href = 'html/guild-war.html';
+}
+
 function goToRedpacket() {
     // 跳转到一键红包页面
     window.location.href = 'html/redpacket.html';

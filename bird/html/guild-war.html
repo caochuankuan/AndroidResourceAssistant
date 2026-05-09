@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公会战 - 愤怒小鸟</title>
+    <link rel="stylesheet" href="../css/guild-war.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <button class="back-btn" onclick="goBack()">← 返回</button>
+            <h1>⚔️ 公会战</h1>
+        </header>
+
+        <main class="main-content">
+            <section class="config-card">
+                <div class="config-grid">
+                    <div class="field field-span-2">
+                        <span>选择用户</span>
+                        <div class="selection-actions">
+                            <button type="button" class="mini-btn" onclick="selectAllUsers()">全选</button>
+                            <button type="button" class="mini-btn" onclick="clearSelectedUsers()">清空</button>
+                        </div>
+                        <div id="userCheckboxList" class="user-checkbox-list"></div>
+                    </div>
+
+                    <label class="field">
+                        <span>挑战第几个对手</span>
+                        <input id="targetIndex" class="field-input" type="number" min="1" placeholder="留空默认第1个">
+                    </label>
+
+                    <label class="field">
+                        <span>挑战间隔(毫秒)</span>
+                        <input id="fightInterval" class="field-input" type="number" min="100" value="3000" placeholder="默认3000">
+                    </label>
+
+                    <label class="field">
+                        <span>达到多少积分触发免战</span>
+                        <input id="pointsThreshold" class="field-input" type="number" min="1" value="70" placeholder="默认70">
+                    </label>
+
+                    <label class="field">
+                        <span>金币不足时取钱</span>
+                        <input id="withdrawAmount" class="field-input" type="number" min="0" value="100000" placeholder="默认100000">
+                    </label>
+
+                    <label class="field">
+                        <span>购买恢复卡数量</span>
+                        <input id="cardCount" class="field-input" type="number" min="1" value="10" placeholder="默认10">
+                    </label>
+                </div>
+
+                <div class="tips">
+                    <p>默认会持续挑战第 1 个对手。</p>
+                    <p>每次等待时间都会在输入间隔的基础上随机偏移 ±30%。</p>
+                    <p>支持多用户同时执行，所有用户共用当前页的挑战参数。</p>
+                </div>
+
+                <div class="action-row">
+                    <button id="startBtn" class="action-btn primary" onclick="toggleGuildWar()" disabled>请选择用户后开始</button>
+                    <button class="action-btn secondary" onclick="clearOutput()">清空日志</button>
+                </div>
+            </section>
+
+            <section class="output-card">
+                <div class="output-header">
+                    <h2>执行日志</h2>
+                </div>
+                <div id="outputContent" class="output-content empty">等待操作...</div>
+            </section>
+        </main>
+    </div>
+
+    <script src="../js/guild-war.js"></script>
+</body>
+</html>
