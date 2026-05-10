@@ -354,7 +354,6 @@ async function runGuildWarForUser(user, settings) {
     let successCount = 0;
     let failCount = 0;
     let totalPoints = 0;
-    let thresholdTriggered = false;
 
     addOutput(`\n👤 [${userName}] 开始公会战`, 'info');
 
@@ -452,10 +451,12 @@ async function runGuildWarForUser(user, settings) {
                 addOutput(`[${userName}] 🏅 本轮获得积分: ${gainedPoints}`, gainedPoints > 0 ? 'success' : 'info');
                 logPointsProgress(userName, totalPoints, settings.pointsThreshold);
 
-                if (!thresholdTriggered && settings.pointsThreshold !== null && totalPoints >= settings.pointsThreshold) {
-                    thresholdTriggered = true;
+                if (settings.pointsThreshold !== null && totalPoints >= settings.pointsThreshold) {
                     addOutput(`[${userName}] 🎯 当前总积分已达到目标，开始执行免战流程`, 'warning');
                     await buyAndUseDenyCard(user, settings.baseInterval);
+                    totalPoints = 0;
+                    addOutput(`[${userName}] 🔄 免战流程完成，当前总积分已清空`, 'info');
+                    logPointsProgress(userName, totalPoints, settings.pointsThreshold);
                 } else if (guildWarRunning) {
                     await waitNextRound(userName, settings.baseInterval, '下一轮挑战前');
                 }
