@@ -208,9 +208,11 @@
 
         ctx.save();
         if (fd.rotated) {
+            // frame.w/h 是原图尺寸，实际槽是 frame.h × frame.w
+            // 顺时针存入，逆时针还原
             ctx.translate(cropW / 2, cropH / 2);
-            ctx.rotate(-Math.PI / 2);
-            ctx.drawImage(baseImg, fd.frame.x, fd.frame.y, cropH, cropW, -cropH / 2, -cropW / 2, cropH, cropW);
+            ctx.rotate(Math.PI / 2);
+            ctx.drawImage(baseImg, fd.frame.x, fd.frame.y, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
         } else {
             ctx.drawImage(baseImg, fd.frame.x, fd.frame.y, cropW, cropH, 0, 0, cropW, cropH);
         }
@@ -321,29 +323,43 @@
 
             const targetName = checkedRadio.value;
             const fd = framesData[targetName];
-            const maxW = fd.rotated ? fd.frame.h : fd.frame.w;
-            const maxH = fd.rotated ? fd.frame.w : fd.frame.h;
+            const slotW = fd.rotated ? fd.frame.h : fd.frame.w;
+            const slotH = fd.rotated ? fd.frame.w : fd.frame.h;
 
-            if (patch.img.width > maxW || patch.img.height > maxH) {
-                log(`失败：新图 "${patch.name}" 尺寸过大。`, 'error');
+            // 如果补丁图和槽方向相反，比较时对调宽高
+            const patchIsHorizontal = patch.img.width >= patch.img.height;
+            const slotIsHorizontal = slotW >= slotH;
+            const needRotate = fd.rotated && (patchIsHorizontal !== slotIsHorizontal);
+            const effectivePatchW = needRotate ? patch.img.height : patch.img.width;
+            const effectivePatchH = needRotate ? patch.img.width : patch.img.height;
+
+            if (effectivePatchW > slotW || effectivePatchH > slotH) {
+                log(`失败：新图 "${patch.name}" 尺寸过大。(补丁 ${effectivePatchW}×${effectivePatchH} > 槽 ${slotW}×${slotH})`, 'error');
                 return;
             }
 
-            // 同步擦除原区域
-            ctx.clearRect(fd.frame.x, fd.frame.y, fd.frame.w, fd.frame.h);
-            exportCtx.clearRect(fd.frame.x, fd.frame.y, fd.frame.w, fd.frame.h);
+            // 同步擦除原区域（rotated 时实际槽是 h×w 的竖槽）
+            ctx.clearRect(fd.frame.x, fd.frame.y, slotW, slotH);
+            exportCtx.clearRect(fd.frame.x, fd.frame.y, slotW, slotH);
 
             // 同步绘制新图
             ctx.save(); exportCtx.save();
             if (fd.rotated) {
-                // 画展示板
-                ctx.translate(fd.frame.x + fd.frame.h / 2, fd.frame.y + fd.frame.w / 2);
-                ctx.rotate(-Math.PI / 2);
-                ctx.drawImage(patch.img, -fd.frame.h / 2, -fd.frame.w / 2);
-                // 画纯净板
-                exportCtx.translate(fd.frame.x + fd.frame.h / 2, fd.frame.y + fd.frame.w / 2);
-                exportCtx.rotate(-Math.PI / 2);
-                exportCtx.drawImage(patch.img, -fd.frame.h / 2, -fd.frame.w / 2);
+                if (needRotate) {
+                    // 补丁图方向和槽方向相反，旋转90°后再写入
+                    const cx = fd.frame.x + slotW / 2;
+                    const cy = fd.frame.y + slotH / 2;
+                    ctx.translate(cx, cy);
+                    ctx.rotate(Math.PI / 2);
+                    ctx.drawImage(patch.img, -patch.img.width / 2, -patch.img.height / 2);
+                    exportCtx.translate(cx, cy);
+                    exportCtx.rotate(Math.PI / 2);
+                    exportCtx.drawImage(patch.img, -patch.img.width / 2, -patch.img.height / 2);
+                } else {
+                    // 方向一致，直接画
+                    ctx.drawImage(patch.img, fd.frame.x, fd.frame.y);
+                    exportCtx.drawImage(patch.img, fd.frame.x, fd.frame.y);
+                }
             } else {
                 ctx.drawImage(patch.img, fd.frame.x, fd.frame.y);
                 exportCtx.drawImage(patch.img, fd.frame.x, fd.frame.y);
