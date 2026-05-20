@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>DragonBones 图集切分工具 (含实时预览)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            box-sizing: border-box;
+        }
+        h2 { margin-top: 0; color: #2c3e50; text-align: center; }
+        .file-input-group {
+            margin: 15px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        label { font-weight: bold; font-size: 14px; color: #606266; }
+        input[type="file"] {
+            padding: 12px;
+            border: 1px dashed #dcdfe6;
+            border-radius: 6px;
+            background: #fafafa;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: #409eff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #66b1ff; }
+        button:disabled { background-color: #c0c4cc; cursor: not-allowed; }
+        #status {
+            margin: 15px 0;
+            text-align: center;
+            font-size: 14px;
+            color: #e6a23c;
+            font-weight: bold;
+        }
+        
+        /* 预览区域样式 */
+        .preview-section {
+            margin-top: 30px;
+            border-top: 2px dashed #ebeef5;
+            padding-top: 20px;
+            display: none; /* 初始隐藏 */
+        }
+        .preview-title {
+            font-size: 18px;
+            color: #303133;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+        }
+        .preview-item {
+            border: 1px solid #e4e7ed;
+            border-radius: 8px;
+            padding: 10px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        /* 棋盘格背景，方便看清带透明度的单图 */
+        .img-container {
+            width: 110px;
+            height: 110px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-image: linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0), 
+                              linear-gradient(45deg, #f0f0f0 25%, white 25%, white 75%, #f0f0f0 75%, #f0f0f0);
+            background-size: 16px 16px;
+            background-position: 0 0, 8px 8px;
+            border-radius: 6px;
+            border: 1px solid #f2f6fc;
+            overflow: hidden;
+        }
+        .preview-item img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .preview-item .name {
+            font-size: 12px;
+            margin-top: 8px;
+            word-break: break-all;
+            color: #303133;
+            font-weight: bold;
+            text-align: center;
+        }
+        .preview-item .size {
+            font-size: 11px;
+            color: #909399;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>DragonBones 图集切分工具 (含实时预览)</h2>
+    
+    <div class="file-input-group">
+        <label>1. 选择 JSON 配置文件 (_tex.json)</label>
+        <input type="file" id="jsonInput" accept=".json">
+    </div>
+
+    <div class="file-input-group">
+        <label>2. 选择纹理大图 (_tex.png)</label>
+        <input type="file" id="imageInput" accept="image/png, image/jpeg">
+    </div>
+
+    <button id="processBtn" disabled>打包下载全部碎图 ZIP</button>
+    
+    <div id="status">请先上传两个必要文件...</div>
+
+    <div class="preview-section" id="previewSection">
+        <div class="preview-title" id="previewCount">素材切分预览：</div>
+        <div class="preview-grid" id="previewGrid"></div>
+    </div>
+</div>
+
+<script>
+    const jsonInput = document.getElementById('jsonInput');
+    const imageInput = document.getElementById('imageInput');
+    const processBtn = document.getElementById('processBtn');
+    const statusDiv = document.getElementById('status');
+    const previewSection = document.getElementById('previewSection');
+    const previewGrid = document.getElementById('previewGrid');
+    const previewCount = document.getElementById('previewCount');
+
+    let jsonData = null;
+    let textureImage = null;
+    let slicedImages = []; 
+
+    function checkReady() {
+        if (jsonData && textureImage) {
+            statusDiv.innerText = "正在解析并生成预览...";
+            statusDiv.style.color = "#e6a23c";
+            // 给一丁点延迟让UI有时间刷新提示
+            setTimeout(startSliceAndPreview, 50);
+        } else {
+            processBtn.disabled = true;
+            previewSection.style.display = "none";
+        }
+    }
+
+    // 读取 JSON 文件
+    jsonInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                jsonData = JSON.parse(event.target.result);
+                checkReady();
+            } catch (err) {
+                alert("JSON 格式解析失败，请确保导入了正确的配置文件");
+                jsonData = null;
+                checkReady();
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    // 读取大图文件
+    imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const img = new Image();
+        img.onload = () => {
+            textureImage = img;
+            checkReady();
+        };
+        img.src = URL.createObjectURL(file);
+    });
+
+    // 切分核心并渲染到界面上
+    function startSliceAndPreview() {
+        const subTextures = jsonData.SubTexture;
+        if (!subTextures || !Array.isArray(subTextures)) {
+            alert("未在 JSON 中找到合法的 SubTexture 数据列表！");
+            statusDiv.innerText = "解析失败。";
+            statusDiv.style.color = "#f56c6c";
+            return;
+        }
+
+        // 重置旧的预览数据
+        previewGrid.innerHTML = "";
+        slicedImages = [];
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        subTextures.forEach(sub => {
+            const { x, y, width, height, name } = sub;
+
+            canvas.width = width;
+            canvas.height = height;
+            ctx.clearRect(0, 0, width, height);
+            
+            // 裁剪切块
+            ctx.drawImage(textureImage, x, y, width, height, 0, 0, width, height);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            
+            // 存入数组，方便后续一键打包，避免重复计算
+            slicedImages.push({ name: name, dataUrl: dataUrl });
+
+            // 动态构建 DOM 节点
+            const item = document.createElement('div');
+            item.className = 'preview-item';
+
+            const imgContainer = document.createElement('div');
+            imgContainer.className = 'img-container';
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            imgContainer.appendChild(img);
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'name';
+            nameDiv.innerText = name;
+
+            const sizeDiv = document.createElement('div');
+            sizeDiv.className = 'size';
+            sizeDiv.innerText = `${width} × ${height}`;
+
+            item.appendChild(imgContainer);
+            item.appendChild(nameDiv);
+            item.appendChild(sizeDiv);
+            previewGrid.appendChild(item);
+        });
+
+        // 展现预览网格并激活打包按钮
+        previewCount.innerText = `素材切分预览 (共 ${subTextures.length} 个部件)：`;
+        previewSection.style.display = "block";
+        processBtn.disabled = false;
+        
+        statusDiv.innerText = `成功解析！已渲染 ${subTextures.length} 个小部件，可点击下方按钮下载 ZIP。`;
+        statusDiv.style.color = "#67c23a";
+    }
+
+    // 纯下载 ZIP 逻辑
+    processBtn.addEventListener('click', async () => {
+        if (slicedImages.length === 0) return;
+
+        statusDiv.innerText = "正在将图片打包进 ZIP，请稍候...";
+        statusDiv.style.color = "#e6a23c";
+        processBtn.disabled = true;
+
+        const zip = new JSZip();
+
+        slicedImages.forEach(item => {
+            const base64Data = item.dataUrl.split(',')[1];
+            zip.file(`${item.name}.png`, base64Data, { base64: true });
+        });
+
+        try {
+            const content = await zip.generateAsync({ type: "blob" });
+            const downloadUrl = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `${jsonData.name || 'unpacked'}_textures.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            statusDiv.innerText = "打包成功，ZIP 已开始下载！";
+            statusDiv.style.color = "#67c23a";
+        } catch (err) {
+            statusDiv.innerText = "打包打包失败: " + err.message;
+            statusDiv.style.color = "#f56c6c";
+        } finally {
+            processBtn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
