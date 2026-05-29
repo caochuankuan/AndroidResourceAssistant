@@ -2,6 +2,48 @@ let users = [];
 let isRunning = false;       // 是否正在运行
 let countdownTimer = null;   // 倒计时定时器
 
+// 特殊诱饵：南瓜糖（限时活动诱饵）
+// 接口形态不同：使用 /api/fowling/place?id=23231&bid=66
+// 且不允许自动购买和使用加速道具
+const PUMPKIN_BAIT_ID = 66;
+const PUMPKIN_PLACE_ID = 23231;
+
+// 是否为南瓜糖
+function isPumpkinBait(bid) {
+    return parseInt(bid) === PUMPKIN_BAIT_ID;
+}
+
+// 拼装"种鸟"接口 URL：南瓜糖与普通诱饵走不同路径
+function buildPlaceUrl(base, bid) {
+    if (isPumpkinBait(bid)) {
+        return `${base}/api/fowling/place?id=${PUMPKIN_PLACE_ID}&bid=${bid}`;
+    }
+    return `${base}/api/fowling/place/all?bid=${bid}`;
+}
+
+// 南瓜糖：从 summary 拿到 uid，再从 fowling/list 中拿到 id=23231 的 finishTime
+async function fetchPumpkinFinishTime(base, headers) {
+    try {
+        const summary = await apiGet(`${base}/api/home/summary`, headers);
+        const uid = summary?.data?.birth?.uid;
+        if (!uid) {
+            addOutput(`⚠️ 未能从 summary 中获取 uid`, 'warning');
+            return null;
+        }
+        const listRes = await apiGet(`${base}/api/fowling/list?uid=${uid}`, headers);
+        const list = Array.isArray(listRes?.data) ? listRes.data : [];
+        const pumpkin = list.find(item => item.id === PUMPKIN_PLACE_ID);
+        if (!pumpkin) {
+            addOutput(`⚠️ fowling/list 中未找到 id=${PUMPKIN_PLACE_ID} 的万圣塔`, 'warning');
+            return null;
+        }
+        return pumpkin.finishTime || null;
+    } catch (e) {
+        addOutput(`❌ 查询南瓜糖 finishTime 异常: ${e.message}`, 'error');
+        return null;
+    }
+}
+
 // 诱饵列表（从接口获取后本地维护，i=诱饵ID，n=名称，func=可捕鸟类，fp=价格）
 const BAIT_LIST = [
     { i: 1,   n: "谷子",      func: "麻雀",                fp: 2   },
@@ -317,10 +359,11 @@ async function startPlantBird() {
         addOutput('\n=== 开始种鸟 ===', 'info');
 
         let finishTime = null;
+        const isPumpkin = isPumpkinBait(bid);
 
         try {
-            // 先尝试直接种鸟
-            const placeRes = await apiPost(`${base}/api/fowling/place/all?bid=${bid}`, headers);
+            // 先尝试直接种鸟（南瓜糖走特殊接口）
+            const placeRes = await apiPost(buildPlaceUrl(base, bid), headers);
 
             if (placeRes.code === 200) {
                 addOutput(`✅ 种鸟成功！`, 'success');
@@ -328,8 +371,11 @@ async function startPlantBird() {
                 finishTime = getMaxFinishTime(placeRes.data);
                 addOutput(`📋 种鸟数量: ${Array.isArray(placeRes.data) ? placeRes.data.length : '-'} 个`, 'info');
 
-                // 种鸟成功后使用加速道具
-                if (document.getElementById('usePropSwitch').checked) {
+                // 南瓜糖：禁止使用加速道具
+                if (isPumpkin) {
+                    addOutput(`🎃 南瓜糖模式：跳过加速道具`, 'info');
+                } else if (document.getElementById('usePropSwitch').checked) {
+                    // 种鸟成功后使用加速道具
                     const propGid = parseInt(document.getElementById('propSelect').value) || 21;
                     addOutput(`🔍 道具开关已开，propGid=${propGid}`, 'info');
                     if (propGid) {
@@ -342,22 +388,38 @@ async function startPlantBird() {
                     }
                 }
             } else if (placeRes.code === 500 && placeRes.msg && placeRes.msg.includes('没有该饵')) {
-                // 没有诱饵，先购买
-                addOutput(`⚠️ 没有诱饵，正在购买 ${baitNum} 个...`, 'warning');
-                const buyRes = await apiPost(`${base}/api/shop/buy/goods?func=BAIT&id=${bid}&num=${baitNum}`, headers);
-                if (buyRes.code === 200) {
-                    addOutput(`✅ 购买诱饵成功`, 'success');
-                    // 再次种鸟
-                    const retryRes = await apiPost(`${base}/api/fowling/place/all?bid=${bid}`, headers);
-                    if (retryRes.code === 200) {
-                        addOutput(`✅ 种鸟成功！`, 'success');
-                        finishTime = getMaxFinishTime(retryRes.data);
-                        addOutput(`📋 种鸟数量: ${Array.isArray(retryRes.data) ? retryRes.data.length : '-'} 个`, 'info');
-                    } else {
-                        addOutput(`❌ 种鸟失败: ${retryRes.msg}`, 'error');
-                    }
+                if (isPumpkin) {
+                    // 南瓜糖：禁止自动购买，直接提示并停止本轮
+                    addOutput(`🎃 南瓜糖不足，且南瓜糖模式不允许自动购买，停止运行`, 'error');
+                    isRunning = false;
                 } else {
-                    addOutput(`❌ 购买诱饵失败: ${buyRes.msg}`, 'error');
+                    // 没有诱饵，先购买
+                    addOutput(`⚠️ 没有诱饵，正在购买 ${baitNum} 个...`, 'warning');
+                    const buyRes = await apiPost(`${base}/api/shop/buy/goods?func=BAIT&id=${bid}&num=${baitNum}`, headers);
+                    if (buyRes.code === 200) {
+                        addOutput(`✅ 购买诱饵成功`, 'success');
+                        // 再次种鸟
+                        const retryRes = await apiPost(buildPlaceUrl(base, bid), headers);
+                        if (retryRes.code === 200) {
+                            addOutput(`✅ 种鸟成功！`, 'success');
+                            finishTime = getMaxFinishTime(retryRes.data);
+                            addOutput(`📋 种鸟数量: ${Array.isArray(retryRes.data) ? retryRes.data.length : '-'} 个`, 'info');
+                        } else {
+                            addOutput(`❌ 种鸟失败: ${retryRes.msg}`, 'error');
+                        }
+                    } else {
+                        addOutput(`❌ 购买诱饵失败: ${buyRes.msg}`, 'error');
+                    }
+                }
+            } else if (isPumpkin) {
+                // 南瓜糖种鸟失败（多半是已经种过了），尝试拉取 finishTime 等待收鸟
+                addOutput(`🎃 南瓜糖种鸟失败（${placeRes.msg}），尝试查询已种状态...`, 'warning');
+                const ft = await fetchPumpkinFinishTime(base, headers);
+                if (ft) {
+                    finishTime = ft;
+                    addOutput(`📋 已存在万圣塔，结束时间：${new Date(ft * 1000).toLocaleString()}`, 'info');
+                } else {
+                    addOutput(`❌ 未获取到南瓜糖结束时间，本轮跳过`, 'error');
                 }
             } else {
                 addOutput(`❌ 种鸟失败: ${placeRes.msg}`, 'error');
