@@ -3,10 +3,12 @@ let isRunning = false;       // 是否正在运行
 let countdownTimer = null;   // 倒计时定时器
 
 // 特殊诱饵：南瓜糖（限时活动诱饵）
-// 接口形态不同：使用 /api/fowling/place?id=23231&bid=66
+// 接口形态不同：使用 /api/fowling/place?id=<万圣塔id>&bid=66
+// 万圣塔 id 不写死，运行时从 fowling/list 中按 name="万圣塔"（或 type=3）动态获取
 // 且不允许自动购买和使用加速道具
 const PUMPKIN_BAIT_ID = 66;
-const PUMPKIN_PLACE_ID = 23231;
+const PUMPKIN_PLACE_NAME = '万圣塔';   // 万圣塔名称，用于在列表中定位
+const PUMPKIN_PLACE_TYPE = 3;          // 万圣塔类型，名称匹配不到时的兜底条件
 
 // 是否为南瓜糖
 function isPumpkinBait(bid) {
@@ -14,15 +16,17 @@ function isPumpkinBait(bid) {
 }
 
 // 拼装"种鸟"接口 URL：南瓜糖与普通诱饵走不同路径
-function buildPlaceUrl(base, bid) {
+// 南瓜糖需要传入运行时动态获取的万圣塔 id
+function buildPlaceUrl(base, bid, pumpkinPlaceId) {
     if (isPumpkinBait(bid)) {
-        return `${base}/api/fowling/place?id=${PUMPKIN_PLACE_ID}&bid=${bid}`;
+        return `${base}/api/fowling/place?id=${pumpkinPlaceId}&bid=${bid}`;
     }
     return `${base}/api/fowling/place/all?bid=${bid}`;
 }
 
-// 南瓜糖：从 summary 拿到 uid，再从 fowling/list 中拿到 id=23231 的 finishTime
-async function fetchPumpkinFinishTime(base, headers) {
+// 南瓜糖：从 summary 拿到 uid，再从 fowling/list 中找到万圣塔条目（含 id、finishTime）
+// id 不再写死，优先按 name="万圣塔" 匹配，匹配不到再用 type=3 兜底
+async function fetchPumpkinTower(base, headers) {
     try {
         const summary = await apiGet(`${base}/api/home/summary`, headers);
         const uid = summary?.data?.birth?.uid;
@@ -32,14 +36,16 @@ async function fetchPumpkinFinishTime(base, headers) {
         }
         const listRes = await apiGet(`${base}/api/fowling/list?uid=${uid}`, headers);
         const list = Array.isArray(listRes?.data) ? listRes.data : [];
-        const pumpkin = list.find(item => item.id === PUMPKIN_PLACE_ID);
-        if (!pumpkin) {
-            addOutput(`⚠️ fowling/list 中未找到 id=${PUMPKIN_PLACE_ID} 的万圣塔`, 'warning');
+        // 先按名称精确定位万圣塔，再用 type 兜底
+        const tower = list.find(item => item.name === PUMPKIN_PLACE_NAME)
+            || list.find(item => item.type === PUMPKIN_PLACE_TYPE);
+        if (!tower) {
+            addOutput(`⚠️ fowling/list 中未找到万圣塔（name=${PUMPKIN_PLACE_NAME} / type=${PUMPKIN_PLACE_TYPE}）`, 'warning');
             return null;
         }
-        return pumpkin.finishTime || null;
+        return tower;
     } catch (e) {
-        addOutput(`❌ 查询南瓜糖 finishTime 异常: ${e.message}`, 'error');
+        addOutput(`❌ 查询万圣塔信息异常: ${e.message}`, 'error');
         return null;
     }
 }
@@ -361,9 +367,23 @@ async function startPlantBird() {
         let finishTime = null;
         const isPumpkin = isPumpkinBait(bid);
 
+        // 南瓜糖：先动态获取万圣塔 id（不写死）
+        let pumpkinPlaceId = null;
+        let pumpkinTower = null;
+        if (isPumpkin) {
+            pumpkinTower = await fetchPumpkinTower(base, headers);
+            if (!pumpkinTower) {
+                addOutput(`🎃 未能获取到万圣塔 id，本轮跳过`, 'error');
+                isRunning = false;
+                break;
+            }
+            pumpkinPlaceId = pumpkinTower.id;
+            addOutput(`🎃 已定位万圣塔：${pumpkinTower.name || ''}（id=${pumpkinPlaceId}）`, 'info');
+        }
+
         try {
-            // 先尝试直接种鸟（南瓜糖走特殊接口）
-            const placeRes = await apiPost(buildPlaceUrl(base, bid), headers);
+            // 先尝试直接种鸟（南瓜糖走特殊接口，使用动态万圣塔 id）
+            const placeRes = await apiPost(buildPlaceUrl(base, bid, pumpkinPlaceId), headers);
 
             if (placeRes.code === 200) {
                 addOutput(`✅ 种鸟成功！`, 'success');
@@ -399,7 +419,7 @@ async function startPlantBird() {
                     if (buyRes.code === 200) {
                         addOutput(`✅ 购买诱饵成功`, 'success');
                         // 再次种鸟
-                        const retryRes = await apiPost(buildPlaceUrl(base, bid), headers);
+                        const retryRes = await apiPost(buildPlaceUrl(base, bid, pumpkinPlaceId), headers);
                         if (retryRes.code === 200) {
                             addOutput(`✅ 种鸟成功！`, 'success');
                             finishTime = getMaxFinishTime(retryRes.data);
@@ -412,9 +432,9 @@ async function startPlantBird() {
                     }
                 }
             } else if (isPumpkin) {
-                // 南瓜糖种鸟失败（多半是已经种过了），尝试拉取 finishTime 等待收鸟
-                addOutput(`🎃 南瓜糖种鸟失败（${placeRes.msg}），尝试查询已种状态...`, 'warning');
-                const ft = await fetchPumpkinFinishTime(base, headers);
+                // 南瓜糖种鸟失败（多半是已经种过了），复用本轮已获取的万圣塔 finishTime 等待收鸟
+                addOutput(`🎃 南瓜糖种鸟失败（${placeRes.msg}），尝试使用已种状态...`, 'warning');
+                const ft = pumpkinTower?.finishTime || null;
                 if (ft) {
                     finishTime = ft;
                     addOutput(`📋 已存在万圣塔，结束时间：${new Date(ft * 1000).toLocaleString()}`, 'info');
