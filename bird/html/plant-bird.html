@@ -3,9 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 禁用缓存：辅助手段，提示浏览器不要缓存本页 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>一键种鸟</title>
-    <link rel="stylesheet" href="../css/one-click.css">
-    <link rel="stylesheet" href="../css/plant-bird.css">
+    <script>
+        // 给静态资源追加时间戳，强制每次都加载最新版本，绕过浏览器缓存
+        (function () {
+            var v = Date.now();
+            document.write('<link rel="stylesheet" href="../css/one-click.css?v=' + v + '">');
+            document.write('<link rel="stylesheet" href="../css/plant-bird.css?v=' + v + '">');
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -90,6 +100,9 @@
         </div>
     </div>
 
-    <script src="../js/plant-bird.js"></script>
+    <script>
+        // 给 JS 追加时间戳，强制每次都加载最新版本，绕过浏览器缓存
+        document.write('<scr' + 'ipt src="../js/plant-bird.js?v=' + Date.now() + '"></scr' + 'ipt>');
+    </script>
 </body>
 </html>
