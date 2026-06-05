@@ -2,76 +2,61 @@
 
 WG_DIR="/etc/wireguard"
 WG_IF="wg0"
-WG_PORT="51820"
-WG_NET="10.10.0.0/24"
-WG_SERVER_IP="10.10.0.1"
-WG_CLIENT_IP="10.10.0.2"
+
+# =========================
+# 检查是否安装 WireGuard
+# =========================
+check_installed() {
+    if ! command -v wg >/dev/null 2>&1; then
+        echo "❌ WireGuard 未安装，请先选择【1 安装】"
+        return 1
+    fi
+    return 0
+}
+
+# =========================
+# 检查配置
+# =========================
+check_config() {
+    if [ ! -f "$WG_DIR/$WG_IF.conf" ]; then
+        echo "❌ 未找到 wg0.conf，请先安装或重装"
+        return 1
+    fi
+    return 0
+}
 
 # =========================
 # 安装
 # =========================
 install_wg() {
-    echo "[安装 WireGuard]"
-
-    apt update -y
-    apt install wireguard qrencode iptables curl -y
-
-    sysctl -w net.ipv4.ip_forward=1 >/dev/null
-    grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf || echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-
-    mkdir -p $WG_DIR
-    cd $WG_DIR
-
-    umask 077
-    wg genkey | tee server_private.key | wg pubkey > server_public.key
-
-    SERVER_PRIVATE=$(cat server_private.key)
-
-    IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
-
-    cat > $WG_DIR/$WG_IF.conf <<EOF
-[Interface]
-Address = $WG_SERVER_IP/24
-ListenPort = $WG_PORT
-PrivateKey = $SERVER_PRIVATE
-PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o $IFACE -j MASQUERADE
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o $IFACE -j MASQUERADE
-EOF
-
-    systemctl enable wg-quick@wg0
-    systemctl restart wg-quick@wg0
-
-    echo "安装完成"
+    bash install-wg.sh
 }
 
 # =========================
 # 重装
 # =========================
 reinstall_wg() {
-    echo "[重装]"
-    systemctl stop wg-quick@wg0 || true
-    apt purge wireguard wireguard-tools -y
-    rm -rf /etc/wireguard
-    install_wg
+    bash install-wg.sh
 }
 
 # =========================
 # 卸载
 # =========================
 uninstall_wg() {
-    echo "[卸载]"
     systemctl stop wg-quick@wg0 || true
-    systemctl disable wg-quick@wg0 || true
     apt purge wireguard wireguard-tools -y
     rm -rf /etc/wireguard
-    echo "卸载完成"
+    echo "✔ 已卸载"
 }
 
 # =========================
 # 查看配置
 # =========================
 show_config() {
-    echo "[配置]"
+    check_installed || return
+    check_config || return
+
+    echo "===== wg0.conf ====="
     cat $WG_DIR/$WG_IF.conf
 }
 
@@ -79,44 +64,25 @@ show_config() {
 # 编辑配置
 # =========================
 edit_config() {
+    check_installed || return
+    check_config || return
+
     vim $WG_DIR/$WG_IF.conf
 }
 
 # =========================
-# 自动生成客户端 + QR
+# 二维码
 # =========================
-generate_qr() {
-    echo "[生成客户端 + QR]"
-
-    SERVER_PUB=$(cat $WG_DIR/server_public.key)
-    SERVER_IP=$(curl -s ifconfig.me)
-
-    CLIENT_PRIV=$(wg genkey)
-    CLIENT_PUB=$(echo "$CLIENT_PRIV" | wg pubkey)
+qr_code() {
+    check_installed || return
 
     CLIENT_CONF="$WG_DIR/client.conf"
 
-    cat > $CLIENT_CONF <<EOF
-[Interface]
-PrivateKey = $CLIENT_PRIV
-Address = $WG_CLIENT_IP/32
-DNS = 1.1.1.1
+    if [ ! -f "$CLIENT_CONF" ]; then
+        echo "❌ 未找到 client.conf，请先生成用户"
+        return
+    fi
 
-[Peer]
-PublicKey = $SERVER_PUB
-Endpoint = $SERVER_IP:$WG_PORT
-AllowedIPs = 0.0.0.0/0
-PersistentKeepalive = 25
-EOF
-
-    echo "[加入 peer 到服务器]"
-    wg set wg0 peer "$CLIENT_PUB" allowed-ips $WG_CLIENT_IP/32
-
-    echo ""
-    echo "===== client.conf ====="
-    cat $CLIENT_CONF
-
-    echo ""
     echo "===== QR CODE ====="
     qrencode -t ansiutf8 < $CLIENT_CONF
 }
@@ -134,7 +100,7 @@ while true; do
     echo "3. 卸载"
     echo "4. 查看配置"
     echo "5. 编辑配置"
-    echo "6. 生成用户 + 二维码"
+    echo "6. 二维码"
     echo "7. 退出"
     echo "=========================="
     read -p "请选择: " choice
@@ -145,7 +111,7 @@ while true; do
         3) uninstall_wg ;;
         4) show_config ;;
         5) edit_config ;;
-        6) generate_qr ;;
+        6) qr_code ;;
         7) exit 0 ;;
         *) echo "无效选项" ;;
     esac
