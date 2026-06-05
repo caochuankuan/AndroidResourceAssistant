@@ -327,7 +327,11 @@ show_config() {
 }
 
 check_installed() {
-    if ! systemctl list-unit-files 2>/dev/null | grep -q "^hysteria-server"; then
+    local installed=false
+    if [ -f /usr/local/bin/hysteria ]; then
+        installed=true
+    fi
+    if [ "$installed" = "false" ]; then
         echo
         echo "Hysteria2 尚未安装，请先执行安装"
         pause
@@ -396,7 +400,8 @@ main() {
             4) show_config ;;
             5) uninstall_hysteria ;;
             0) exit 0 ;;
-        esac
+            *) ;;
+        esac || true
 
     done
 }
