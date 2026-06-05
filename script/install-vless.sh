@@ -24,8 +24,12 @@ check_root() {
 # =========================
 get_ip() {
   SERVER_IP=$(curl -4 -s https://api.ipify.org || true)
-  [ -z "$SERVER_IP" ] && SERVER_IP=$(curl -4 -s https://ifconfig.me || true)
-  [ -z "$SERVER_IP" ] && SERVER_IP=$(hostname -I | awk '{print $1}')
+  if [ -z "$SERVER_IP" ]; then
+    SERVER_IP=$(curl -4 -s https://ifconfig.me || true)
+  fi
+  if [ -z "$SERVER_IP" ]; then
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+  fi
 }
 
 # =========================
@@ -138,8 +142,12 @@ check_sni() {
 # firewall
 # =========================
 open_port() {
-  command -v ufw >/dev/null 2>&1 && ufw allow $PORT/tcp || true
-  command -v iptables >/dev/null 2>&1 && iptables -I INPUT -p tcp --dport $PORT -j ACCEPT || true
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow "$PORT/tcp" || true
+  fi
+  if command -v iptables >/dev/null 2>&1; then
+    iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT || true
+  fi
 }
 
 # =========================
