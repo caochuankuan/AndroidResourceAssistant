@@ -207,16 +207,16 @@ install_hysteria() {
 
     install_deps
 
+    mkdir -p /etc/hysteria
+
+    write_config "$DOMAIN" "$PASSWORD"
+
     bash <(curl -fsSL https://get.hy2.sh/)
 
     if command -v ufw >/dev/null 2>&1; then
         ufw allow 443/tcp || true
         ufw allow 443/udp || true
     fi
-
-    mkdir -p /etc/hysteria
-
-    write_config "$DOMAIN" "$PASSWORD"
 
     systemctl daemon-reload
     systemctl enable hysteria-server
