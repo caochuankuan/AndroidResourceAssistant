@@ -133,6 +133,9 @@ gen_selfsigned_cert() {
     openssl req -new -x509 -days 3650 -key "$KEY_FILE" -out "$CERT_FILE" \
         -subj "/CN=bing.com"
 
+    chmod 644 "$CERT_FILE"
+    chmod 644 "$KEY_FILE"
+
     echo
     echo "自签证书已生成"
 }
