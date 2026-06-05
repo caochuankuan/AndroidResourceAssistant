@@ -256,8 +256,11 @@ reinstall_hysteria() {
 
     systemctl stop hysteria-server || true
 
+    bash <(curl -fsSL https://get.hy2.sh/) --remove || true
+
     rm -rf /etc/hysteria
     rm -rf /var/lib/hysteria
+    userdel -r hysteria 2>/dev/null || true
 
     mkdir -p /etc/hysteria
 
@@ -266,12 +269,26 @@ reinstall_hysteria() {
 
     write_config "$DOMAIN" "$PASSWORD"
 
-    bash <(curl -fsSL https://get.hy2.sh/)
+    bash <(curl -fsSL https://get.hy2.sh/) || true
+
+    if command -v ufw >/dev/null 2>&1; then
+        ufw allow 443/tcp || true
+        ufw allow 443/udp || true
+    fi
 
     systemctl daemon-reload
+    systemctl enable hysteria-server
     systemctl restart hysteria-server
 
     sleep 8
+
+    if ! systemctl is-active --quiet hysteria-server; then
+        echo
+        echo "启动失败"
+        journalctl -u hysteria-server -n 20 --no-pager
+        pause
+        return
+    fi
 
     show_node_info "$DOMAIN" "$PASSWORD"
 
