@@ -77,16 +77,46 @@ select_sni() {
 # Reality keys（兼容所有版本）
 # =========================
 gen_keys() {
-  OUT=$(xray x25519 2>&1)
+  # 临时关闭 set -e，避免管道/匹配失败中断脚本
+  set +e
 
-  # 兼容新旧版本格式：
-  # 旧版: "Private key: xxx" / "Public key: xxx"
-  # 新版: "PrivateKey: xxx" / "Password (PublicKey): xxx"
-  PRIVATE_KEY=$(echo "$OUT" | grep -iE 'private' | sed 's/.*: //' | tr -d '[:space:]')
-  PUBLIC_KEY=$(echo "$OUT" | grep -iE 'public|password' | sed 's/.*: //' | awk '{print $1}' | tr -d '[:space:]')
+  OUT=$(xray x25519 2>&1)
+  echo "[DEBUG] xray x25519 输出:"
+  echo "$OUT"
+  echo "---"
+
+  # 逐行解析，兼容新旧格式
+  PRIVATE_KEY=""
+  PUBLIC_KEY=""
+  while IFS= read -r line; do
+    # 匹配包含 private 的行（不区分大小写）
+    if echo "$line" | grep -qi 'private'; then
+      PRIVATE_KEY="${line##*: }"
+      # 去除可能的尾部空白
+      PRIVATE_KEY="${PRIVATE_KEY%% *}"
+    fi
+    # 匹配包含 public 或 password 的行
+    if echo "$line" | grep -qi 'public\|password'; then
+      PUBLIC_KEY="${line##*: }"
+      # 只取第一个字段（去掉可能拼接的 Hash32 等内容）
+      PUBLIC_KEY="${PUBLIC_KEY%% *}"
+    fi
+  done <<< "$OUT"
+
+  # 去除所有空白字符
+  PRIVATE_KEY=$(echo "$PRIVATE_KEY" | tr -d '[:space:]')
+  PUBLIC_KEY=$(echo "$PUBLIC_KEY" | tr -d '[:space:]')
 
   UUID=$(xray uuid)
   SHORT_ID=$(openssl rand -hex 8)
+
+  # 恢复 set -e
+  set -e
+
+  echo "[DEBUG] PRIVATE_KEY=$PRIVATE_KEY"
+  echo "[DEBUG] PUBLIC_KEY=$PUBLIC_KEY"
+  echo "[DEBUG] UUID=$UUID"
+  echo "[DEBUG] SHORT_ID=$SHORT_ID"
 
   if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
     echo "❌ key 生成失败"
