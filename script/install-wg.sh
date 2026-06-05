@@ -36,6 +36,32 @@ get_interface() {
 }
 
 # =========================
+# 一开始就收集输入
+# =========================
+get_ip
+get_interface
+
+echo ""
+echo "=========================================="
+echo "        WireGuard 配置"
+echo "=========================================="
+echo "服务器 IP: $SERVER_IP"
+echo "网卡: $NET_IF"
+echo ""
+
+read -p "WireGuard 端口 [默认 51820]: " WG_PORT
+WG_PORT=${WG_PORT:-51820}
+
+read -p "内网网段 [默认 10.0.0.0/24]: " WG_SUBNET
+WG_SUBNET=${WG_SUBNET:-10.0.0.0/24}
+
+SUBNET_PREFIX=$(echo "$WG_SUBNET" | cut -d'.' -f1-3)
+
+echo ""
+echo "端口: $WG_PORT | 子网: $WG_SUBNET"
+echo "=========================================="
+
+# =========================
 # 检查是否安装
 # =========================
 check_installed() {
@@ -74,22 +100,6 @@ install_wg() {
   echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/99-wg.conf
   sysctl -p /etc/sysctl.d/99-wg.conf
 
-  get_ip
-  get_interface
-
-  # 选择端口
-  echo ""
-  read -p "WireGuard 端口 [默认 51820]: " WG_PORT
-  WG_PORT=${WG_PORT:-51820}
-
-  # 选择子网
-  echo ""
-  read -p "内网网段 [默认 10.0.0.0/24]: " WG_SUBNET
-  WG_SUBNET=${WG_SUBNET:-10.0.0.0/24}
-
-  # 提取网段前缀用于分配 IP
-  SUBNET_PREFIX=$(echo "$WG_SUBNET" | cut -d'.' -f1-3)
-
   # 生成服务端密钥
   SERVER_PRIV=$(wg genkey)
   SERVER_PUB=$(echo "$SERVER_PRIV" | wg pubkey)
@@ -118,11 +128,11 @@ PresharedKey = $PSK
 AllowedIPs = ${SUBNET_PREFIX}.2/32
 EOF
 
-  # 写客户端配置
+  # 写客户端配置（Address 用 /32）
   cat > "$CLIENT_CONF" <<EOF
 [Interface]
 PrivateKey = $CLIENT_PRIV
-Address = ${SUBNET_PREFIX}.2/24
+Address = ${SUBNET_PREFIX}.2/32
 DNS = 8.8.8.8, 1.1.1.1
 
 [Peer]
@@ -233,9 +243,7 @@ add_client() {
   get_ip
 
   # 读取现有配置
-  WG_PORT=$(grep "ListenPort" "$WG_DIR/$WG_IF.conf" | awk '{print $3}')
-  SERVER_PUB=$(grep "PrivateKey" "$WG_DIR/$WG_IF.conf" | awk '{print $3}' | wg pubkey)
-  SUBNET_PREFIX=$(grep "Address" "$WG_DIR/$WG_IF.conf" | grep -oP '\d+\.\d+\.\d+')
+  SERVER_PUB=$(grep "PrivateKey" "$WG_DIR/$WG_IF.conf" | head -1 | awk '{print $3}' | wg pubkey)
 
   # 找下一个可用 IP
   LAST_IP=$(grep "AllowedIPs" "$WG_DIR/$WG_IF.conf" | tail -1 | grep -oP '\d+\.\d+\.\d+\.\d+')
@@ -260,12 +268,12 @@ PresharedKey = $PSK
 AllowedIPs = ${SUBNET_PREFIX}.${NEXT_NUM}/32
 EOF
 
-  # 生成客户端配置
+  # 生成客户端配置（Address 用 /32）
   local client_file="$WG_DIR/${CLIENT_NAME}.conf"
   cat > "$client_file" <<EOF
 [Interface]
 PrivateKey = $CLIENT_PRIV
-Address = ${SUBNET_PREFIX}.${NEXT_NUM}/24
+Address = ${SUBNET_PREFIX}.${NEXT_NUM}/32
 DNS = 8.8.8.8, 1.1.1.1
 
 [Peer]
@@ -283,7 +291,7 @@ EOF
 
   echo ""
   echo "✅ 已添加客户端: $CLIENT_NAME"
-  echo "IP: ${SUBNET_PREFIX}.${NEXT_NUM}"
+  echo "IP: ${SUBNET_PREFIX}.${NEXT_NUM}/32"
   echo "配置文件: $client_file"
   echo ""
   echo "---------- 二维码 ----------"
