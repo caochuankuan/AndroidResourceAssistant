@@ -280,10 +280,16 @@ install_xray() {
     qrencode -t ANSIUTF8 "$LINK"
 
   elif [ "$PROTOCOL" = "trojan" ]; then
-    echo "trojan://$TROJAN_PASS@$SERVER_IP:$PORT?sni=$SNI"
+    LINK="trojan://$TROJAN_PASS@$SERVER_IP:$PORT?sni=$SNI"
+    echo "$LINK"
+    qrencode -t ANSIUTF8 "$LINK"
 
   elif [ "$PROTOCOL" = "ss" ]; then
-    echo "SS PASS: $SS_PASS"
+    # ss 链接格式: ss://BASE64(method:password)@ip:port
+    SS_USERINFO=$(echo -n "chacha20-ietf-poly1305:$SS_PASS" | base64 -w 0)
+    LINK="ss://${SS_USERINFO}@$SERVER_IP:$PORT#SS"
+    echo "$LINK"
+    qrencode -t ANSIUTF8 "$LINK"
   fi
 }
 
@@ -319,8 +325,12 @@ show_node() {
     qrencode -t ANSIUTF8 "$LINK"
 
   elif [ "$PROTOCOL_NOW" = "ss" ]; then
-    echo "SS password:"
-    grep -oP '"password":\s*"\K[^"]+' "$CONFIG_FILE"
+    PASS=$(grep -oP '"password":\s*"\K[^"]+' "$CONFIG_FILE")
+    METHOD=$(grep -oP '"method":\s*"\K[^"]+' "$CONFIG_FILE")
+    SS_USERINFO=$(echo -n "${METHOD}:${PASS}" | base64 -w 0)
+    LINK="ss://${SS_USERINFO}@$SERVER_IP:$PORT#SS"
+    echo "$LINK"
+    qrencode -t ANSIUTF8 "$LINK"
   fi
 }
 
