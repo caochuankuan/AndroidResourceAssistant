@@ -242,7 +242,7 @@ install_hysteria() {
 
 reinstall_hysteria() {
 
-    check_installed || return
+    check_installed && return
 
     read -rp "确认重装？(y/N): " CONFIRM
 
@@ -280,7 +280,7 @@ reinstall_hysteria() {
 
 modify_config() {
 
-    check_installed || return
+    check_installed && return
 
     [ ! -f "$CONFIG_FILE" ] && return
 
@@ -312,7 +312,7 @@ modify_config() {
 
 show_config() {
 
-    check_installed || return
+    check_installed && return
 
     [ ! -f "$CONFIG_FILE" ] && return
 
@@ -331,9 +331,9 @@ check_installed() {
         echo
         echo "Hysteria2 尚未安装，请先执行安装"
         pause
-        return 1
+        return 0
     fi
-    return 0
+    return 1
 }
 
 uninstall_hysteria() {
