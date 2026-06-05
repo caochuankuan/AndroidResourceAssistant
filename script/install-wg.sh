@@ -64,6 +64,9 @@ install_wg() {
   echo ""
   echo "正在安装 WireGuard..."
 
+  export DEBIAN_FRONTEND=noninteractive
+  export NEEDRESTART_MODE=a
+
   apt-get update -y
   apt-get install -y wireguard wireguard-tools qrencode
 
