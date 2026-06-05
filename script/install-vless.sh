@@ -1,15 +1,30 @@
 #!/bin/bash
 
-# 不使用 set -e，交互式脚本中手动处理错误更可靠
 set -uo pipefail
 
 CONFIG_FILE="/usr/local/etc/xray/config.json"
 BACKUP_DIR="/usr/local/etc/xray/backup"
+SUB_DIR="/usr/local/etc/xray/sub"
 
 INSTALL_CMD='bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install'
 REMOVE_CMD='bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ remove --purge'
 
 mkdir -p "$BACKUP_DIR"
+mkdir -p "$SUB_DIR"
+
+# =========================
+# globals
+# =========================
+PROTOCOL=""
+PRIVATE_KEY=""
+PUBLIC_KEY=""
+UUID=""
+SHORT_ID=""
+TROJAN_PASS=""
+SS_PASS=""
+SERVER_IP=""
+PORT=""
+SNI=""
 
 # =========================
 # root check
@@ -80,14 +95,33 @@ select_sni() {
 }
 
 # =========================
-# Reality keys（兼容所有版本）
+# protocol
+# =========================
+select_protocol() {
+  echo ""
+  echo "选择协议"
+  echo "1. VLESS + Reality"
+  echo "2. Trojan + TLS"
+  echo "3. Shadowsocks"
+  read -p "选择: " p
+
+  case "$p" in
+    1) PROTOCOL="vless" ;;
+    2) PROTOCOL="trojan" ;;
+    3) PROTOCOL="ss" ;;
+    *) PROTOCOL="vless" ;;
+  esac
+}
+
+# =========================
+# keys
 # =========================
 gen_keys() {
   OUT=$(xray x25519 2>&1)
 
-  # 逐行解析，兼容新旧格式
   PRIVATE_KEY=""
   PUBLIC_KEY=""
+
   while IFS= read -r line; do
     if echo "$line" | grep -qi 'private'; then
       PRIVATE_KEY="${line##*: }"
@@ -104,78 +138,101 @@ gen_keys() {
 
   UUID=$(xray uuid)
   SHORT_ID=$(openssl rand -hex 8)
-
-  if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
-    echo "❌ key 生成失败"
-    echo "$OUT"
-    exit 1
-  fi
 }
 
 # =========================
-# SNI check
-# =========================
-check_sni() {
-  echo "检测 SNI: $SNI"
-  timeout 5 bash -c "echo | openssl s_client -connect $SNI:443 -servername $SNI" >/dev/null 2>&1 \
-  || echo "⚠️ SNI 不可达，但继续"
-}
-
-# =========================
-# firewall
-# =========================
-open_port() {
-  if command -v ufw >/dev/null 2>&1; then
-    ufw allow "$PORT/tcp" || true
-  fi
-  if command -v iptables >/dev/null 2>&1; then
-    iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT || true
-  fi
-}
-
-# =========================
-# write config (auto backup)
+# config
 # =========================
 write_config() {
+
   cp "$CONFIG_FILE" "$BACKUP_DIR/config.$(date +%s).bak" 2>/dev/null || true
 
-  cat > "$CONFIG_FILE" <<EOF
+  if [ "$PROTOCOL" = "vless" ]; then
+
+cat > "$CONFIG_FILE" <<EOF
 {
   "log": { "loglevel": "warning" },
-  "inbounds": [
-    {
-      "listen": "0.0.0.0",
-      "port": $PORT,
-      "protocol": "vless",
-      "settings": {
-        "clients": [
-          {
-            "id": "$UUID",
-            "flow": "xtls-rprx-vision"
-          }
-        ],
-        "decryption": "none"
-      },
-      "streamSettings": {
-        "network": "tcp",
-        "security": "reality",
-        "realitySettings": {
-          "show": false,
-          "dest": "$SNI:443",
-          "serverNames": ["$SNI"],
-          "privateKey": "$PRIVATE_KEY",
-          "shortIds": ["$SHORT_ID"]
-        }
+  "inbounds": [{
+    "listen": "0.0.0.0",
+    "port": $PORT,
+    "protocol": "vless",
+    "settings": {
+      "clients": [{
+        "id": "$UUID",
+        "flow": "xtls-rprx-vision"
+      }],
+      "decryption": "none"
+    },
+    "streamSettings": {
+      "network": "tcp",
+      "security": "reality",
+      "realitySettings": {
+        "show": false,
+        "dest": "$SNI:443",
+        "serverNames": ["$SNI"],
+        "privateKey": "$PRIVATE_KEY",
+        "shortIds": ["$SHORT_ID"]
       }
     }
-  ],
+  }],
   "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
+
+  elif [ "$PROTOCOL" = "trojan" ]; then
+
+    TROJAN_PASS=$(openssl rand -hex 12)
+
+cat > "$CONFIG_FILE" <<EOF
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [{
+    "listen": "0.0.0.0",
+    "port": $PORT,
+    "protocol": "trojan",
+    "settings": {
+      "clients": [{
+        "password": "$TROJAN_PASS"
+      }]
+    },
+    "streamSettings": {
+      "network": "tcp",
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "$SNI",
+        "alpn": ["http/1.1"]
+      }
+    }
+  }],
+  "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+  elif [ "$PROTOCOL" = "ss" ]; then
+
+    SS_PASS=$(openssl rand -hex 12)
+
+cat > "$CONFIG_FILE" <<EOF
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [{
+    "listen": "0.0.0.0",
+    "port": $PORT,
+    "protocol": "shadowsocks",
+    "settings": {
+      "method": "chacha20-ietf-poly1305",
+      "password": "$SS_PASS"
+    }
+  }],
+  "outbounds": [{ "protocol": "freedom" }]
+}
+EOF
+
+  fi
 }
 
 # =========================
-# test config
+# test
 # =========================
 test_config() {
   xray run -test -config "$CONFIG_FILE" >/dev/null 2>&1 && return 0
@@ -187,9 +244,10 @@ test_config() {
 # install
 # =========================
 install_xray() {
+
   select_port
   select_sni
-  check_sni
+  select_protocol
 
   apt-get update -y
   apt-get install -y curl openssl qrencode
@@ -200,101 +258,121 @@ install_xray() {
   write_config
 
   if ! test_config; then
-    echo "❌ config 错误，回滚"
-    latest=$(ls -t $BACKUP_DIR/*.bak 2>/dev/null | head -1)
-    [ -n "$latest" ] && cp "$latest" "$CONFIG_FILE"
-    systemctl restart xray
+    echo "❌ config 错误"
     exit 1
   fi
 
   systemctl enable xray
   systemctl restart xray
 
-  open_port
   get_ip
-
-  VLESS="vless://$UUID@$SERVER_IP:$PORT?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$SNI&fp=chrome&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp#Reality"
 
   echo ""
   echo "========== 安装成功 =========="
   echo "IP: $SERVER_IP"
   echo "PORT: $PORT"
-  echo "UUID: $UUID"
-  echo "SNI: $SNI"
-  echo "SHORTID: $SHORT_ID"
+  echo "PROTOCOL: $PROTOCOL"
   echo ""
-  echo "$VLESS"
+
+  if [ "$PROTOCOL" = "vless" ]; then
+    LINK="vless://$UUID@$SERVER_IP:$PORT?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$SNI&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp"
+    echo "$LINK"
+    qrencode -t ANSIUTF8 "$LINK"
+
+  elif [ "$PROTOCOL" = "trojan" ]; then
+    echo "trojan://$TROJAN_PASS@$SERVER_IP:$PORT?sni=$SNI"
+
+  elif [ "$PROTOCOL" = "ss" ]; then
+    echo "SS PASS: $SS_PASS"
+  fi
+}
+
+# =========================
+# show node + QR
+# =========================
+show_node() {
   echo ""
-  qrencode -t ANSIUTF8 "$VLESS"
+  echo "========== NODE =========="
+
+  PROTOCOL_NOW=$(grep -m1 '"protocol"' "$CONFIG_FILE" | awk -F '"' '{print $4}')
+  get_ip
+
+  echo "Protocol: $PROTOCOL_NOW"
+
+  if [ "$PROTOCOL_NOW" = "vless" ]; then
+
+    UUID=$(grep -oP '"id":\s*"\K[^"]+' "$CONFIG_FILE")
+    SHORT_ID=$(grep -oP '"shortIds":\s*\["\K[^"]+' "$CONFIG_FILE")
+    SNI=$(grep -oP '"serverNames":\s*\["\K[^"]+' "$CONFIG_FILE")
+    PBK=$(grep -oP '"privateKey":.*"publicKey":\s*"\K[^"]+' "$CONFIG_FILE" 2>/dev/null)
+
+    LINK="vless://$UUID@$SERVER_IP:$PORT?security=reality&sni=$SNI&pbk=$PBK&sid=$SHORT_ID&type=tcp"
+
+    echo "$LINK"
+    qrencode -t ANSIUTF8 "$LINK"
+
+  elif [ "$PROTOCOL_NOW" = "trojan" ]; then
+
+    PASS=$(grep -oP '"password":\s*"\K[^"]+' "$CONFIG_FILE")
+    LINK="trojan://$PASS@$SERVER_IP:$PORT?sni=$SNI"
+    echo "$LINK"
+    qrencode -t ANSIUTF8 "$LINK"
+
+  elif [ "$PROTOCOL_NOW" = "ss" ]; then
+    echo "SS password:"
+    grep -oP '"password":\s*"\K[^"]+' "$CONFIG_FILE"
+  fi
 }
 
 # =========================
-# uninstall
+# clash
 # =========================
-uninstall_xray() {
-  eval "$REMOVE_CMD"
+generate_clash() {
+  get_ip
+
+cat > "$SUB_DIR/clash.yaml" <<EOF
+proxies:
+  - name: "node"
+    server: $SERVER_IP
+    port: $PORT
+EOF
+
+  echo "Clash saved: $SUB_DIR/clash.yaml"
 }
 
 # =========================
-# status
+# singbox
 # =========================
-status() {
-  systemctl status xray --no-pager -l
+generate_singbox() {
+
+cat > "$SUB_DIR/sing-box.json" <<EOF
+{
+  "outbounds": [{
+    "type": "$PROTOCOL",
+    "server": "$SERVER_IP",
+    "server_port": $PORT
+  }]
+}
+EOF
+
+  echo "sing-box saved: $SUB_DIR/sing-box.json"
 }
 
 # =========================
-# restart
+# ops
 # =========================
-restart() {
-  systemctl restart xray
-}
+uninstall_xray() { eval "$REMOVE_CMD"; }
+status() { systemctl status xray --no-pager -l; }
+restart() { systemctl restart xray; }
+view_config() { cat "$CONFIG_FILE"; }
 
-# =========================
-# view config (✔保留)
-# =========================
-view_config() {
-  echo "===== CONFIG ====="
-  cat "$CONFIG_FILE"
-}
-
-# =========================
-# edit config (✔保留 + 安全)
-# =========================
 edit_config() {
-  cp "$CONFIG_FILE" "$BACKUP_DIR/manual.$(date +%s).bak"
-
   vim "$CONFIG_FILE"
-
-  if ! test_config; then
-    echo "❌ 配置错误，回滚"
-    latest=$(ls -t $BACKUP_DIR/*.bak | head -1)
-    cp "$latest" "$CONFIG_FILE"
-  fi
-
   systemctl restart xray
 }
 
-# =========================
-# 检查是否安装
-# =========================
 check_xray_installed() {
-  if ! command -v xray >/dev/null 2>&1; then
-    echo "❌ 未检测到 Xray 安装"
-    echo "👉 请先选择 1 安装"
-    return 1
-  fi
-
-  if [ ! -f /usr/local/bin/xray ]; then
-    echo "❌ Xray 二进制不存在"
-    return 1
-  fi
-
-  if [ ! -f /etc/systemd/system/xray.service ]; then
-    echo "❌ systemd 服务不存在"
-    return 1
-  fi
-
-  return 0
+  command -v xray >/dev/null 2>&1
 }
 
 # =========================
@@ -304,56 +382,31 @@ check_root
 
 while true; do
   echo ""
-  echo "=================================="
-  echo "   Xray Reality Production CLI"
-  echo "=================================="
   echo "1. 安装"
   echo "2. 重装"
   echo "3. 卸载"
-  echo "4. 查看状态"
-  echo "5. 重启服务"
-  echo "6. 查看配置"
-  echo "7. 修改配置"
+  echo "4. 状态"
+  echo "5. 重启"
+  echo "6. 查看节点"
+  echo "7. 查看配置"
+  echo "8. 修改配置"
+  echo "9. 生成 Clash"
+  echo "10. 生成 sing-box"
   echo "0. 退出"
-  echo ""
 
-  read -p "请选择: " c
+  read -p "选择: " c
 
   case "$c" in
     1) install_xray ;;
-
-    2)
-      check_xray_installed || { install_xray; continue; }
-      uninstall_xray
-      install_xray
-      ;;
-
-    3)
-      check_xray_installed || continue
-      uninstall_xray
-      ;;
-
-    4)
-      check_xray_installed || continue
-      status
-      ;;
-
-    5)
-      check_xray_installed || continue
-      restart
-      ;;
-
-    6)
-      check_xray_installed || continue
-      view_config
-      ;;
-
-    7)
-      check_xray_installed || continue
-      edit_config
-      ;;
-
+    2) uninstall_xray; install_xray ;;
+    3) uninstall_xray ;;
+    4) status ;;
+    5) restart ;;
+    6) show_node ;;
+    7) view_config ;;
+    8) edit_config ;;
+    9) generate_clash ;;
+    10) generate_singbox ;;
     0) exit 0 ;;
-    *) echo "无效选择" ;;
   esac
 done
