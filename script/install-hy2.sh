@@ -361,6 +361,7 @@ uninstall_hysteria() {
 
     rm -rf /etc/hysteria
     rm -rf /var/lib/hysteria
+    userdel -r hysteria 2>/dev/null || true
 
     systemctl daemon-reload
 
