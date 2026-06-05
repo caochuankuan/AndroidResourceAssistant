@@ -260,7 +260,8 @@ EOF
       "tag": "ss-in",
       "settings": {
         "method": "chacha20-ietf-poly1305",
-        "password": "$SS_PASS"
+        "password": "$SS_PASS",
+        "network": "tcp,udp"
       }
     }
 EOF
@@ -273,6 +274,9 @@ EOF
   cat > "$CONFIG_FILE" <<EOF
 {
   "log": {"loglevel": "warning"},
+  "dns": {
+    "servers": ["8.8.8.8", "1.1.1.1"]
+  },
   "inbounds": [$inbounds
   ],
   "outbounds": [{"protocol": "freedom"}]
