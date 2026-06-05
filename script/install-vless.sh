@@ -82,8 +82,8 @@ gen_keys() {
   # 兼容新旧版本格式：
   # 旧版: "Private key: xxx" / "Public key: xxx"
   # 新版: "PrivateKey: xxx" / "Password (PublicKey): xxx"
-  PRIVATE_KEY=$(echo "$OUT" | grep -i 'private' | sed 's/.*: //')
-  PUBLIC_KEY=$(echo "$OUT" | grep -i 'public\|password' | sed 's/.*: //' | awk '{print $1}')
+  PRIVATE_KEY=$(echo "$OUT" | grep -iE 'private' | sed 's/.*: //' | tr -d '[:space:]')
+  PUBLIC_KEY=$(echo "$OUT" | grep -iE 'public|password' | sed 's/.*: //' | awk '{print $1}' | tr -d '[:space:]')
 
   UUID=$(xray uuid)
   SHORT_ID=$(openssl rand -hex 8)
@@ -173,7 +173,7 @@ install_xray() {
   apt-get update -y
   apt-get install -y curl openssl qrencode
 
-  eval "$INSTALL_CMD"
+  eval "$INSTALL_CMD" || true
 
   gen_keys
   write_config
