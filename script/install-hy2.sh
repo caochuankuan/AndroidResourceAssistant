@@ -194,7 +194,7 @@ EOF
 
 install_hysteria() {
 
-    if systemctl list-unit-files 2>/dev/null | grep -q "^hysteria-server"; then
+    if [ -f /usr/local/bin/hysteria ]; then
 
         echo
         echo "检测到 Hysteria2 已安装"
@@ -342,6 +342,8 @@ check_installed() {
 
 uninstall_hysteria() {
 
+    check_installed && return
+
     read -rp "确认卸载？(y/N): " CONFIRM
 
     case "$CONFIRM" in
@@ -355,11 +357,10 @@ uninstall_hysteria() {
     systemctl stop hysteria-server || true
     systemctl disable hysteria-server || true
 
+    bash <(curl -fsSL https://get.hy2.sh/) --remove
+
     rm -rf /etc/hysteria
     rm -rf /var/lib/hysteria
-
-    rm -f /usr/local/bin/hysteria
-    rm -f /etc/systemd/system/hysteria-server.service
 
     systemctl daemon-reload
 
