@@ -3,6 +3,8 @@
 set -e
 
 CONFIG_FILE="/etc/hysteria/config.yaml"
+CERT_FILE="/etc/hysteria/server.crt"
+KEY_FILE="/etc/hysteria/server.key"
 
 header() {
     clear
@@ -36,6 +38,24 @@ install_deps() {
         qrencode \
         ufw \
         ca-certificates
+}
+
+# 选择 TLS 模式：域名(ACME) 或 IP(自签证书)
+choose_tls_mode() {
+
+    echo
+    echo "请选择 TLS 模式:"
+    echo "1. 域名模式（ACME 自动证书，需要域名）"
+    echo "2. IP 模式（自签证书，无需域名）"
+    echo
+
+    read -rp "请选择 [1-2]: " TLS_MODE
+
+    case "$TLS_MODE" in
+        1) TLS_MODE="domain" ;;
+        2) TLS_MODE="ip" ;;
+        *) TLS_MODE="domain" ;;
+    esac
 }
 
 get_domain() {
@@ -78,6 +98,19 @@ get_domain() {
     fi
 }
 
+get_server_ip() {
+
+    SERVER_IP=$(curl -4 -s https://api.ipify.org || true)
+
+    if [ -z "$SERVER_IP" ]; then
+        echo "无法获取服务器公网 IP"
+        exit 1
+    fi
+
+    echo
+    echo "服务器 IP: $SERVER_IP"
+}
+
 get_password() {
 
     read -rp "请输入密码(留空自动生成): " PASSWORD
@@ -90,6 +123,18 @@ get_password() {
         echo "自动生成密码:"
         echo "$PASSWORD"
     fi
+}
+
+# 生成自签证书
+gen_selfsigned_cert() {
+
+    openssl ecparam -genkey -name prime256v1 -out "$KEY_FILE"
+
+    openssl req -new -x509 -days 3650 -key "$KEY_FILE" -out "$CERT_FILE" \
+        -subj "/CN=bing.com"
+
+    echo
+    echo "自签证书已生成"
 }
 
 show_qr() {
@@ -105,7 +150,7 @@ show_qr() {
     qrencode -t ANSIUTF8 "$URI"
 }
 
-show_clash() {
+show_clash_domain() {
 
     local DOMAIN="$1"
     local PASSWORD="$2"
@@ -142,12 +187,48 @@ rules:
 EOF
 }
 
-show_node_info() {
+show_clash_ip() {
 
-    local DOMAIN="$1"
+    local IP="$1"
     local PASSWORD="$2"
 
-    URI="hysteria2://$PASSWORD@$DOMAIN:443?sni=$DOMAIN#HY2"
+cat <<EOF
+
+================================================
+Clash Meta YAML
+================================================
+
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: info
+
+proxies:
+  - name: HY2
+    type: hysteria2
+    server: $IP
+    port: 443
+    password: $PASSWORD
+    skip-cert-verify: true
+
+proxy-groups:
+  - name: Proxy
+    type: select
+    proxies:
+      - HY2
+      - DIRECT
+
+rules:
+  - MATCH,Proxy
+
+EOF
+}
+
+show_node_info() {
+
+    local HOST="$1"
+    local PASSWORD="$2"
+    local MODE="$3"
 
     echo
     echo "================================================"
@@ -155,20 +236,36 @@ show_node_info() {
     echo "================================================"
 
     echo "协议 : Hysteria2"
-    echo "域名 : $DOMAIN"
+    echo "地址 : $HOST"
     echo "端口 : 443"
     echo "密码 : $PASSWORD"
 
-    echo
-    echo "分享链接:"
-    echo "$URI"
+    if [ "$MODE" = "ip" ]; then
 
-    show_qr "$URI"
+        URI="hysteria2://$PASSWORD@$HOST:443?insecure=1#HY2"
 
-    show_clash "$DOMAIN" "$PASSWORD"
+        echo "验证 : 跳过证书验证 (insecure)"
+
+        echo
+        echo "分享链接:"
+        echo "$URI"
+
+        show_qr "$URI"
+        show_clash_ip "$HOST" "$PASSWORD"
+    else
+
+        URI="hysteria2://$PASSWORD@$HOST:443?sni=$HOST#HY2"
+
+        echo
+        echo "分享链接:"
+        echo "$URI"
+
+        show_qr "$URI"
+        show_clash_domain "$HOST" "$PASSWORD"
+    fi
 }
 
-write_config() {
+write_config_domain() {
 
 cat >"$CONFIG_FILE" <<EOF
 listen: :443
@@ -192,6 +289,29 @@ masquerade:
 EOF
 }
 
+write_config_ip() {
+
+cat >"$CONFIG_FILE" <<EOF
+listen: :443
+
+tls:
+  cert: $CERT_FILE
+  key: $KEY_FILE
+
+auth:
+  type: password
+  password: $1
+
+ignoreClientBandwidth: true
+
+masquerade:
+  type: proxy
+  proxy:
+    url: https://www.cloudflare.com
+    rewriteHost: true
+EOF
+}
+
 install_hysteria() {
 
     if [ -f /usr/local/bin/hysteria ]; then
@@ -202,14 +322,26 @@ install_hysteria() {
         return
     fi
 
-    get_domain
+    choose_tls_mode
+
+    if [ "$TLS_MODE" = "domain" ]; then
+        get_domain
+    else
+        get_server_ip
+    fi
+
     get_password
 
     install_deps
 
     mkdir -p /etc/hysteria
 
-    write_config "$DOMAIN" "$PASSWORD"
+    if [ "$TLS_MODE" = "domain" ]; then
+        write_config_domain "$DOMAIN" "$PASSWORD"
+    else
+        gen_selfsigned_cert
+        write_config_ip "$PASSWORD"
+    fi
 
     bash <(curl -fsSL https://get.hy2.sh/)
 
@@ -235,7 +367,11 @@ install_hysteria() {
         return
     fi
 
-    show_node_info "$DOMAIN" "$PASSWORD"
+    if [ "$TLS_MODE" = "domain" ]; then
+        show_node_info "$DOMAIN" "$PASSWORD" "domain"
+    else
+        show_node_info "$SERVER_IP" "$PASSWORD" "ip"
+    fi
 
     pause
 }
@@ -262,12 +398,24 @@ reinstall_hysteria() {
     rm -rf /var/lib/hysteria
     userdel -r hysteria 2>/dev/null || true
 
-    mkdir -p /etc/hysteria
+    choose_tls_mode
 
-    get_domain
+    if [ "$TLS_MODE" = "domain" ]; then
+        get_domain
+    else
+        get_server_ip
+    fi
+
     get_password
 
-    write_config "$DOMAIN" "$PASSWORD"
+    mkdir -p /etc/hysteria
+
+    if [ "$TLS_MODE" = "domain" ]; then
+        write_config_domain "$DOMAIN" "$PASSWORD"
+    else
+        gen_selfsigned_cert
+        write_config_ip "$PASSWORD"
+    fi
 
     bash <(curl -fsSL https://get.hy2.sh/) || true
 
@@ -290,7 +438,11 @@ reinstall_hysteria() {
         return
     fi
 
-    show_node_info "$DOMAIN" "$PASSWORD"
+    if [ "$TLS_MODE" = "domain" ]; then
+        show_node_info "$DOMAIN" "$PASSWORD" "domain"
+    else
+        show_node_info "$SERVER_IP" "$PASSWORD" "ip"
+    fi
 
     pause
 }
@@ -301,28 +453,44 @@ modify_config() {
 
     [ ! -f "$CONFIG_FILE" ] && return
 
-    CURRENT_DOMAIN=$(grep -A1 "domains:" "$CONFIG_FILE" | tail -1 | sed 's/- //g' | xargs)
+    # 检测当前模式
+    if grep -q "^acme:" "$CONFIG_FILE"; then
+        CURRENT_MODE="domain"
+        CURRENT_HOST=$(grep -A1 "domains:" "$CONFIG_FILE" | tail -1 | sed 's/- //g' | xargs)
+    else
+        CURRENT_MODE="ip"
+        CURRENT_HOST=$(curl -4 -s https://api.ipify.org || true)
+    fi
+
     CURRENT_PASSWORD=$(grep "^  password:" "$CONFIG_FILE" | awk '{print $2}')
 
     echo
-    echo "当前域名 : $CURRENT_DOMAIN"
+    echo "当前模式 : $([ "$CURRENT_MODE" = "domain" ] && echo "域名" || echo "IP")"
+    echo "当前地址 : $CURRENT_HOST"
     echo "当前密码 : $CURRENT_PASSWORD"
+    echo
 
-    read -rp "新域名(回车保持不变): " NEW_DOMAIN
     read -rp "新密码(回车保持不变): " NEW_PASSWORD
 
-    [ -z "$NEW_DOMAIN" ] && NEW_DOMAIN="$CURRENT_DOMAIN"
     [ -z "$NEW_PASSWORD" ] && NEW_PASSWORD="$CURRENT_PASSWORD"
 
-    if [ "$NEW_DOMAIN" != "$CURRENT_DOMAIN" ]; then
-        rm -rf /var/lib/hysteria
+    if [ "$CURRENT_MODE" = "domain" ]; then
+
+        read -rp "新域名(回车保持不变): " NEW_DOMAIN
+        [ -z "$NEW_DOMAIN" ] && NEW_DOMAIN="$CURRENT_HOST"
+
+        if [ "$NEW_DOMAIN" != "$CURRENT_HOST" ]; then
+            rm -rf /var/lib/hysteria
+        fi
+
+        write_config_domain "$NEW_DOMAIN" "$NEW_PASSWORD"
+        systemctl restart hysteria-server
+        show_node_info "$NEW_DOMAIN" "$NEW_PASSWORD" "domain"
+    else
+        write_config_ip "$NEW_PASSWORD"
+        systemctl restart hysteria-server
+        show_node_info "$CURRENT_HOST" "$NEW_PASSWORD" "ip"
     fi
-
-    write_config "$NEW_DOMAIN" "$NEW_PASSWORD"
-
-    systemctl restart hysteria-server
-
-    show_node_info "$NEW_DOMAIN" "$NEW_PASSWORD"
 
     pause
 }
@@ -333,12 +501,20 @@ show_config() {
 
     [ ! -f "$CONFIG_FILE" ] && return
 
-    DOMAIN=$(grep -A1 "domains:" "$CONFIG_FILE" | tail -1 | sed 's/- //g' | xargs)
+    # 检测当前模式
+    if grep -q "^acme:" "$CONFIG_FILE"; then
+        MODE="domain"
+        HOST=$(grep -A1 "domains:" "$CONFIG_FILE" | tail -1 | sed 's/- //g' | xargs)
+    else
+        MODE="ip"
+        HOST=$(curl -4 -s https://api.ipify.org || true)
+    fi
+
     PASSWORD=$(grep "^  password:" "$CONFIG_FILE" | awk '{print $2}')
 
     systemctl status hysteria-server --no-pager || true
 
-    show_node_info "$DOMAIN" "$PASSWORD"
+    show_node_info "$HOST" "$PASSWORD" "$MODE"
 
     pause
 }
