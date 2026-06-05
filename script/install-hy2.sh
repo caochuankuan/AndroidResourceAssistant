@@ -242,6 +242,8 @@ install_hysteria() {
 
 reinstall_hysteria() {
 
+    check_installed || return
+
     read -rp "确认重装？(y/N): " CONFIRM
 
     case "$CONFIRM" in
@@ -278,6 +280,8 @@ reinstall_hysteria() {
 
 modify_config() {
 
+    check_installed || return
+
     [ ! -f "$CONFIG_FILE" ] && return
 
     CURRENT_DOMAIN=$(grep -A1 "domains:" "$CONFIG_FILE" | tail -1 | sed 's/- //g' | xargs)
@@ -308,6 +312,8 @@ modify_config() {
 
 show_config() {
 
+    check_installed || return
+
     [ ! -f "$CONFIG_FILE" ] && return
 
     DOMAIN=$(grep -A1 "domains:" "$CONFIG_FILE" | tail -1 | sed 's/- //g' | xargs)
@@ -318,6 +324,16 @@ show_config() {
     show_node_info "$DOMAIN" "$PASSWORD"
 
     pause
+}
+
+check_installed() {
+    if ! systemctl list-unit-files 2>/dev/null | grep -q "^hysteria-server"; then
+        echo
+        echo "Hysteria2 尚未安装，请先执行安装"
+        pause
+        return 1
+    fi
+    return 0
 }
 
 uninstall_hysteria() {
