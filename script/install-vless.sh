@@ -1,5 +1,7 @@
 #!/bin/bash
-set -euo pipefail
+
+# 不使用 set -e，交互式脚本中手动处理错误更可靠
+set -uo pipefail
 
 CONFIG_FILE="/usr/local/etc/xray/config.json"
 BACKUP_DIR="/usr/local/etc/xray/backup"
@@ -81,46 +83,27 @@ select_sni() {
 # Reality keys（兼容所有版本）
 # =========================
 gen_keys() {
-  # 临时关闭 set -e，避免管道/匹配失败中断脚本
-  set +e
-
   OUT=$(xray x25519 2>&1)
-  echo "[DEBUG] xray x25519 输出:"
-  echo "$OUT"
-  echo "---"
 
   # 逐行解析，兼容新旧格式
   PRIVATE_KEY=""
   PUBLIC_KEY=""
   while IFS= read -r line; do
-    # 匹配包含 private 的行（不区分大小写）
     if echo "$line" | grep -qi 'private'; then
       PRIVATE_KEY="${line##*: }"
-      # 去除可能的尾部空白
       PRIVATE_KEY="${PRIVATE_KEY%% *}"
     fi
-    # 匹配包含 public 或 password 的行
     if echo "$line" | grep -qi 'public\|password'; then
       PUBLIC_KEY="${line##*: }"
-      # 只取第一个字段（去掉可能拼接的 Hash32 等内容）
       PUBLIC_KEY="${PUBLIC_KEY%% *}"
     fi
   done <<< "$OUT"
 
-  # 去除所有空白字符
   PRIVATE_KEY=$(echo "$PRIVATE_KEY" | tr -d '[:space:]')
   PUBLIC_KEY=$(echo "$PUBLIC_KEY" | tr -d '[:space:]')
 
   UUID=$(xray uuid)
   SHORT_ID=$(openssl rand -hex 8)
-
-  # 恢复 set -e
-  set -e
-
-  echo "[DEBUG] PRIVATE_KEY=$PRIVATE_KEY"
-  echo "[DEBUG] PUBLIC_KEY=$PUBLIC_KEY"
-  echo "[DEBUG] UUID=$UUID"
-  echo "[DEBUG] SHORT_ID=$SHORT_ID"
 
   if [[ -z "$PRIVATE_KEY" || -z "$PUBLIC_KEY" ]]; then
     echo "❌ key 生成失败"
@@ -306,7 +289,7 @@ check_xray_installed() {
     return 1
   fi
 
-  if ! systemctl list-unit-files | grep -q xray.service; then
+  if [ ! -f /etc/systemd/system/xray.service ]; then
     echo "❌ systemd 服务不存在"
     return 1
   fi
