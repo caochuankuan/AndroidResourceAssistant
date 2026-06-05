@@ -15,12 +15,9 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
-echo "更新系统并安装依赖..."
-
-apt update -y
-apt install -y curl openssl
-
+echo "请确保域名已经解析到当前服务器 IP"
 echo
+
 read -rp "请输入域名 (例如: hy2.example.com): " DOMAIN
 
 if [ -z "$DOMAIN" ]; then
@@ -57,6 +54,14 @@ case "$CONFIRM" in
         exit 0
         ;;
 esac
+
+echo
+echo "================================================"
+echo "安装依赖"
+echo "================================================"
+
+apt update -y
+apt install -y curl openssl qrencode
 
 echo
 echo "================================================"
@@ -123,12 +128,38 @@ echo "================================================"
 
 ss -lunp | grep ":443" || true
 
+URI="hysteria2://$PASSWORD@$DOMAIN:443?sni=$DOMAIN#HY2"
+
 echo
 echo "================================================"
-echo "生成 Clash 配置"
+echo "节点信息"
 echo "================================================"
 
-cat >/root/clash-meta.yaml <<EOF
+echo "协议 : Hysteria2"
+echo "域名 : $DOMAIN"
+echo "端口 : 443"
+echo "密码 : $PASSWORD"
+
+echo
+echo "分享链接:"
+echo
+echo "$URI"
+
+echo
+echo "================================================"
+echo "二维码"
+echo "================================================"
+echo
+
+qrencode -t ANSIUTF8 "$URI"
+
+echo
+echo "================================================"
+echo "完整 Clash Meta YAML"
+echo "================================================"
+echo
+
+cat <<EOF
 mixed-port: 7890
 allow-lan: true
 mode: rule
@@ -152,36 +183,6 @@ proxy-groups:
 rules:
   - MATCH,Proxy
 EOF
-
-echo
-echo "================================================"
-echo "节点信息"
-echo "================================================"
-
-echo "协议 : Hysteria2"
-echo "域名 : $DOMAIN"
-echo "端口 : 443"
-echo "密码 : $PASSWORD"
-
-echo
-echo "分享链接:"
-echo
-echo "hysteria2://$PASSWORD@$DOMAIN:443?sni=$DOMAIN#HY2"
-
-echo
-echo "================================================"
-echo "完整 Clash Meta YAML"
-echo "================================================"
-echo
-
-cat /root/clash-meta.yaml
-
-echo
-echo "================================================"
-echo "配置文件位置"
-echo "================================================"
-
-echo "/root/clash-meta.yaml"
 
 echo
 echo "================================================"
