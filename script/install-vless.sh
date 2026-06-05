@@ -23,8 +23,9 @@ TROJAN_PASS=""
 SS_PASS=""
 SERVER_IP=""
 SNI=""
+SELECTED_PORT=""
 
-# 多协议支持：数组
+# 多协议支持
 PROTOCOLS=()
 PORTS=()
 
@@ -52,11 +53,10 @@ get_ip() {
 }
 
 # =========================
-# port（为指定协议选端口）
+# port（结果写入 SELECTED_PORT）
 # =========================
 select_port_for() {
   local proto_name="$1"
-  local port=""
   echo ""
   echo "[$proto_name] 选择端口"
   echo "1. 443"
@@ -66,13 +66,12 @@ select_port_for() {
   read -p "选择: " c
 
   case "$c" in
-    1) port=443 ;;
-    2) port=8443 ;;
-    3) port=2053 ;;
-    4) read -p "端口: " port ;;
-    *) port=443 ;;
+    1) SELECTED_PORT=443 ;;
+    2) SELECTED_PORT=8443 ;;
+    3) SELECTED_PORT=2053 ;;
+    4) read -p "端口: " SELECTED_PORT ;;
+    *) SELECTED_PORT=443 ;;
   esac
-  echo "$port"
 }
 
 # =========================
@@ -109,21 +108,25 @@ select_protocols() {
   PORTS=()
 
   echo ""
-  echo "选择协议（可多选，用空格分隔）"
+  echo "选择协议（可多选，用空格或连续数字）"
   echo "1. VLESS + Reality"
   echo "2. Trojan + Reality"
   echo "3. Shadowsocks"
   echo ""
-  echo "例: 输入 1 2 3 表示全部安装"
-  echo "    输入 1 3 表示安装 VLESS 和 SS"
-  read -p "选择: " -a choices
+  echo "例: 123 或 1 2 3 = 全部安装"
+  echo "    13 或 1 3   = VLESS + SS"
+  read -p "选择: " input
 
-  # 默认选 vless
-  if [ ${#choices[@]} -eq 0 ]; then
-    choices=(1)
+  # 支持 "123" 或 "1 2 3" 两种输入方式
+  # 把输入拆成单个字符/数字
+  local chars=""
+  chars=$(echo "$input" | sed 's/[^123]//g' | grep -o . | sort -u)
+
+  if [ -z "$chars" ]; then
+    chars="1"
   fi
 
-  for ch in "${choices[@]}"; do
+  for ch in $chars; do
     case "$ch" in
       1) PROTOCOLS+=("vless") ;;
       2) PROTOCOLS+=("trojan") ;;
@@ -131,26 +134,16 @@ select_protocols() {
     esac
   done
 
-  # 去重
-  PROTOCOLS=($(echo "${PROTOCOLS[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
-
-  if [ ${#PROTOCOLS[@]} -eq 0 ]; then
-    PROTOCOLS=("vless")
-  fi
-
-  # 如果只选了一个协议，只问一次端口
+  # 为每个协议选端口
   if [ ${#PROTOCOLS[@]} -eq 1 ]; then
-    local p
-    p=$(select_port_for "${PROTOCOLS[0]}")
-    PORTS+=("$p")
+    select_port_for "${PROTOCOLS[0]}"
+    PORTS+=("$SELECTED_PORT")
   else
-    # 多协议，每个分配端口
     echo ""
-    echo "多协议需要不同端口"
+    echo "⚠️  多协议需要不同端口"
     for proto in "${PROTOCOLS[@]}"; do
-      local p
-      p=$(select_port_for "$proto")
-      PORTS+=("$p")
+      select_port_for "$proto"
+      PORTS+=("$SELECTED_PORT")
     done
   fi
 }
@@ -185,24 +178,35 @@ gen_keys() {
 }
 
 # =========================
-# 生成单个 inbound json
+# write config
 # =========================
-make_inbound() {
-  local proto="$1"
-  local port="$2"
+write_config() {
+  cp "$CONFIG_FILE" "$BACKUP_DIR/config.$(date +%s).bak" 2>/dev/null || true
 
-  if [ "$proto" = "vless" ]; then
-    cat <<EOF
+  # 构建 inbounds 数组
+  local first=true
+  local inbounds=""
+
+  local i=0
+  for proto in "${PROTOCOLS[@]}"; do
+    local port="${PORTS[$i]}"
+
+    if [ "$first" = true ]; then
+      first=false
+    else
+      inbounds+=","
+    fi
+
+    if [ "$proto" = "vless" ]; then
+      inbounds+=$(cat <<EOF
+
     {
       "listen": "0.0.0.0",
       "port": $port,
       "protocol": "vless",
       "tag": "vless-in",
       "settings": {
-        "clients": [{
-          "id": "$UUID",
-          "flow": "xtls-rprx-vision"
-        }],
+        "clients": [{"id": "$UUID", "flow": "xtls-rprx-vision"}],
         "decryption": "none"
       },
       "streamSettings": {
@@ -218,18 +222,18 @@ make_inbound() {
       }
     }
 EOF
+)
 
-  elif [ "$proto" = "trojan" ]; then
-    cat <<EOF
+    elif [ "$proto" = "trojan" ]; then
+      inbounds+=$(cat <<EOF
+
     {
       "listen": "0.0.0.0",
       "port": $port,
       "protocol": "trojan",
       "tag": "trojan-in",
       "settings": {
-        "clients": [{
-          "password": "$TROJAN_PASS"
-        }]
+        "clients": [{"password": "$TROJAN_PASS"}]
       },
       "streamSettings": {
         "network": "tcp",
@@ -244,9 +248,11 @@ EOF
       }
     }
 EOF
+)
 
-  elif [ "$proto" = "ss" ]; then
-    cat <<EOF
+    elif [ "$proto" = "ss" ]; then
+      inbounds+=$(cat <<EOF
+
     {
       "listen": "0.0.0.0",
       "port": $port,
@@ -258,33 +264,18 @@ EOF
       }
     }
 EOF
-  fi
-}
-
-# =========================
-# write config
-# =========================
-write_config() {
-  cp "$CONFIG_FILE" "$BACKUP_DIR/config.$(date +%s).bak" 2>/dev/null || true
-
-  # 拼接所有 inbound
-  local inbounds=""
-  local i=0
-  for proto in "${PROTOCOLS[@]}"; do
-    if [ $i -gt 0 ]; then
-      inbounds+=","
+)
     fi
-    inbounds+=$(make_inbound "$proto" "${PORTS[$i]}")
+
     i=$((i + 1))
   done
 
   cat > "$CONFIG_FILE" <<EOF
 {
-  "log": { "loglevel": "warning" },
-  "inbounds": [
-$inbounds
+  "log": {"loglevel": "warning"},
+  "inbounds": [$inbounds
   ],
-  "outbounds": [{ "protocol": "freedom" }]
+  "outbounds": [{"protocol": "freedom"}]
 }
 EOF
 }
@@ -313,31 +304,30 @@ open_ports() {
 }
 
 # =========================
-# 输出节点信息
+# 输出节点信息 + 二维码
 # =========================
 print_nodes() {
   local i=0
   for proto in "${PROTOCOLS[@]}"; do
     local port="${PORTS[$i]}"
+    local link=""
+
     echo ""
-    echo "---------- $proto (端口 $port) ----------"
+    echo "---------- $proto :$port ----------"
 
     if [ "$proto" = "vless" ]; then
-      LINK="vless://$UUID@$SERVER_IP:$port?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$SNI&fp=chrome&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp#VLESS"
-      echo "$LINK"
-      qrencode -t ANSIUTF8 "$LINK"
-
+      link="vless://$UUID@$SERVER_IP:$port?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$SNI&fp=chrome&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp#VLESS"
     elif [ "$proto" = "trojan" ]; then
-      LINK="trojan://$TROJAN_PASS@$SERVER_IP:$port?security=reality&sni=$SNI&fp=chrome&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp#Trojan"
-      echo "$LINK"
-      qrencode -t ANSIUTF8 "$LINK"
-
+      link="trojan://$TROJAN_PASS@$SERVER_IP:$port?security=reality&sni=$SNI&fp=chrome&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp#Trojan"
     elif [ "$proto" = "ss" ]; then
-      SS_USERINFO=$(echo -n "chacha20-ietf-poly1305:$SS_PASS" | base64 -w 0)
-      LINK="ss://${SS_USERINFO}@$SERVER_IP:$port#SS"
-      echo "$LINK"
-      qrencode -t ANSIUTF8 "$LINK"
+      local ss_info
+      ss_info=$(echo -n "chacha20-ietf-poly1305:$SS_PASS" | base64 -w 0)
+      link="ss://${ss_info}@$SERVER_IP:$port#SS"
     fi
+
+    echo "$link"
+    echo ""
+    qrencode -t ANSIUTF8 "$link"
 
     i=$((i + 1))
   done
@@ -359,9 +349,9 @@ install_xray() {
   write_config
 
   if ! test_config; then
-    echo "❌ config 错误"
+    echo "❌ config 错误，内容如下："
     cat "$CONFIG_FILE"
-    exit 1
+    return
   fi
 
   systemctl enable xray
@@ -372,73 +362,15 @@ install_xray() {
 
   echo ""
   echo "=========================================="
-  echo "           ✅ 安装成功"
+  echo "             ✅ 安装成功"
   echo "=========================================="
-  echo "IP: $SERVER_IP"
+  echo "IP:  $SERVER_IP"
   echo "SNI: $SNI"
 
   print_nodes
-}
 
-# =========================
-# show node（从 config 读取）
-# =========================
-show_node() {
-  if [ ! -f "$CONFIG_FILE" ]; then
-    echo "❌ 配置文件不存在"
-    return
-  fi
-
-  get_ip
-  echo ""
-  echo "========== 当前节点 =========="
-  echo "IP: $SERVER_IP"
-
-  # 解析所有 inbound
-  local count
-  count=$(grep -c '"protocol"' "$CONFIG_FILE" || true)
-
-  # vless
-  if grep -q '"protocol": "vless"' "$CONFIG_FILE" 2>/dev/null || grep -q '"protocol":"vless"' "$CONFIG_FILE" 2>/dev/null; then
-    local port uuid short_id sni pbk
-    # 用 python/perl 太重，简单 grep
-    port=$(grep -A2 '"protocol".*vless' "$CONFIG_FILE" | grep -oP '"port":\s*\K\d+' || grep -oP '"port":\s*\K\d+' "$CONFIG_FILE" | head -1)
-    uuid=$(grep -oP '"id":\s*"\K[^"]+' "$CONFIG_FILE" | head -1)
-    short_id=$(grep -oP '"shortIds":\s*\["\K[^"]+' "$CONFIG_FILE" | head -1)
-    sni=$(grep -oP '"serverNames":\s*\["\K[^"]+' "$CONFIG_FILE" | head -1)
-
-    echo ""
-    echo "---------- VLESS (端口 $port) ----------"
-    # 注意：public key 不在 config 里，需要从备份或重新生成
-    echo "⚠️  PublicKey 需要在安装时记录，show_node 无法还原"
-    echo "UUID: $uuid"
-  fi
-
-  # trojan
-  if grep -q '"protocol": "trojan"' "$CONFIG_FILE" 2>/dev/null || grep -q '"protocol":"trojan"' "$CONFIG_FILE" 2>/dev/null; then
-    local pass
-    pass=$(grep -oP '"password":\s*"\K[^"]+' "$CONFIG_FILE" | head -1)
-    sni=$(grep -oP '"serverNames":\s*\["\K[^"]+' "$CONFIG_FILE" | head -1)
-
-    echo ""
-    echo "---------- Trojan ----------"
-    echo "Password: $pass"
-  fi
-
-  # ss
-  if grep -q '"protocol": "shadowsocks"' "$CONFIG_FILE" 2>/dev/null || grep -q '"protocol":"shadowsocks"' "$CONFIG_FILE" 2>/dev/null; then
-    local pass method
-    pass=$(grep -oP '"password":\s*"\K[^"]+' "$CONFIG_FILE" | tail -1)
-    method=$(grep -oP '"method":\s*"\K[^"]+' "$CONFIG_FILE" | head -1)
-
-    echo ""
-    echo "---------- Shadowsocks ----------"
-    echo "Method: $method"
-    echo "Password: $pass"
-  fi
-
-  echo ""
-  echo "💡 完整链接和二维码请在安装时保存，或查看 $SUB_DIR"
+  # 保存到文件
+  save_nodes
 }
 
 # =========================
@@ -446,12 +378,11 @@ show_node() {
 # =========================
 save_nodes() {
   local file="$SUB_DIR/nodes.txt"
+  local i=0
   {
-    echo "# 生成时间: $(date)"
-    echo "# IP: $SERVER_IP"
-    echo "# SNI: $SNI"
+    echo "# $(date)"
+    echo "# IP: $SERVER_IP | SNI: $SNI"
     echo ""
-    local i=0
     for proto in "${PROTOCOLS[@]}"; do
       local port="${PORTS[$i]}"
       if [ "$proto" = "vless" ]; then
@@ -459,13 +390,28 @@ save_nodes() {
       elif [ "$proto" = "trojan" ]; then
         echo "trojan://$TROJAN_PASS@$SERVER_IP:$port?security=reality&sni=$SNI&fp=chrome&pbk=$PUBLIC_KEY&sid=$SHORT_ID&type=tcp#Trojan"
       elif [ "$proto" = "ss" ]; then
-        SS_USERINFO=$(echo -n "chacha20-ietf-poly1305:$SS_PASS" | base64 -w 0)
-        echo "ss://${SS_USERINFO}@$SERVER_IP:$port#SS"
+        local ss_info
+        ss_info=$(echo -n "chacha20-ietf-poly1305:$SS_PASS" | base64 -w 0)
+        echo "ss://${ss_info}@$SERVER_IP:$port#SS"
       fi
       i=$((i + 1))
     done
   } > "$file"
-  echo "节点信息已保存: $file"
+  echo ""
+  echo "💾 节点已保存: $file"
+}
+
+# =========================
+# show node
+# =========================
+show_node() {
+  local file="$SUB_DIR/nodes.txt"
+  if [ -f "$file" ]; then
+    echo ""
+    cat "$file"
+  else
+    echo "❌ 没有保存的节点信息，请重新安装"
+  fi
 }
 
 # =========================
@@ -473,12 +419,18 @@ save_nodes() {
 # =========================
 uninstall_xray() { eval "$REMOVE_CMD"; }
 status() { systemctl status xray --no-pager -l; }
-restart() { systemctl restart xray; }
+restart_xray() { systemctl restart xray; }
 view_config() { cat "$CONFIG_FILE"; }
 
 edit_config() {
   vim "$CONFIG_FILE"
-  systemctl restart xray
+  if test_config; then
+    systemctl restart xray
+    echo "✅ 配置已更新并重启"
+  else
+    echo "❌ 配置有误，已重启旧配置"
+    systemctl restart xray
+  fi
 }
 
 check_xray_installed() {
@@ -493,7 +445,7 @@ check_root
 while true; do
   echo ""
   echo "=========================================="
-  echo "     Xray Multi-Protocol CLI"
+  echo "       Xray Multi-Protocol CLI"
   echo "=========================================="
   echo "1. 安装"
   echo "2. 重装"
@@ -513,7 +465,7 @@ while true; do
     2) uninstall_xray; install_xray ;;
     3) uninstall_xray ;;
     4) status ;;
-    5) restart ;;
+    5) restart_xray ;;
     6) show_node ;;
     7) view_config ;;
     8) edit_config ;;
