@@ -77,10 +77,13 @@ select_sni() {
 # Reality keys（兼容所有版本）
 # =========================
 gen_keys() {
-  OUT=$(xray x25519)
+  OUT=$(xray x25519 2>&1)
 
-  PRIVATE_KEY=$(echo "$OUT" | awk -F': ' '/Private key/ {print $2}')
-  PUBLIC_KEY=$(echo "$OUT" | awk -F': ' '/Public key|Password/ {print $2}')
+  # 兼容新旧版本格式：
+  # 旧版: "Private key: xxx" / "Public key: xxx"
+  # 新版: "PrivateKey: xxx" / "Password (PublicKey): xxx"
+  PRIVATE_KEY=$(echo "$OUT" | grep -i 'private' | sed 's/.*: //')
+  PUBLIC_KEY=$(echo "$OUT" | grep -i 'public\|password' | sed 's/.*: //' | awk '{print $1}')
 
   UUID=$(xray uuid)
   SHORT_ID=$(openssl rand -hex 8)
