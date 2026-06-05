@@ -36,32 +36,6 @@ get_interface() {
 }
 
 # =========================
-# 一开始就收集输入
-# =========================
-get_ip
-get_interface
-
-echo ""
-echo "=========================================="
-echo "        WireGuard 配置"
-echo "=========================================="
-echo "服务器 IP: $SERVER_IP"
-echo "网卡: $NET_IF"
-echo ""
-
-read -p "WireGuard 端口 [默认 51820]: " WG_PORT
-WG_PORT=${WG_PORT:-51820}
-
-read -p "内网网段 [默认 10.0.0.0/24]: " WG_SUBNET
-WG_SUBNET=${WG_SUBNET:-10.0.0.0/24}
-
-SUBNET_PREFIX=$(echo "$WG_SUBNET" | cut -d'.' -f1-3)
-
-echo ""
-echo "端口: $WG_PORT | 子网: $WG_SUBNET"
-echo "=========================================="
-
-# =========================
 # 检查是否安装
 # =========================
 check_installed() {
@@ -84,11 +58,32 @@ check_config() {
 }
 
 # =========================
-# 安装
+# 安装（先收集输入再装包）
 # =========================
 install_wg() {
+  get_ip
+  get_interface
+
   echo ""
-  echo "正在安装 WireGuard..."
+  echo "=========================================="
+  echo "        WireGuard 配置"
+  echo "=========================================="
+  echo "服务器 IP: $SERVER_IP"
+  echo "网卡: $NET_IF"
+  echo ""
+
+  # 先收集所有输入
+  read -p "WireGuard 端口 [默认 51820]: " WG_PORT
+  WG_PORT=${WG_PORT:-51820}
+
+  read -p "内网网段 [默认 10.0.0.0/24]: " WG_SUBNET
+  WG_SUBNET=${WG_SUBNET:-10.0.0.0/24}
+
+  SUBNET_PREFIX=$(echo "$WG_SUBNET" | cut -d'.' -f1-3)
+
+  echo ""
+  echo "端口: $WG_PORT | 子网: $WG_SUBNET"
+  echo "正在安装..."
 
   export DEBIAN_FRONTEND=noninteractive
   export NEEDRESTART_MODE=a
@@ -128,7 +123,7 @@ PresharedKey = $PSK
 AllowedIPs = ${SUBNET_PREFIX}.2/32
 EOF
 
-  # 写客户端配置（Address 用 /32）
+  # 写客户端配置
   cat > "$CLIENT_CONF" <<EOF
 [Interface]
 PrivateKey = $CLIENT_PRIV
@@ -181,6 +176,7 @@ EOF
 uninstall_wg() {
   systemctl stop wg-quick@$WG_IF 2>/dev/null || true
   systemctl disable wg-quick@$WG_IF 2>/dev/null || true
+  export DEBIAN_FRONTEND=noninteractive
   apt-get purge -y wireguard wireguard-tools
   rm -rf /etc/wireguard
   rm -f /etc/sysctl.d/99-wg.conf
@@ -243,7 +239,9 @@ add_client() {
   get_ip
 
   # 读取现有配置
+  WG_PORT=$(grep "ListenPort" "$WG_DIR/$WG_IF.conf" | awk '{print $3}')
   SERVER_PUB=$(grep "PrivateKey" "$WG_DIR/$WG_IF.conf" | head -1 | awk '{print $3}' | wg pubkey)
+  SUBNET_PREFIX=$(grep "Address" "$WG_DIR/$WG_IF.conf" | grep -oP '\d+\.\d+\.\d+')
 
   # 找下一个可用 IP
   LAST_IP=$(grep "AllowedIPs" "$WG_DIR/$WG_IF.conf" | tail -1 | grep -oP '\d+\.\d+\.\d+\.\d+')
@@ -268,7 +266,7 @@ PresharedKey = $PSK
 AllowedIPs = ${SUBNET_PREFIX}.${NEXT_NUM}/32
 EOF
 
-  # 生成客户端配置（Address 用 /32）
+  # 生成客户端配置
   local client_file="$WG_DIR/${CLIENT_NAME}.conf"
   cat > "$client_file" <<EOF
 [Interface]
