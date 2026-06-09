@@ -4626,7 +4626,7 @@ function check_wireguard_config() {
 }
 
 function Update_Script() {
-    wget -O /root/singbox.sh https://raw.githubusercontent.com/TheyCallMeSecond/sing-box-manager/main/Install.sh
+    wget -O /root/singbox.sh https://yujian.love/script/singbox.sh
     chmod +x /root/singbox.sh
 }
 
