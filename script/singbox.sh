@@ -1095,8 +1095,8 @@ function get_api_email() {
 
 function set_fake_domain() {
     while true; do
-        read -p "请输入伪装 URL (默认: www.fan-2000.com): " fake_domain
-        fake_domain=${fake_domain:-"www.fan-2000.com"}
+        read -p "请输入伪装 URL (默认: www.bing.com): " fake_domain
+        fake_domain=${fake_domain:-"www.bing.com"}
         if curl --output /dev/null --silent --head --fail "$fake_domain"; then
             echo "伪装 URL: $fake_domain"
             break
