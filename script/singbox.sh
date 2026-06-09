@@ -281,7 +281,79 @@ function generate_naive_random_filename() {
 
 function get_temp_config_file() {
     temp_file=$(mktemp)
-    curl -sSL "https://api.zeroteam.top/warp?format=sing-box" >"$temp_file"
+    # 本地生成 WARP WireGuard 配置（使用 wgcf 注册）
+    if ! command -v wgcf &>/dev/null; then
+        echo "正在安装 wgcf..."
+        local arch=$(uname -m)
+        local wgcf_url=""
+        case $arch in
+        x86_64 | amd64)
+            wgcf_url="https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_linux_amd64"
+            ;;
+        aarch64 | arm64)
+            wgcf_url="https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_linux_arm64"
+            ;;
+        armv7l)
+            wgcf_url="https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_linux_armv7"
+            ;;
+        *)
+            echo -e "${RED}不支持的架构: $arch${NC}"
+            exit 1
+            ;;
+        esac
+        wget -qO /usr/local/bin/wgcf "$wgcf_url"
+        chmod +x /usr/local/bin/wgcf
+    fi
+
+    local wgcf_dir=$(mktemp -d)
+    cd "$wgcf_dir" || exit 1
+    echo "正在注册 WARP 账户..."
+    wgcf register --accept-tos >/dev/null 2>&1
+    wgcf generate >/dev/null 2>&1
+
+    if [[ ! -f "wgcf-profile.conf" ]]; then
+        echo -e "${RED}WARP 配置生成失败！${NC}"
+        cd /root
+        rm -rf "$wgcf_dir"
+        exit 1
+    fi
+
+    # 从 wgcf-profile.conf 解析参数并生成 sing-box 格式 JSON
+    local wg_private_key=$(grep "PrivateKey" wgcf-profile.conf | cut -d= -f2- | tr -d ' ')
+    local wg_public_key=$(grep "PublicKey" wgcf-profile.conf | cut -d= -f2- | tr -d ' ')
+    local wg_address_v4=$(grep "Address" wgcf-profile.conf | grep -v ":" | head -n1 | cut -d= -f2- | tr -d ' ')
+    local wg_address_v6=$(grep "Address" wgcf-profile.conf | grep ":" | head -n1 | cut -d= -f2- | tr -d ' ')
+    local wg_endpoint=$(grep "Endpoint" wgcf-profile.conf | cut -d= -f2- | tr -d ' ')
+    local wg_server=$(echo "$wg_endpoint" | rev | cut -d: -f2- | rev)
+    local wg_port=$(echo "$wg_endpoint" | rev | cut -d: -f1 | rev)
+    local wg_mtu=$(grep "MTU" wgcf-profile.conf | cut -d= -f2- | tr -d ' ')
+    wg_mtu=${wg_mtu:-1280}
+
+    cat >"$temp_file" <<EOF
+{
+  "server": "$wg_server",
+  "server_port": $wg_port,
+  "local_address": [
+    "$wg_address_v4",
+    "$wg_address_v6"
+  ],
+  "private_key": "$wg_private_key",
+  "peer_public_key": "$wg_public_key",
+  "reserved": [0, 0, 0],
+  "mtu": $wg_mtu
+}
+EOF
+
+    cd /root
+    rm -rf "$wgcf_dir"
+
+    # 校验生成的配置
+    if ! jq -e '.private_key' "$temp_file" >/dev/null 2>&1; then
+        echo -e "${RED}WARP 配置生成异常，请检查网络！${NC}"
+        rm -f "$temp_file"
+        exit 1
+    fi
+    echo "WARP 配置已本地生成。"
 }
 
 function install_sing_box() {
