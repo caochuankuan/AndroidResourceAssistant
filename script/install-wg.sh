@@ -297,6 +297,130 @@ EOF
 }
 
 # =========================
+# 生成 Clash 配置
+# =========================
+gen_clash() {
+  check_installed || return
+  check_config || return
+
+  get_ip
+
+  # 读取现有配置
+  WG_PORT=$(grep "ListenPort" "$WG_DIR/$WG_IF.conf" | awk '{print $3}')
+  SERVER_PUB=$(grep "PrivateKey" "$WG_DIR/$WG_IF.conf" | head -1 | awk '{print $3}' | wg pubkey)
+  SUBNET_PREFIX=$(grep "Address" "$WG_DIR/$WG_IF.conf" | grep -oP '\d+\.\d+\.\d+')
+
+  # 列出所有客户端配置文件
+  echo ""
+  echo "可用的客户端配置："
+  local idx=0
+  local conf_files=()
+  for f in "$WG_DIR"/*.conf; do
+    [ "$f" = "$WG_DIR/$WG_IF.conf" ] && continue
+    idx=$((idx + 1))
+    conf_files+=("$f")
+    local fname=$(basename "$f" .conf)
+    local cip=$(grep "Address" "$f" | awk '{print $3}')
+    echo "  $idx. $fname ($cip)"
+  done
+
+  if [ $idx -eq 0 ]; then
+    echo "❌ 没有找到客户端配置文件"
+    return
+  fi
+
+  read -p "选择客户端 [1-$idx，默认 1]: " sel
+  sel=${sel:-1}
+
+  local selected_conf="${conf_files[$((sel - 1))]}"
+  if [ ! -f "$selected_conf" ]; then
+    echo "❌ 无效选择"
+    return
+  fi
+
+  # 从客户端配置中提取信息
+  local CLIENT_PRIV=$(grep "PrivateKey" "$selected_conf" | awk '{print $3}')
+  local CLIENT_IP=$(grep "Address" "$selected_conf" | awk '{print $3}' | cut -d'/' -f1)
+  local CLIENT_PSK=$(grep "PresharedKey" "$selected_conf" | awk '{print $3}')
+  local CLIENT_NAME=$(basename "$selected_conf" .conf)
+
+  local CLASH_FILE="$WG_DIR/${CLIENT_NAME}-clash.yaml"
+
+  cat > "$CLASH_FILE" <<EOF
+# Clash Meta (mihomo) for Android 配置
+# 客户端: $CLIENT_NAME ($CLIENT_IP)
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+unified-delay: true
+find-process-mode: strict
+geodata-mode: true
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  nameserver-policy:
+    "geosite:geolocation-!cn":
+      - "https://dns.google/dns-query#Proxy"
+      - "https://cloudflare-dns.com/dns-query#Proxy"
+
+proxies:
+  - name: "WireGuard"
+    type: wireguard
+    server: $SERVER_IP
+    port: $WG_PORT
+    ip: $CLIENT_IP
+    ipv6: ""
+    private-key: $CLIENT_PRIV
+    public-key: $SERVER_PUB
+    pre-shared-key: $CLIENT_PSK
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    mtu: 1280
+    udp: true
+    persistent-keepalive: 25
+
+proxy-groups:
+  - name: "Proxy"
+    type: select
+    proxies:
+      - WireGuard
+      - DIRECT
+
+rules:
+  - IP-CIDR,127.0.0.0/8,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - IP-CIDR,172.16.0.0/12,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,Proxy
+EOF
+
+  chmod 600 "$CLASH_FILE"
+
+  echo ""
+  echo "=========================================="
+  echo "     ✅ Clash Meta 配置已生成"
+  echo "=========================================="
+  echo "客户端: $CLIENT_NAME"
+  echo "IP: $CLIENT_IP"
+  echo "文件: $CLASH_FILE"
+  echo ""
+  echo "---------- 配置内容 ----------"
+  cat "$CLASH_FILE"
+}
+
+# =========================
 # 菜单
 # =========================
 while true; do
@@ -311,6 +435,7 @@ while true; do
   echo "5. 查看配置"
   echo "6. 编辑配置"
   echo "7. 二维码"
+  echo "8. 生成 Clash 配置"
   echo "0. 退出"
   echo ""
   read -p "请选择: " choice
@@ -323,6 +448,7 @@ while true; do
     5) show_config ;;
     6) edit_config ;;
     7) qr_code ;;
+    8) gen_clash ;;
     0) exit 0 ;;
     *) echo "无效选项" ;;
   esac
