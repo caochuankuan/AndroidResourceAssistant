@@ -442,6 +442,44 @@ check_xray_installed() {
 }
 
 # =========================
+# 显示状态摘要
+# =========================
+show_status_banner() {
+  local xray_status="未安装"
+  local active_protos=""
+
+  # 检查 xray 是否安装
+  if command -v xray >/dev/null 2>&1; then
+    # 检查运行状态
+    if systemctl is-active xray >/dev/null 2>&1; then
+      xray_status="✅ 运行中"
+    else
+      xray_status="⚠️  已停止"
+    fi
+
+    # 从配置文件读取已启用的协议和端口（只提取 inbounds）
+    if [ -f "$CONFIG_FILE" ]; then
+      active_protos=$(awk '
+        /"inbounds"/ { in_inbounds=1 }
+        /"outbounds"/ { in_inbounds=0 }
+        in_inbounds && /"port"/ { gsub(/[^0-9]/, "", $0); port=$0 }
+        in_inbounds && /"protocol"/ {
+          gsub(/.*"protocol"[^"]*"/, "", $0)
+          gsub(/".*/, "", $0)
+          if (port != "") printf "%s:%s ", $0, port
+          port=""
+        }
+      ' "$CONFIG_FILE" 2>/dev/null)
+    fi
+  fi
+
+  echo "  状态: $xray_status"
+  if [ -n "$active_protos" ]; then
+    echo "  协议: $active_protos"
+  fi
+}
+
+# =========================
 # menu
 # =========================
 check_root
@@ -450,6 +488,8 @@ while true; do
   echo ""
   echo "=========================================="
   echo "       Xray Multi-Protocol CLI"
+  echo "=========================================="
+  show_status_banner
   echo "=========================================="
   echo "1. 安装"
   echo "2. 重装"
