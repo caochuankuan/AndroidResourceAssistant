@@ -419,6 +419,276 @@ show_node() {
 }
 
 # =========================
+# 新增协议（追加到现有配置）
+# =========================
+add_protocol() {
+  if ! command -v xray >/dev/null 2>&1; then
+    echo "❌ Xray 未安装，请先安装"
+    return
+  fi
+
+  if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ 配置文件不存在，请先安装"
+    return
+  fi
+
+  # 显示当前已有协议
+  echo ""
+  echo "当前已有协议："
+  awk '
+    /"inbounds"/ { in_inbounds=1 }
+    /"outbounds"/ { in_inbounds=0 }
+    in_inbounds && /"port"/ { gsub(/[^0-9]/, "", $0); port=$0 }
+    in_inbounds && /"protocol"/ {
+      gsub(/.*"protocol"[^"]*"/, "", $0)
+      gsub(/".*/, "", $0)
+      if (port != "") printf "  - %s:%s\n", $0, port
+      port=""
+    }
+  ' "$CONFIG_FILE" 2>/dev/null
+  echo ""
+
+  # 从现有配置提取 reality 密钥（适配单行和多行 JSON 格式）
+  local existing_pk=""
+  local existing_sid=""
+  local existing_sni=""
+  existing_pk=$(grep '"privateKey"' "$CONFIG_FILE" 2>/dev/null | head -1 | sed 's/.*"privateKey"[^"]*"\([^"]*\)".*/\1/')
+  # shortIds 可能在同一行 ["xxx"] 或下一行 "xxx"
+  existing_sid=$(grep -A1 '"shortIds"' "$CONFIG_FILE" 2>/dev/null | grep -o '"[0-9a-f]\{16\}"' | head -1 | tr -d '"')
+  # serverNames 可能在同一行 ["xxx"] 或下一行 "xxx"
+  existing_sni=$(grep -A1 '"serverNames"' "$CONFIG_FILE" 2>/dev/null | grep -o '"[^"]*\.\([^"]*\)"' | head -1 | tr -d '"')
+
+  # 选择要新增的协议
+  echo "选择要新增的协议："
+  echo "1. VLESS + Reality"
+  echo "2. Trojan + Reality"
+  echo "3. Shadowsocks"
+  read -p "选择: " proto_choice
+
+  local new_proto=""
+  case "$proto_choice" in
+    1) new_proto="vless" ;;
+    2) new_proto="trojan" ;;
+    3) new_proto="ss" ;;
+    *) echo "❌ 无效选择"; return ;;
+  esac
+
+  # 检查是否已存在同协议
+  local proto_name="$new_proto"
+  [ "$proto_name" = "ss" ] && proto_name="shadowsocks"
+  if grep -q "\"protocol\": \"$proto_name\"" "$CONFIG_FILE" 2>/dev/null; then
+    echo "⚠️  已存在 $proto_name 协议"
+    read -p "继续添加(多端口)? [y/N]: " confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+      return
+    fi
+  fi
+
+  # 选端口
+  select_port_for "$new_proto"
+  local new_port="$SELECTED_PORT"
+
+  # 生成新凭据
+  local new_uuid=""
+  local new_trojan_pass=""
+  local new_ss_pass=""
+  local use_pk="$existing_pk"
+  local use_sid="$existing_sid"
+  local use_sni="$existing_sni"
+
+  if [ "$new_proto" = "vless" ]; then
+    new_uuid=$(xray uuid)
+    # 如果没有现有 reality 密钥，生成新的
+    if [ -z "$use_pk" ]; then
+      gen_keys
+      use_pk="$PRIVATE_KEY"
+      use_sid="$SHORT_ID"
+      select_sni
+      use_sni="$SNI"
+    fi
+  elif [ "$new_proto" = "trojan" ]; then
+    new_trojan_pass=$(openssl rand -hex 12)
+    if [ -z "$use_pk" ]; then
+      gen_keys
+      use_pk="$PRIVATE_KEY"
+      use_sid="$SHORT_ID"
+      select_sni
+      use_sni="$SNI"
+    fi
+  elif [ "$new_proto" = "ss" ]; then
+    new_ss_pass=$(openssl rand -hex 12)
+  fi
+
+  # 备份配置
+  cp "$CONFIG_FILE" "$BACKUP_DIR/config.$(date +%s).bak" 2>/dev/null || true
+
+  # 构建新的 inbound JSON，写到临时文件
+  local tmp_inbound="/tmp/xray_new_inbound.json"
+
+  if [ "$new_proto" = "vless" ]; then
+    cat > "$tmp_inbound" <<EOF
+    {
+      "listen": "0.0.0.0",
+      "port": $new_port,
+      "protocol": "vless",
+      "tag": "vless-in-$new_port",
+      "settings": {
+        "clients": [{"id": "$new_uuid", "flow": "xtls-rprx-vision"}],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "$use_sni:443",
+          "serverNames": ["$use_sni"],
+          "privateKey": "$use_pk",
+          "shortIds": ["$use_sid"]
+        }
+      }
+    }
+EOF
+  elif [ "$new_proto" = "trojan" ]; then
+    cat > "$tmp_inbound" <<EOF
+    {
+      "listen": "0.0.0.0",
+      "port": $new_port,
+      "protocol": "trojan",
+      "tag": "trojan-in-$new_port",
+      "settings": {
+        "clients": [{"password": "$new_trojan_pass"}]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "$use_sni:443",
+          "serverNames": ["$use_sni"],
+          "privateKey": "$use_pk",
+          "shortIds": ["$use_sid"]
+        }
+      }
+    }
+EOF
+  elif [ "$new_proto" = "ss" ]; then
+    cat > "$tmp_inbound" <<EOF
+    {
+      "listen": "0.0.0.0",
+      "port": $new_port,
+      "protocol": "shadowsocks",
+      "tag": "ss-in-$new_port",
+      "settings": {
+        "method": "chacha20-ietf-poly1305",
+        "password": "$new_ss_pass",
+        "network": "tcp,udp"
+      }
+    }
+EOF
+  fi
+
+  # 找到 inbounds 的结束位置并插入
+  local outbounds_line
+  outbounds_line=$(grep -n '"outbounds"' "$CONFIG_FILE" | head -1 | cut -d: -f1)
+
+  if [ -z "$outbounds_line" ]; then
+    echo "❌ 找不到 outbounds 位置"
+    rm -f "$tmp_inbound"
+    return
+  fi
+
+  # 从第1行到outbounds行之间，找最后一个只包含 ] 或 ], 的行（inbounds 的结束）
+  local inbounds_close
+  inbounds_close=$(head -n "$((outbounds_line - 1))" "$CONFIG_FILE" | grep -n '^\s*\]' | tail -1 | cut -d: -f1)
+
+  if [ -z "$inbounds_close" ]; then
+    echo "❌ 找不到 inbounds 结束位置"
+    rm -f "$tmp_inbound"
+    return
+  fi
+
+  # inbounds ] 的前一行就是最后一个 inbound 的 }
+  local last_inbound_end=$((inbounds_close - 1))
+
+  # 在最后一个 inbound 的 } 那行末尾加逗号
+  sed -i "${last_inbound_end}s/$/,/" "$CONFIG_FILE"
+  # 在加完逗号的那行后面插入新 inbound 内容
+  sed -i "${last_inbound_end}r $tmp_inbound" "$CONFIG_FILE"
+
+  rm -f "$tmp_inbound"
+
+  # 验证配置
+  if ! test_config; then
+    echo "❌ 配置验证失败，错误信息："
+    xray run -test -config "$CONFIG_FILE" 2>&1 || xray -test -config "$CONFIG_FILE" 2>&1 || true
+    echo ""
+    echo "⬆️  生成的配置内容："
+    cat -n "$CONFIG_FILE"
+    echo ""
+    echo "正在恢复备份..."
+    local latest_bak
+    latest_bak=$(ls -t "$BACKUP_DIR"/config.*.bak 2>/dev/null | head -1)
+    if [ -n "$latest_bak" ]; then
+      cp "$latest_bak" "$CONFIG_FILE"
+      echo "✅ 已恢复到上一次配置"
+    fi
+    return
+  fi
+
+  # 重启 xray
+  systemctl restart xray
+
+  # 打开防火墙
+  PORTS=("$new_port")
+  open_ports
+
+  # 获取 IP 并显示新节点
+  get_ip
+
+  # 获取公钥用于生成链接
+  if [ "$new_proto" != "ss" ]; then
+    # 从私钥推导公钥
+    local pub_key=""
+    pub_key=$(xray x25519 -i "$use_pk" 2>&1 | grep -i 'public' | sed 's/.*: //' | tr -d '[:space:]')
+    if [ -z "$pub_key" ]; then
+      pub_key="<请从之前的节点信息获取>"
+    fi
+  fi
+
+  echo ""
+  echo "=========================================="
+  echo "          ✅ 新增协议成功"
+  echo "=========================================="
+
+  local link=""
+  if [ "$new_proto" = "vless" ]; then
+    link="vless://$new_uuid@$SERVER_IP:$new_port?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$use_sni&fp=chrome&pbk=$pub_key&sid=$use_sid&type=tcp#VLESS-$new_port"
+    echo "$link"
+    echo ""
+    qrencode -t ANSIUTF8 "$link" 2>/dev/null || true
+  elif [ "$new_proto" = "trojan" ]; then
+    link="trojan://$new_trojan_pass@$SERVER_IP:$new_port?security=reality&sni=$use_sni&fp=chrome&pbk=$pub_key&sid=$use_sid&type=tcp#Trojan-$new_port"
+    echo "$link"
+    echo ""
+    qrencode -t ANSIUTF8 "$link" 2>/dev/null || true
+  elif [ "$new_proto" = "ss" ]; then
+    local ss_info
+    ss_info=$(echo -n "chacha20-ietf-poly1305:$new_ss_pass" | base64 -w 0)
+    link="ss://${ss_info}@$SERVER_IP:$new_port#SS-$new_port"
+    echo "$link"
+    echo ""
+    qrencode -t ANSIUTF8 "$link" 2>/dev/null || true
+  fi
+
+  # 追加到 nodes.txt
+  local file="$SUB_DIR/nodes.txt"
+  echo "$link" >> "$file"
+  echo ""
+  echo "💾 节点已追加到: $file"
+}
+
+# =========================
 # ops
 # =========================
 uninstall_xray() { eval "$REMOVE_CMD"; }
@@ -499,6 +769,7 @@ while true; do
   echo "6. 查看节点"
   echo "7. 查看配置"
   echo "8. 修改配置"
+  echo "9. 新增协议"
   echo "0. 退出"
   echo ""
 
@@ -513,6 +784,7 @@ while true; do
     6) show_node ;;
     7) view_config ;;
     8) edit_config ;;
+    9) add_protocol ;;
     0) exit 0 ;;
   esac
 done
