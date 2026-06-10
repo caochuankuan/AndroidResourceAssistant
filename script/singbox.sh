@@ -1499,6 +1499,48 @@ function select_certificate_option() {
     local certificate_option
     local domain_supported=false
     local return_to_menu=false
+
+    # 自动检测已有证书
+    local existing_certs=()
+    local cert_index=0
+    if [[ -d "/etc/ssl/private" ]]; then
+        while IFS= read -r -d '' crt_file; do
+            local key_file="${crt_file%.crt}.key"
+            if [[ -f "$key_file" ]]; then
+                existing_certs+=("$crt_file")
+            fi
+        done < <(find /etc/ssl/private -name "*.crt" -print0 2>/dev/null)
+    fi
+
+    if [[ ${#existing_certs[@]} -gt 0 ]]; then
+        echo -e "${CYAN}检测到已有证书：${NC}"
+        for ((i = 0; i < ${#existing_certs[@]}; i++)); do
+            local cert_domain=$(basename "${existing_certs[$i]}" .crt)
+            local cert_issuer=$(openssl x509 -in "${existing_certs[$i]}" -noout -issuer 2>/dev/null | grep -o "O = [^,]*" | cut -d= -f2- | tr -d ' ')
+            local cert_type="正式证书"
+            if openssl x509 -in "${existing_certs[$i]}" -noout -issuer 2>/dev/null | grep -qi "CN *= *${cert_domain}"; then
+                cert_type="自签证书"
+            fi
+            echo "  $((i + 1))). $cert_domain [${cert_type}] (${existing_certs[$i]})"
+        done
+        echo ""
+        while true; do
+            read -p "是否使用已有证书？(输入编号选择，N 则重新申请): " cert_choice
+            if [[ "$cert_choice" == "n" || "$cert_choice" == "N" ]]; then
+                break
+            elif [[ "$cert_choice" =~ ^[0-9]+$ && "$cert_choice" -ge 1 && "$cert_choice" -le ${#existing_certs[@]} ]]; then
+                certificate_path="${existing_certs[$((cert_choice - 1))]}"
+                private_key_path="${certificate_path%.crt}.key"
+                domain=$(basename "$certificate_path" .crt)
+                echo "已选择证书: $certificate_path"
+                echo "对应私钥: $private_key_path"
+                return
+            else
+                echo -e "${RED}无效输入，请重新选择！${NC}"
+            fi
+        done
+    fi
+
     while true; do
         read -p "请选择证书来源 (默认 1):
 1). 自签证书
@@ -2521,31 +2563,38 @@ convert_rule_set() {
 input_file="/usr/local/etc/sing-box/config.json"
 temp_file="/usr/local/etc/sing-box/temp_file.json"
 
-has_geosite=$(jq '.route.rules[0] | has("geosite")' "$input_file")
+# 找到包含 geosite 字段的规则索引
+geosite_index=$(jq '[.route.rules | to_entries[] | select(.value.geosite != null) | .key] | first' "$input_file")
 
-if [ "$has_geosite" == "true" ]; then
-    jq '.route.rules[0] |= . + {"rule_set": [.geosite[] | "geosite-\(.)"]} | 
-    .route.rules[0] |= del(.geosite)' "$input_file" >"$temp_file"
+if [ "$geosite_index" != "null" ] && [ -n "$geosite_index" ]; then
+    jq --argjson idx "$geosite_index" '
+      .route.rules[$idx] |= . + {"rule_set": [.geosite[] | "geosite-\(.)"]} |
+      .route.rules[$idx] |= del(.geosite)
+    ' "$input_file" >"$temp_file"
 
-    jq '.route += {rule_set: [.route.rules[0].rule_set[] as $gs | 
+    jq --argjson idx "$geosite_index" '
+      .route += {rule_set: [.route.rules[$idx].rule_set[] as $gs |
         {
-            tag: ("geosite-" + $gs | sub("^geosite-"; "")),
+            tag: $gs,
             type: "remote",
             format: "binary",
-            url: ("https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/" + $gs + ".srs"),
+            url: ("https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/" + ($gs | sub("^geosite-"; "")) + ".srs"),
             download_detour: "direct"
         }
-    ]}' "$temp_file" >"$input_file"
+      ]}
+    ' "$temp_file" >"$input_file"
 
-    jq '. |= . + {
-    "experimental": {
-        "cache_file": {
-            "enabled": true
-        }
-    }
-    }' "$input_file" >"$temp_file"
-
-    mv "$temp_file" "$input_file"
+    # 添加 experimental.cache_file（如果不存在）
+    if ! jq -e '.experimental' "$input_file" >/dev/null 2>&1; then
+        jq '. + {
+          "experimental": {
+            "cache_file": {
+              "enabled": true
+            }
+          }
+        }' "$input_file" >"$temp_file"
+        mv "$temp_file" "$input_file"
+    fi
 fi
 }
 
