@@ -789,6 +789,187 @@ check_xray_installed() {
 }
 
 # =========================
+# 生成 Clash 配置
+# =========================
+gen_clash() {
+  if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ 配置文件不存在，请先安装"
+    return
+  fi
+
+  get_ip
+
+  # 从配置中提取 reality 公钥
+  local priv_key pub_key short_id sni
+  priv_key=$(grep '"privateKey"' "$CONFIG_FILE" 2>/dev/null | head -1 | sed 's/.*"privateKey"[^"]*"\([^"]*\)".*/\1/')
+  if [ -n "$priv_key" ]; then
+    pub_key=$(xray x25519 -i "$priv_key" 2>&1 | grep -i 'public' | sed 's/.*: //' | tr -d '[:space:]')
+  fi
+  short_id=$(grep -A1 '"shortIds"' "$CONFIG_FILE" 2>/dev/null | grep -o '"[0-9a-f]\{16\}"' | head -1 | tr -d '"')
+  sni=$(grep -A1 '"serverNames"' "$CONFIG_FILE" 2>/dev/null | grep -o '"[^"]*\.\([^"]*\)"' | head -1 | tr -d '"')
+
+  # 构建 proxies 和 proxy 名称列表
+  local proxies=""
+  local proxy_names=""
+
+  # 遍历 inbounds 提取每个协议的信息
+  local port proto uuid password
+  local in_inbounds=0
+
+  while IFS= read -r line; do
+    if echo "$line" | grep -q '"inbounds"'; then
+      in_inbounds=1
+      continue
+    fi
+    if echo "$line" | grep -q '"outbounds"'; then
+      in_inbounds=0
+      continue
+    fi
+
+    [ "$in_inbounds" -eq 0 ] && continue
+
+    if echo "$line" | grep -q '"port"'; then
+      port=$(echo "$line" | grep -o '[0-9]\+')
+    fi
+
+    if echo "$line" | grep -q '"protocol"'; then
+      proto=$(echo "$line" | sed 's/.*"protocol"[^"]*"\([^"]*\)".*/\1/')
+    fi
+
+    if echo "$line" | grep -q '"id"'; then
+      uuid=$(echo "$line" | sed 's/.*"id"[^"]*"\([^"]*\)".*/\1/')
+    fi
+
+    if echo "$line" | grep -q '"password"'; then
+      password=$(echo "$line" | sed 's/.*"password"[^"]*"\([^"]*\)".*/\1/')
+    fi
+
+    if echo "$line" | grep -q '"method"'; then
+      # ss 的 method 行之后就可以构建 ss 节点了
+      true
+    fi
+
+    # 遇到 } 且有 port+proto 就输出一个节点
+    if echo "$line" | grep -q '^\s*}' && [ -n "$port" ] && [ -n "$proto" ]; then
+      local name=""
+
+      if [ "$proto" = "vless" ] && [ -n "$uuid" ]; then
+        name="VLESS-$port"
+        proxies+="  - name: $name
+    type: vless
+    server: $SERVER_IP
+    port: $port
+    uuid: $uuid
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    servername: $sni
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: $pub_key
+      short-id: $short_id
+
+"
+        proxy_names+="      - $name
+"
+        uuid=""
+
+      elif [ "$proto" = "trojan" ] && [ -n "$password" ]; then
+        name="Trojan-$port"
+        proxies+="  - name: $name
+    type: trojan
+    server: $SERVER_IP
+    port: $port
+    password: $password
+    udp: true
+    sni: $sni
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: $pub_key
+      short-id: $short_id
+
+"
+        proxy_names+="      - $name
+"
+        password=""
+
+      elif [ "$proto" = "shadowsocks" ] && [ -n "$password" ]; then
+        name="SS-$port"
+        proxies+="  - name: $name
+    type: ss
+    server: $SERVER_IP
+    port: $port
+    cipher: chacha20-ietf-poly1305
+    password: $password
+    udp: true
+
+"
+        proxy_names+="      - $name
+"
+        password=""
+
+      elif [ "$proto" = "vmess" ] && [ -n "$uuid" ]; then
+        name="VMess-$port"
+        proxies+="  - name: $name
+    type: vmess
+    server: $SERVER_IP
+    port: $port
+    uuid: $uuid
+    alterId: 0
+    cipher: auto
+    udp: true
+    network: ws
+    ws-opts:
+      path: /vmess
+
+"
+        proxy_names+="      - $name
+"
+        uuid=""
+      fi
+
+      port=""
+      proto=""
+    fi
+  done < "$CONFIG_FILE"
+
+  if [ -z "$proxies" ]; then
+    echo "❌ 未找到有效的节点配置"
+    return
+  fi
+
+  local clash_file="$SUB_DIR/clash.yaml"
+
+  cat > "$clash_file" <<EOF
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: info
+
+proxies:
+${proxies}
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+${proxy_names}      - DIRECT
+
+rules:
+  - MATCH,PROXY
+EOF
+
+  echo ""
+  echo "=========================================="
+  echo "     ✅ Clash Meta 配置已生成"
+  echo "=========================================="
+  echo ""
+  cat "$clash_file"
+  echo ""
+  echo "💾 已保存: $clash_file"
+}
+
+# =========================
 # 显示状态摘要
 # =========================
 show_status_banner() {
@@ -847,6 +1028,7 @@ while true; do
   echo "7. 查看配置"
   echo "8. 修改配置"
   echo "9. 新增协议"
+  echo "10. 生成 Clash 配置"
   echo "0. 退出"
   echo ""
 
@@ -862,6 +1044,7 @@ while true; do
     7) view_config ;;
     8) edit_config ;;
     9) add_protocol ;;
+    10) gen_clash ;;
     0) exit 0 ;;
   esac
 done
