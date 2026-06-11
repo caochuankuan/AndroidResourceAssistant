@@ -18,7 +18,7 @@ while true; do
   echo "=========================================="
   echo "1. WireGuard (WireGuard)"
   echo "2. Hysteria2 (Hysteria2)"
-  echo "3. Xray (VLESS Reality / Trojan Reality / Shadowsocks)"
+  echo "3. Xray (VLESS Reality / Trojan Reality / VMess / Shadowsocks)"
   echo "0. 退出"
   echo ""
   read -p "请选择: " choice

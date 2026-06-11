@@ -57,21 +57,35 @@ get_ip() {
 # =========================
 select_port_for() {
   local proto_name="$1"
-  echo ""
-  echo "[$proto_name] 选择端口"
-  echo "1. 443"
-  echo "2. 8443"
-  echo "3. 2053"
-  echo "4. 自定义"
-  read -p "选择: " c
 
-  case "$c" in
-    1) SELECTED_PORT=443 ;;
-    2) SELECTED_PORT=8443 ;;
-    3) SELECTED_PORT=2053 ;;
-    4) read -p "端口: " SELECTED_PORT ;;
-    *) SELECTED_PORT=443 ;;
-  esac
+  while true; do
+    echo ""
+    echo "[$proto_name] 选择端口"
+    echo "1. 443"
+    echo "2. 8443"
+    echo "3. 2053"
+    echo "4. 自定义"
+    read -p "选择: " c
+
+    case "$c" in
+      1) SELECTED_PORT=443 ;;
+      2) SELECTED_PORT=8443 ;;
+      3) SELECTED_PORT=2053 ;;
+      4) read -p "端口: " SELECTED_PORT ;;
+      *) SELECTED_PORT=443 ;;
+    esac
+
+    # 检测端口是否被占用
+    if ss -tlnp 2>/dev/null | grep -q ":${SELECTED_PORT} " || \
+       ss -ulnp 2>/dev/null | grep -q ":${SELECTED_PORT} "; then
+      local occupy
+      occupy=$(ss -tlnp 2>/dev/null | grep ":${SELECTED_PORT} " | awk '{print $NF}' | head -1)
+      echo "⚠️  端口 $SELECTED_PORT 已被占用: $occupy"
+      echo "请重新选择"
+    else
+      break
+    fi
+  done
 }
 
 # =========================
@@ -112,15 +126,16 @@ select_protocols() {
   echo "1. VLESS + Reality"
   echo "2. Trojan + Reality"
   echo "3. Shadowsocks"
+  echo "4. VMess + WebSocket"
   echo ""
-  echo "例: 123 或 1 2 3 = 全部安装"
-  echo "    13 或 1 3   = VLESS + SS"
+  echo "例: 1234 或 1 2 3 4 = 全部安装"
+  echo "    13 或 1 3       = VLESS + SS"
   read -p "选择: " input
 
-  # 支持 "123" 或 "1 2 3" 两种输入方式
+  # 支持 "1234" 或 "1 2 3 4" 两种输入方式
   # 把输入拆成单个字符/数字
   local chars=""
-  chars=$(echo "$input" | sed 's/[^123]//g' | grep -o . | sort -u)
+  chars=$(echo "$input" | sed 's/[^1234]//g' | grep -o . | sort -u)
 
   if [ -z "$chars" ]; then
     chars="1"
@@ -131,6 +146,7 @@ select_protocols() {
       1) PROTOCOLS+=("vless") ;;
       2) PROTOCOLS+=("trojan") ;;
       3) PROTOCOLS+=("ss") ;;
+      4) PROTOCOLS+=("vmess") ;;
     esac
   done
 
@@ -266,6 +282,27 @@ EOF
     }
 EOF
 )
+
+    elif [ "$proto" = "vmess" ]; then
+      inbounds+=$(cat <<EOF
+
+    {
+      "listen": "0.0.0.0",
+      "port": $port,
+      "protocol": "vmess",
+      "tag": "vmess-in",
+      "settings": {
+        "clients": [{"id": "$UUID", "alterId": 0}]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vmess"
+        }
+      }
+    }
+EOF
+)
     fi
 
     i=$((i + 1))
@@ -327,6 +364,13 @@ print_nodes() {
       local ss_info
       ss_info=$(echo -n "chacha20-ietf-poly1305:$SS_PASS" | base64 -w 0)
       link="ss://${ss_info}@$SERVER_IP:$port#SS"
+    elif [ "$proto" = "vmess" ]; then
+      local vmess_json
+      vmess_json=$(cat <<EJSON
+{"v":"2","ps":"VMess","add":"$SERVER_IP","port":"$port","id":"$UUID","aid":"0","net":"ws","type":"none","host":"","path":"/vmess","tls":""}
+EJSON
+)
+      link="vmess://$(echo -n "$vmess_json" | base64 -w 0)"
     fi
 
     echo "$link"
@@ -397,6 +441,10 @@ save_nodes() {
         local ss_info
         ss_info=$(echo -n "chacha20-ietf-poly1305:$SS_PASS" | base64 -w 0)
         echo "ss://${ss_info}@$SERVER_IP:$port#SS"
+      elif [ "$proto" = "vmess" ]; then
+        local vmess_json
+        vmess_json="{\"v\":\"2\",\"ps\":\"VMess\",\"add\":\"$SERVER_IP\",\"port\":\"$port\",\"id\":\"$UUID\",\"aid\":\"0\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"\",\"path\":\"/vmess\",\"tls\":\"\"}"
+        echo "vmess://$(echo -n "$vmess_json" | base64 -w 0)"
       fi
       i=$((i + 1))
     done
@@ -463,6 +511,7 @@ add_protocol() {
   echo "1. VLESS + Reality"
   echo "2. Trojan + Reality"
   echo "3. Shadowsocks"
+  echo "4. VMess + WebSocket"
   read -p "选择: " proto_choice
 
   local new_proto=""
@@ -470,6 +519,7 @@ add_protocol() {
     1) new_proto="vless" ;;
     2) new_proto="trojan" ;;
     3) new_proto="ss" ;;
+    4) new_proto="vmess" ;;
     *) echo "❌ 无效选择"; return ;;
   esac
 
@@ -517,6 +567,8 @@ add_protocol() {
     fi
   elif [ "$new_proto" = "ss" ]; then
     new_ss_pass=$(openssl rand -hex 12)
+  elif [ "$new_proto" = "vmess" ]; then
+    new_uuid=$(xray uuid)
   fi
 
   # 备份配置
@@ -583,6 +635,24 @@ EOF
         "method": "chacha20-ietf-poly1305",
         "password": "$new_ss_pass",
         "network": "tcp,udp"
+      }
+    }
+EOF
+  elif [ "$new_proto" = "vmess" ]; then
+    cat > "$tmp_inbound" <<EOF
+    {
+      "listen": "0.0.0.0",
+      "port": $new_port,
+      "protocol": "vmess",
+      "tag": "vmess-in-$new_port",
+      "settings": {
+        "clients": [{"id": "$new_uuid", "alterId": 0}]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vmess"
+        }
       }
     }
 EOF
@@ -676,6 +746,13 @@ EOF
     local ss_info
     ss_info=$(echo -n "chacha20-ietf-poly1305:$new_ss_pass" | base64 -w 0)
     link="ss://${ss_info}@$SERVER_IP:$new_port#SS-$new_port"
+    echo "$link"
+    echo ""
+    qrencode -t ANSIUTF8 "$link" 2>/dev/null || true
+  elif [ "$new_proto" = "vmess" ]; then
+    local vmess_json
+    vmess_json="{\"v\":\"2\",\"ps\":\"VMess-$new_port\",\"add\":\"$SERVER_IP\",\"port\":\"$new_port\",\"id\":\"$new_uuid\",\"aid\":\"0\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"\",\"path\":\"/vmess\",\"tls\":\"\"}"
+    link="vmess://$(echo -n "$vmess_json" | base64 -w 0)"
     echo "$link"
     echo ""
     qrencode -t ANSIUTF8 "$link" 2>/dev/null || true
