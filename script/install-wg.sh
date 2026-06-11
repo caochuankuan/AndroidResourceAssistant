@@ -428,6 +428,24 @@ while true; do
   echo "=========================================="
   echo "        WireGuard 管理菜单"
   echo "=========================================="
+
+  # 运行状态
+  if command -v wg >/dev/null 2>&1; then
+    if systemctl is-active wg-quick@$WG_IF >/dev/null 2>&1; then
+      local_ip=$(grep "Address" "$WG_DIR/$WG_IF.conf" 2>/dev/null | awk '{print $3}')
+      listen_port=$(grep "ListenPort" "$WG_DIR/$WG_IF.conf" 2>/dev/null | awk '{print $3}')
+      peer_count=$(grep -c "^\[Peer\]" "$WG_DIR/$WG_IF.conf" 2>/dev/null || echo 0)
+      echo "  状态: ✅ 运行中"
+      echo "  地址: $local_ip | 端口: $listen_port/UDP"
+      echo "  客户端: $peer_count 个"
+    else
+      echo "  状态: ⚠️  已停止"
+    fi
+  else
+    echo "  状态: 未安装"
+  fi
+
+  echo "=========================================="
   echo "1. 安装"
   echo "2. 重装"
   echo "3. 卸载"
