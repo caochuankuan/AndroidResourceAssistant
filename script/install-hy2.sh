@@ -8,7 +8,7 @@ HYSTERIA_DIR="/etc/hysteria"
 header() {
     clear
     echo "================================================"
-    echo "      Yujian Hysteria2 Manager (多实例)"
+    echo "                 Hysteria2 Manager"
     echo "================================================"
     echo
 }
