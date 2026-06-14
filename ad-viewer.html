@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>广告事件查看器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #4a90d9;
+        }
+        .btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 24px;
+            background: #4a90d9;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background: #357abd;
+        }
+        .summary {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 16px;
+            color: #333;
+        }
+        .summary strong {
+            color: #e74c3c;
+            font-size: 18px;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th {
+            background: #4a90d9;
+            color: #fff;
+            padding: 12px 10px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover td {
+            background: #f0f7ff;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>广告事件查看器</h1>
+        <div class="input-section">
+            <textarea id="jsonInput" placeholder="粘贴 JSON 数据到这里（支持带 for (;;); 前缀的格式）"></textarea>
+            <button class="btn" onclick="parseAndDisplay()">解析并展示</button>
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function parseAndDisplay() {
+            const raw = document.getElementById('jsonInput').value.trim();
+            const resultDiv = document.getElementById('result');
+
+            if (!raw) {
+                resultDiv.innerHTML = '<div class="no-data">请输入 JSON 数据</div>';
+                return;
+            }
+
+            let jsonStr = raw;
+            // 去掉 for (;;); 前缀
+            if (jsonStr.startsWith('for (;;);')) {
+                jsonStr = jsonStr.substring('for (;;);'.length);
+            }
+
+            let parsed;
+            try {
+                parsed = JSON.parse(jsonStr);
+            } catch (e) {
+                resultDiv.innerHTML = '<div class="no-data">JSON 解析失败: ' + e.message + '</div>';
+                return;
+            }
+
+            // 提取数据数组
+            let dataArray = [];
+            if (parsed.payload && parsed.payload.data) {
+                dataArray = parsed.payload.data;
+            } else if (Array.isArray(parsed)) {
+                dataArray = parsed;
+            } else if (parsed.data && Array.isArray(parsed.data)) {
+                dataArray = parsed.data;
+            }
+
+            if (dataArray.length === 0) {
+                resultDiv.innerHTML = '<div class="no-data">未找到有效数据</div>';
+                return;
+            }
+
+            // 解析每条记录
+            const records = dataArray.map(item => {
+                const ts = parseInt(item.timestamp);
+                const date = new Date(ts);
+                const dateStr = (date.getMonth() + 1) + '/' + date.getDate();
+
+                const device = item.deviceType || '-';
+                const event = item.event || '-';
+
+                // 解析 dataJSON
+                let params = [];
+                let value = 0;
+                let version = '-';
+                try {
+                    const dj = JSON.parse(item.dataJSON);
+                    if (dj.parameters) {
+                        dj.parameters.forEach(p => {
+                            if (p.key === 'value') {
+                                value = parseInt(p.value) || 0;
+                            } else if (p.key === 'version') {
+                                version = p.value;
+                            }
+                            params.push(p.key + ': ' + p.value);
+                        });
+                    }
+                } catch (e) {}
+
+                return {
+                    timestamp: ts,
+                    dateStr,
+                    event,
+                    device,
+                    version,
+                    value,
+                    paramsStr: params.join(', ')
+                };
+            });
+
+            // 统计价值总和
+            const totalValue = records.reduce((sum, r) => sum + r.value, 0);
+
+            // 渲染结果
+            let html = '';
+            const avgValue = records.length > 0 ? Math.round(totalValue / records.length) : 0;
+            html += '<div class="summary">事件总数: <strong>' + records.length + '</strong> 条 | 价值总和: <strong>' + totalValue.toLocaleString() + '</strong> | 平均值: <strong>' + avgValue.toLocaleString() + '</strong></div>';
+            html += '<div class="table-wrapper"><table>';
+            html += '<tr><th>事件发生时间</th><th>事件</th><th>设备</th><th>版本</th><th>价值</th><th>参数</th></tr>';
+
+            records.forEach(r => {
+                html += '<tr>';
+                html += '<td>' + r.dateStr + '</td>';
+                html += '<td>' + r.event + '</td>';
+                html += '<td>' + r.device + '</td>';
+                html += '<td>' + r.version + '</td>';
+                html += '<td>' + r.value.toLocaleString() + '</td>';
+                html += '<td>' + r.paramsStr + '</td>';
+                html += '</tr>';
+            });
+
+            html += '</table></div>';
+            resultDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
