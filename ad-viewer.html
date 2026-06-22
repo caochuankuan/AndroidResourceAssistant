@@ -168,7 +168,7 @@
                     if (dj.parameters) {
                         dj.parameters.forEach(p => {
                             if (p.key === 'value') {
-                                value = parseInt(p.value) || 0;
+                                value = parseFloat(p.value) || 0;
                             } else if (p.key === 'version') {
                                 version = p.value;
                             }
@@ -193,7 +193,7 @@
 
             // 渲染结果
             let html = '';
-            const avgValue = records.length > 0 ? Math.round(totalValue / records.length) : 0;
+            const avgValue = records.length > 0 ? (totalValue / records.length).toFixed(2) : 0;
             html += '<div class="summary">事件总数: <strong>' + records.length + '</strong> 条 | 价值总和: <strong>' + totalValue.toLocaleString() + '</strong> | 平均值: <strong>' + avgValue.toLocaleString() + '</strong></div>';
             html += '<div class="table-wrapper"><table>';
             html += '<tr><th>事件发生时间</th><th>事件</th><th>设备</th><th>版本</th><th>价值</th><th>参数</th></tr>';
