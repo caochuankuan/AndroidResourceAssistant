@@ -225,7 +225,7 @@ async function performNewYearForUser(user) {
         while (hasMore) {
             try {
                 // 获取当前页好友列表
-                addOutput(`正在获取好友列表第 ${page + 1} 页...`, 'info');
+                addOutput(`正在获取好友列表第 ${page} 页...`, 'info');
                 
                 const response = await fetch(`${getApiBaseUrl(user)}/api/friend/list?page=${page}&keyword=`, {
                     method: 'GET',
@@ -246,8 +246,13 @@ async function performNewYearForUser(user) {
                     throw new Error(`获取好友列表失败: ${data.msg || '未知错误'}`);
                 }
 
-                const friends = data.data.content || [];
-                addOutput(`第 ${page + 1} 页获取到 ${friends.length} 个好友`, 'info');
+                const pageData = data.data || {};
+                const friends = Array.isArray(pageData.records)
+                    ? pageData.records
+                    : (Array.isArray(pageData.content) ? pageData.content : []);
+                const currentPage = pageData.current || page;
+                const totalPages = pageData.pages;
+                addOutput(`第 ${currentPage} 页获取到 ${friends.length} 个好友`, 'info');
 
                 if (friends.length === 0) {
                     hasMore = false;
@@ -272,7 +277,7 @@ async function performNewYearForUser(user) {
                     };
 
                     try {
-                        addOutput(`正在拜年第 ${page + 1} 页好友 ${i + 1}/${friends.length}: ${friend.nickname} (UID: ${friend.uid})`, 'info');
+                        addOutput(`正在拜年第 ${currentPage} 页好友 ${i + 1}/${friends.length}: ${friend.nickname} (UID: ${friend.uid})`, 'info');
                         
                         const newYearResponse = await fetch(`${getApiBaseUrl(user)}/api/fowling/bless/good?uid=${friend.uid}`, {
                             method: 'POST',
@@ -325,20 +330,20 @@ async function performNewYearForUser(user) {
                 totalSuccessCount += pageSuccessCount;
                 totalFailCount += pageFailCount;
                 
-                addOutput(`第 ${page + 1} 页拜年完成 - 成功: ${pageSuccessCount}, 失败: ${pageFailCount}`, 'info');
+                addOutput(`第 ${currentPage} 页拜年完成 - 成功: ${pageSuccessCount}, 失败: ${pageFailCount}`, 'info');
 
                 // 检查是否还有更多页面
-                hasMore = friends.length > 0;
+                hasMore = typeof totalPages === 'number' ? currentPage < totalPages : friends.length > 0;
                 page++;
 
                 // 如果还有下一页，添加延迟
                 if (hasMore) {
-                    addOutput(`准备获取第 ${page + 1} 页...`, 'info');
+                    addOutput(`准备获取第 ${page} 页...`, 'info');
                     await new Promise(resolve => setTimeout(resolve, 500));
                 }
 
             } catch (error) {
-                addOutput(`处理第 ${page + 1} 页时出错: ${error.message}`, 'error');
+                addOutput(`处理第 ${page} 页时出错: ${error.message}`, 'error');
                 hasMore = false;
             }
         }

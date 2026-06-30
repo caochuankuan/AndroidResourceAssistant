@@ -453,7 +453,10 @@ async function performFamilyFight() {
             throw new Error(`获取家族列表失败: ${listData.msg || '未知错误'}`);
         }
 
-        const familyList = listData.data.content || [];
+        const pageData = listData.data || {};
+        const familyList = Array.isArray(pageData.records)
+            ? pageData.records
+            : (Array.isArray(pageData.content) ? pageData.content : []);
         if (familyList.length === 0) {
             addOutput('家族列表为空，无法进行切磋', 'warning');
             return;
@@ -974,7 +977,7 @@ async function blessAllFriends() {
         while (hasMore) {
             try {
                 // 获取当前页好友列表
-                addOutput(`正在获取好友列表第 ${page + 1} 页...`, 'info');
+                addOutput(`正在获取好友列表第 ${page} 页...`, 'info');
                 
                 const response = await fetch(`${getApiBaseUrl(user)}/api/friend/list?page=${page}&keyword=`, {
                     method: 'GET',
@@ -995,8 +998,13 @@ async function blessAllFriends() {
                     throw new Error(`获取好友列表失败: ${data.msg || '未知错误'}`);
                 }
 
-                const friends = data.data.content || [];
-                addOutput(`第 ${page + 1} 页获取到 ${friends.length} 个好友`, 'info');
+                const pageData = data.data || {};
+                const friends = Array.isArray(pageData.records)
+                    ? pageData.records
+                    : (Array.isArray(pageData.content) ? pageData.content : []);
+                const currentPage = pageData.current || page;
+                const totalPages = pageData.pages;
+                addOutput(`第 ${currentPage} 页获取到 ${friends.length} 个好友`, 'info');
 
                 if (friends.length === 0) {
                     hasMore = false;
@@ -1022,7 +1030,7 @@ async function blessAllFriends() {
                     };
 
                     try {
-                        addOutput(`正在祝福第 ${page + 1} 页好友 ${i + 1}/${friends.length}: ${friend.nickname} (UID: ${friend.uid})`, 'info');
+                        addOutput(`正在祝福第 ${currentPage} 页好友 ${i + 1}/${friends.length}: ${friend.nickname} (UID: ${friend.uid})`, 'info');
                         
                         const blessResponse = await fetch(`${getApiBaseUrl(user)}/api/fowling/all/bless?uid=${friend.uid}`, {
                             method: 'POST',
@@ -1093,12 +1101,14 @@ async function blessAllFriends() {
                 totalSuccessCount += pageSuccessCount;
                 totalFailCount += pageFailCount;
                 
-                addOutput(`第 ${page + 1} 页祝福完成 - 成功: ${pageSuccessCount}, 失败: ${pageFailCount}`, 'info');
+                addOutput(`第 ${currentPage} 页祝福完成 - 成功: ${pageSuccessCount}, 失败: ${pageFailCount}`, 'info');
 
                 // 检查是否还有更多页面
                 if (shouldStop) {
                     hasMore = false;
                     addOutput(`因祝福次数限制，停止获取更多页面`, 'warning');
+                } else if (typeof totalPages === 'number') {
+                    hasMore = currentPage < totalPages;
                 } else {
                     hasMore = friends.length > 0;
                 }
@@ -1106,12 +1116,12 @@ async function blessAllFriends() {
 
                 // 如果还有下一页，添加延迟
                 if (hasMore) {
-                    addOutput(`准备获取第 ${page + 1} 页...`, 'info');
+                    addOutput(`准备获取第 ${page} 页...`, 'info');
                     await new Promise(resolve => setTimeout(resolve, 20));
                 }
 
             } catch (error) {
-                addOutput(`处理第 ${page + 1} 页时出错: ${error.message}`, 'error');
+                addOutput(`处理第 ${page} 页时出错: ${error.message}`, 'error');
                 hasMore = false;
             }
         }
