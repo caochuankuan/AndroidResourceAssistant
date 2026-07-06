@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
     <!-- 禁用缓存：辅助手段，提示浏览器不要缓存本页 -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -102,6 +103,7 @@
 
     <script>
         // 给 JS 追加时间戳，强制每次都加载最新版本，绕过浏览器缓存
+        document.write('<scr' + 'ipt src="../js/referrer-policy.js?v=' + Date.now() + '"></scr' + 'ipt>');
         document.write('<scr' + 'ipt src="../js/plant-bird.js?v=' + Date.now() + '"></scr' + 'ipt>');
     </script>
 </body>
