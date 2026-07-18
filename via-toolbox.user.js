@@ -19,6 +19,12 @@
   window.__YIFENG_VIA_TOOLBOX__ = true;
 
   const ROOT_ID = 'yifeng-via-toolbox';
+  const BALL_SETTINGS_KEY = 'yifeng-via-toolbox-ball-v1';
+  const DEFAULT_BALL_SETTINGS = {
+    size: 42,
+    right: 12,
+    bottom: 126
+  };
   const MAX_NETWORK_RECORDS = 200;
   const MAX_BODY_LENGTH = 100000;
   const networkRecords = [];
@@ -30,6 +36,59 @@
   let networkList;
   let toastTimer;
   let waitTimer;
+
+  const clampNumber = (value, min, max, fallback) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+  };
+
+  const getBallSettings = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(BALL_SETTINGS_KEY) || '{}');
+      return {
+        size: clampNumber(saved.size, 32, 72, DEFAULT_BALL_SETTINGS.size),
+        right: clampNumber(saved.right, 0, Math.max(0, innerWidth - 32), DEFAULT_BALL_SETTINGS.right),
+        bottom: clampNumber(saved.bottom, 0, Math.max(0, innerHeight - 32), DEFAULT_BALL_SETTINGS.bottom)
+      };
+    } catch (_) {
+      return { ...DEFAULT_BALL_SETTINGS };
+    }
+  };
+
+  const saveBallSettings = (settings) => {
+    try {
+      localStorage.setItem(BALL_SETTINGS_KEY, JSON.stringify(settings));
+    } catch (_) {}
+  };
+
+  const applyBallSettings = (settings, persist = false) => {
+    if (!shadow) return;
+    const ball = shadow.querySelector('.ball');
+    if (!ball) return;
+    const normalized = {
+      size: clampNumber(settings.size, 32, 72, DEFAULT_BALL_SETTINGS.size),
+      right: clampNumber(settings.right, 0, Math.max(0, innerWidth - 32), DEFAULT_BALL_SETTINGS.right),
+      bottom: clampNumber(settings.bottom, 0, Math.max(0, innerHeight - 32), DEFAULT_BALL_SETTINGS.bottom)
+    };
+    ball.style.width = `${normalized.size}px`;
+    ball.style.height = `${normalized.size}px`;
+    ball.style.right = `${Math.min(normalized.right, Math.max(0, innerWidth - normalized.size))}px`;
+    ball.style.bottom = `${Math.min(normalized.bottom, Math.max(0, innerHeight - normalized.size))}px`;
+    ball.style.left = 'auto';
+    ball.style.top = 'auto';
+    if (persist) saveBallSettings(normalized);
+  };
+
+  const syncBallSettingsForm = () => {
+    if (!shadow) return;
+    const settings = getBallSettings();
+    const size = shadow.querySelector('.ball-size');
+    const right = shadow.querySelector('.ball-right');
+    const bottom = shadow.querySelector('.ball-bottom');
+    if (size) size.value = settings.size;
+    if (right) right.value = settings.right;
+    if (bottom) bottom.value = settings.bottom;
+  };
 
   const escapeHtml = (value) => String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -521,6 +580,7 @@
     if (tab === 'cookies') renderCookies();
     if (tab === 'storage') renderStorage();
     if (tab === 'network') renderNetwork();
+    if (tab === 'tools') syncBallSettingsForm();
   };
 
   const createSelector = (element) => {
@@ -729,6 +789,21 @@
       clearInterval(waitTimer);
       shadow.querySelector('.wait-output').textContent = '计时已停止';
     }
+    if (action === 'save-ball-settings') {
+      const settings = {
+        size: shadow.querySelector('.ball-size').value,
+        right: shadow.querySelector('.ball-right').value,
+        bottom: shadow.querySelector('.ball-bottom').value
+      };
+      applyBallSettings(settings, true);
+      syncBallSettingsForm();
+      showToast('悬浮球设置已保存');
+    }
+    if (action === 'reset-ball-settings') {
+      applyBallSettings(DEFAULT_BALL_SETTINGS, true);
+      syncBallSettingsForm();
+      showToast('已恢复默认位置和尺寸');
+    }
     if (action === 'clear-site-data') {
       openModal({
         title: '清理当前站点数据？',
@@ -783,7 +858,16 @@
 
     ball.addEventListener('pointerup', (event) => {
       if (ball.hasPointerCapture(event.pointerId)) ball.releasePointerCapture(event.pointerId);
-      if (!moved) {
+      if (moved) {
+        const rect = ball.getBoundingClientRect();
+        const settings = getBallSettings();
+        saveBallSettings({
+          ...settings,
+          right: Math.round(Math.max(0, innerWidth - rect.right)),
+          bottom: Math.round(Math.max(0, innerHeight - rect.bottom))
+        });
+        syncBallSettingsForm();
+      } else {
         panel.classList.toggle('open');
         if (panel.classList.contains('open')) switchTab(activeTab);
       }
@@ -798,8 +882,8 @@
     shadow.innerHTML = `
       <style>
         *{box-sizing:border-box}button,input,textarea{font:inherit}button{cursor:pointer}
-        .ball{position:fixed;right:16px;bottom:110px;z-index:2147483647;width:54px;height:54px;border:1px solid rgba(255,255,255,.5);border-radius:50%;padding:0;color:#fff;background:linear-gradient(145deg,#0f9f8f,#0876d1);box-shadow:0 8px 25px rgba(0,74,125,.38);font:800 12px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.5px;touch-action:none;user-select:none;-webkit-user-select:none}
-        .ball::after{content:"";position:absolute;inset:4px;border:1px solid rgba(255,255,255,.28);border-radius:50%}
+        .ball{position:fixed;right:12px;bottom:126px;z-index:2147483647;width:42px;height:42px;border:1px solid rgba(255,255,255,.58);border-radius:50%;padding:0;color:#fff;background:linear-gradient(145deg,#26384d 0%,#087f79 100%);box-shadow:0 6px 18px rgba(15,42,62,.34),inset 0 1px 1px rgba(255,255,255,.22);touch-action:none;user-select:none;-webkit-user-select:none;transition:box-shadow .15s,transform .15s}
+        .ball:active{opacity:.92;box-shadow:0 3px 10px rgba(15,42,62,.3)}.ball svg{position:relative;z-index:1;display:block;width:48%;height:48%;margin:auto;pointer-events:none}.ball::after{content:"";position:absolute;inset:3px;border:1px solid rgba(255,255,255,.17);border-radius:50%;pointer-events:none}
         .panel{position:fixed;right:12px;bottom:174px;z-index:2147483646;display:none;width:min(420px,calc(100vw - 20px));height:min(650px,calc(100vh - 195px));overflow:hidden;border:1px solid rgba(255,255,255,.55);border-radius:18px;background:#f6f8fb;color:#19212d;box-shadow:0 20px 60px rgba(17,35,58,.32);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
         .panel.open{display:flex;flex-direction:column;animation:pop .16s ease-out}@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}}
         .header{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;color:#fff;background:linear-gradient(125deg,#0876d1,#0f9f8f)}
@@ -819,11 +903,14 @@
         .empty{padding:30px 12px;text-align:center;color:#8993a1;font-size:12px}
         .tool-card{margin-bottom:10px;padding:11px;border:1px solid #e1e6ed;border-radius:11px;background:#fff}.tool-card h3{margin:0 0 3px;font-size:13px}.tool-card p{margin:0 0 9px;color:#808a98;font-size:11px}.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.tool-grid button{min-height:38px}
         .wait-row{display:flex;gap:7px}.wait-seconds{min-width:0;flex:1;height:36px;padding:0 10px;border:1px solid #dce2ea;border-radius:8px}.wait-output{margin-top:7px;color:#0876d1;font-size:12px;font-weight:700}
+        .setting-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:9px}.setting-grid label{min-width:0;color:#788292;font-size:10px}.setting-grid input{display:block;width:100%;height:36px;margin-top:4px;padding:0 8px;border:1px solid #dce2ea;border-radius:8px;color:#263142;background:#f8fafc}
         .modal{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;padding:15px;background:rgba(11,20,31,.5)}.modal.open{display:flex}.modal-card{display:flex;flex-direction:column;width:min(380px,100%);max-height:min(560px,90vh);overflow:hidden;border-radius:15px;background:#fff;box-shadow:0 18px 60px rgba(0,0,0,.3)}.modal.wide .modal-card{width:min(700px,100%)}.modal-head{padding:13px 14px;border-bottom:1px solid #e8ebf0}.modal-title{font-weight:800}.modal-subtitle{margin-top:2px;overflow:hidden;color:#7e8794;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.modal-body{padding:12px;overflow:auto}.modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid #e8ebf0}.modal-textarea{display:block;width:100%;min-height:180px;padding:10px;border:1px solid #dce2ea;border-radius:9px;outline:none;resize:vertical;color:#243041;background:#f8fafc;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}.modal-key{display:block;width:100%;height:38px;margin-bottom:8px;padding:0 10px;border:1px solid #dce2ea;border-radius:9px;outline:none}.detail-section{margin-bottom:10px}.detail-section>b{display:block;margin-bottom:4px;color:#5f6b7c;font-size:11px}.detail-section pre{margin:0;padding:8px;border-radius:8px;background:#f4f6f9;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
         .toast{position:fixed;left:50%;bottom:28px;z-index:2147483647;max-width:80vw;padding:9px 14px;border-radius:20px;color:#fff;background:#24303d;box-shadow:0 6px 22px rgba(0,0,0,.25);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:0;transform:translate(-50%,12px);pointer-events:none;transition:.18s}.toast.show{opacity:1;transform:translate(-50%,0)}.toast.danger-toast{background:#c83e50}
         @media(max-height:520px){.panel{bottom:8px;height:calc(100vh - 16px)}}
       </style>
-      <button class="ball" type="button" aria-label="打开 Via 工具箱">DEV</button>
+      <button class="ball" type="button" aria-label="打开 Via 工具箱">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 3.75A1.25 1.25 0 0 1 6.25 2.5h3.5A1.25 1.25 0 0 1 11 3.75v3.5A1.25 1.25 0 0 1 9.75 8.5h-3.5A1.25 1.25 0 0 1 5 7.25v-3.5Zm8 0a1.25 1.25 0 0 1 1.25-1.25h3.5A1.25 1.25 0 0 1 19 3.75v3.5a1.25 1.25 0 0 1-1.25 1.25h-3.5A1.25 1.25 0 0 1 13 7.25v-3.5Zm-8 13a1.25 1.25 0 0 1 1.25-1.25h3.5A1.25 1.25 0 0 1 11 16.75v3.5a1.25 1.25 0 0 1-1.25 1.25h-3.5A1.25 1.25 0 0 1 5 20.25v-3.5Zm8-4.5A1.25 1.25 0 0 1 14.25 11h3.5A1.25 1.25 0 0 1 19 12.25v3.5A1.25 1.25 0 0 1 17.75 17h-3.5A1.25 1.25 0 0 1 13 15.75v-3.5Z"/></svg>
+      </button>
       <section class="panel" aria-label="Via 全站开发工具箱">
         <header class="header"><div><b>Via 开发工具箱</b><span>${escapeHtml(location.hostname)}</span></div><button class="close" data-action="close-panel" aria-label="关闭">×</button></header>
         <nav class="tabs">
@@ -856,6 +943,7 @@
             <div class="network-list"></div>
           </section>
           <section class="view" data-view="tools">
+            <div class="tool-card"><h3>悬浮球</h3><p>设置初始尺寸和距屏幕右侧、底部的距离；直接拖动悬浮球也会自动保存位置。</p><div class="setting-grid"><label>尺寸（px）<input class="ball-size" type="number" min="32" max="72" value="42"></label><label>距右（px）<input class="ball-right" type="number" min="0" value="12"></label><label>距底（px）<input class="ball-bottom" type="number" min="0" value="126"></label></div><div class="button-row"><button class="primary" data-action="save-ball-settings">保存并应用</button><button class="secondary" data-action="reset-ball-settings">恢复默认</button></div></div>
             <div class="tool-card"><h3>页面操作</h3><p>复制信息、快速滚动和刷新当前页面。</p><div class="tool-grid"><button class="secondary" data-action="copy-url">复制网址</button><button class="secondary" data-action="copy-title">复制标题</button><button class="secondary" data-action="scroll-top">回到顶部</button><button class="secondary" data-action="scroll-bottom">滚到底部</button><button class="primary" data-action="reload-page">刷新页面</button><button class="primary" data-action="element-picker">选择元素</button></div></div>
             <div class="tool-card"><h3>等待计时器</h3><p>设置等待秒数，完成后会在页面内提醒。</p><div class="wait-row"><input class="wait-seconds" type="number" min="1" max="86400" value="5"><button class="primary" data-action="start-wait">开始</button><button class="secondary" data-action="stop-wait">停止</button></div><div class="wait-output">尚未开始</div></div>
             <div class="tool-card"><h3>站点数据</h3><p>清理当前域名下脚本有权访问的 Cookie、localStorage 和 sessionStorage。</p><button class="danger" data-action="clear-site-data">清理可访问的站点数据</button></div>
@@ -868,6 +956,7 @@
     document.documentElement.appendChild(root);
     panel = shadow.querySelector('.panel');
     networkList = shadow.querySelector('.network-list');
+    applyBallSettings(getBallSettings());
     bindDrag(shadow.querySelector('.ball'));
 
     shadow.addEventListener('click', (event) => {
