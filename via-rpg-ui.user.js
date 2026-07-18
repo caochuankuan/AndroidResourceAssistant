@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小小鸟 · 云巅纪 UI
 // @namespace    https://43.139.92.32/
-// @version      1.1.3
+// @version      1.1.4
 // @description  为小小鸟文字游戏提供现代 RPG 界面、深浅主题和紧凑布局；不修改接口或游戏逻辑。
 // @author       ChuanKuan
 // @match        http://43.139.92.32/*
@@ -360,25 +360,58 @@
       background: linear-gradient(90deg, transparent, var(--vr-primary-soft), transparent);
     }
 
-    /* 玩家资料：标题保持清晰，详细资料用双列小卡压缩纵向空间。 */
+    /* 玩家资料：统一为单面板信息行，避免窄屏双列造成数字和操作链接乱换行。 */
     html.via-rpg-ui .user-info > .info-section {
+      display: flex !important;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 3px 6px;
       margin: 0 0 8px !important;
       padding: 8px 10px !important;
     }
 
     html.via-rpg-ui .user-info > .info-section + div {
       display: grid !important;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 6px;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--vr-surface-solid) 86%, transparent);
+      border: 1px solid var(--vr-line);
+      border-radius: var(--vr-radius-sm);
     }
 
     html.via-rpg-ui .user-info > .info-section + div > .data-item,
     html.via-rpg-ui .user-info > .info-section + div > div > .data-item {
       min-width: 0;
       margin: 0 !important;
-      padding: 7px 9px !important;
-      line-height: 1.35;
+      padding: 8px 10px !important;
+      background: transparent !important;
+      border: 0 !important;
+      border-bottom: 1px solid var(--vr-line) !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      font-size: 13px;
+      line-height: 1.4;
       overflow-wrap: anywhere;
+    }
+
+    html.via-rpg-ui .user-info > .info-section + div > .data-item:last-child,
+    html.via-rpg-ui .user-info > .info-section + div > div:last-child > .data-item {
+      border-bottom: 0 !important;
+    }
+
+    html.via-rpg-ui .user-info > .info-section + div .data-item::after {
+      display: none !important;
+    }
+
+    html.via-rpg-ui .user-info > .info-section + div .data-item a {
+      white-space: nowrap;
+    }
+
+    html.via-rpg-ui .user-info > .info-section + div .data-item img {
+      max-width: 21px !important;
+      height: auto !important;
+      vertical-align: -4px;
     }
 
     html.via-rpg-ui .user-info > .info-section + div > div:has(> .data-item) {
