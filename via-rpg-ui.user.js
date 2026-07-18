@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小小鸟 · 云巅纪 UI
 // @namespace    https://43.139.92.32/
-// @version      1.0.0
+// @version      1.0.1
 // @description  为小小鸟文字游戏提供现代 RPG 界面、深浅主题和紧凑布局；不修改接口或游戏逻辑。
 // @author       ChuanKuan
 // @match        http://43.139.92.32/*
@@ -258,31 +258,35 @@
     html.via-rpg-ui .nav-list {
       display: grid !important;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-      margin: 10px 0 14px !important;
-      padding: 10px !important;
+      gap: 6px;
+      margin: 6px 0 8px !important;
+      padding: 6px !important;
       background: var(--vr-surface-soft) !important;
       border: 1px solid var(--vr-line);
-      border-radius: var(--vr-radius-sm);
+      border-radius: 10px;
     }
 
-    html.via-rpg-ui .nav-list a,
     html.via-rpg-ui a[data-via-nav="1"] {
-      min-height: 38px;
+      min-width: 0;
+      min-height: 34px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 5px;
+      gap: 4px;
       margin: 0 !important;
-      padding: 7px 9px;
+      padding: 5px 6px !important;
       color: var(--vr-text) !important;
       background: var(--vr-surface-solid);
       border: 1px solid var(--vr-line);
-      border-radius: 10px;
+      border-radius: 9px;
       box-shadow: 0 2px 7px rgba(30, 36, 52, .04);
       font-size: 13px;
       line-height: 1.25;
       text-align: center;
+    }
+
+    html.via-rpg-ui .nav-list:empty {
+      display: none !important;
     }
 
     html.via-rpg-ui a[data-via-nav="1"]::before {
@@ -290,7 +294,6 @@
       font-size: 14px;
     }
 
-    html.via-rpg-ui .nav-list a:active,
     html.via-rpg-ui a[data-via-nav="1"]:active {
       transform: translateY(1px) scale(.98);
     }
@@ -595,14 +598,13 @@
       }
 
       html.via-rpg-ui .nav-list {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
-      html.via-rpg-ui .nav-list a,
       html.via-rpg-ui a[data-via-nav="1"] {
-        min-height: 40px;
-        padding: 7px 6px;
-        font-size: 12px;
+        min-height: 36px;
+        padding: 5px 4px !important;
+        font-size: 13px;
       }
 
       #${BAR_ID} small {
@@ -615,7 +617,7 @@
         display: none;
       }
       html.via-rpg-ui .nav-list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
     }
 
@@ -735,6 +737,22 @@
     { test: (href) => href.startsWith("/bird"), icon: "🐦" }
   ];
 
+  const navLabels = new Set([
+    "首页", "战斗", "配对", "训练",
+    "商店", "包裹", "背包", "仓库", "银行",
+    "公会", "任务", "教堂", "师徒",
+    "好友", "排行", "通知", "帮助",
+    "兑换码", "提建议", "谁在玩",
+    "公告", "活动", "奖励", "角色", "场景"
+  ]);
+
+  function normalizedLinkLabel(link) {
+    return (link.textContent || "")
+      .replace(/\s+/g, "")
+      .replace(/^[^\u4e00-\u9fff]+/, "")
+      .trim();
+  }
+
   function decorateLink(link) {
     if (!(link instanceof HTMLAnchorElement) || link.dataset.viaDecorated === "1") return;
     link.dataset.viaDecorated = "1";
@@ -753,18 +771,16 @@
     if (!rule) return;
 
     link.dataset.viaIcon = rule.icon;
-    if (link.closest(".nav-list")) link.dataset.viaNav = "1";
+    const label = normalizedLinkLabel(link);
+    if (link.closest(".nav-list") && navLabels.has(label)) {
+      link.dataset.viaNav = "1";
+    }
   }
 
   function decorate(root) {
     if (!(root instanceof Element || root instanceof Document)) return;
     if (root.matches && root.matches("a[href]")) decorateLink(root);
     root.querySelectorAll("a[href]").forEach(decorateLink);
-
-    root.querySelectorAll('img:not([loading])').forEach((img) => {
-      img.loading = "lazy";
-      img.decoding = "async";
-    });
   }
 
   function startObserver() {
