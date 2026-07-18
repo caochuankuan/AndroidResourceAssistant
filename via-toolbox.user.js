@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Via 全站开发工具箱
-// @namespace    https://yifeng.tools/
+// @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
 // @version      1.2.0
 // @description  全站悬浮开发工具箱：查看 Cookie、Storage、网络请求、页面信息和常用网页工具
 // @author       YiFeng Tools

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟全功能助手
-// @namespace    https://yifeng.tools/
-// @version      3.1.0
+// @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
+// @version      3.1.1
 // @description  小鸟游戏全功能工具，支持独立用户管理、多账户操作、天梯、种鸟、配鸟等
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
@@ -102,25 +102,47 @@
         right: 18px;
         bottom: 110px;
         z-index: 2147483647;
-        width: 56px;
-        height: 56px;
+        width: 42px;
+        height: 42px;
         padding: 0;
         border: 1px solid rgba(255, 255, 255, 0.65);
         border-radius: 50%;
         color: #fff;
-        background: linear-gradient(135deg, #5b8cff, #6d4aff);
-        box-shadow: 0 7px 22px rgba(45, 55, 110, 0.42);
-        font: 700 15px/56px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        text-align: center;
+        background: linear-gradient(145deg, #6d5dfc 0%, #3974e8 52%, #14a8a0 100%);
+        box-shadow:
+          0 7px 20px rgba(47, 76, 174, 0.36),
+          inset 0 1px 2px rgba(255, 255, 255, 0.3);
         cursor: grab;
         user-select: none;
         -webkit-user-select: none;
         touch-action: none;
-        opacity: 0.96;
+        transition: box-shadow 0.15s, opacity 0.15s;
+      }
+
+      .ball::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      .ball svg {
+        position: relative;
+        z-index: 1;
+        display: block;
+        width: 54%;
+        height: 54%;
+        margin: auto;
+        pointer-events: none;
+        filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.12));
       }
 
       .ball:active {
         cursor: grabbing;
+        opacity: 0.9;
+        box-shadow: 0 3px 10px rgba(47, 76, 174, 0.3);
       }
 
       .panel {
@@ -496,7 +518,12 @@
       }
     </style>
 
-    <button class="ball" type="button" aria-label="打开小鸟一键操作">一键</button>
+    <button class="ball" type="button" aria-label="打开小鸟一键操作">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20.2 3.8a6 6 0 0 0-8.5 0L5 10.5V19h8.5l6.7-6.7a6 6 0 0 0 0-8.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M16 8 2.5 21.5M17.5 15H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
 
     <section class="panel" role="dialog" aria-label="小鸟全功能助手">
       <div class="header">
