@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小小鸟 · 云巅纪 UI
 // @namespace    https://43.139.92.32/
-// @version      1.0.1
+// @version      1.0.2
 // @description  为小小鸟文字游戏提供现代 RPG 界面、深浅主题和紧凑布局；不修改接口或游戏逻辑。
 // @author       ChuanKuan
 // @match        http://43.139.92.32/*
@@ -340,6 +340,11 @@
       border: 1px solid var(--vr-line) !important;
       border-radius: var(--vr-radius-sm);
       box-shadow: 0 2px 10px rgba(30, 36, 52, .035);
+    }
+
+    /* 原站在每条动态前放置空 data-item 作为分隔符，不能渲染成卡片。 */
+    html.via-rpg-ui .event > .data-item:empty {
+      display: none !important;
     }
 
     html.via-rpg-ui .data-item::after {
@@ -767,14 +772,13 @@
       // 保留原字符串匹配
     }
 
-    const rule = navRules.find((item) => item.test(path));
-    if (!rule) return;
-
-    link.dataset.viaIcon = rule.icon;
     const label = normalizedLinkLabel(link);
     if (link.closest(".nav-list") && navLabels.has(label)) {
       link.dataset.viaNav = "1";
     }
+
+    const rule = navRules.find((item) => item.test(path));
+    if (rule) link.dataset.viaIcon = rule.icon;
   }
 
   function decorate(root) {
