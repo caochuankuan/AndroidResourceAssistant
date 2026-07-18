@@ -1,8 +1,15 @@
-/**
- * 小小鸟 · 云巅纪 UI
- * Via 浏览器脚本：仅修改页面表现，不改接口、不拦截请求、不接管原游戏事件。
- * 适配目标：http://43.139.92.32/*
- */
+// ==UserScript==
+// @name         小小鸟 · 云巅纪 UI
+// @namespace    https://43.139.92.32/
+// @version      1.0.0
+// @description  为小小鸟文字游戏提供现代 RPG 界面、深浅主题和紧凑布局；不修改接口或游戏逻辑。
+// @author       ChuanKuan
+// @match        http://43.139.92.32/*
+// @run-at       document-end
+// @grant        none
+// @noframes
+// ==/UserScript==
+
 (function viaRpgUi() {
   "use strict";
 
