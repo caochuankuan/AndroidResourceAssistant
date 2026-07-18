@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小小鸟 · 云巅纪 UI
 // @namespace    https://43.139.92.32/
-// @version      1.0.2
+// @version      1.0.3
 // @description  为小小鸟文字游戏提供现代 RPG 界面、深浅主题和紧凑布局；不修改接口或游戏逻辑。
 // @author       ChuanKuan
 // @match        http://43.139.92.32/*
@@ -267,9 +267,11 @@
     }
 
     html.via-rpg-ui a[data-via-nav="1"] {
+      width: 100% !important;
       min-width: 0;
       min-height: 34px;
       display: inline-flex;
+      justify-self: stretch;
       align-items: center;
       justify-content: center;
       gap: 4px;
@@ -283,6 +285,7 @@
       font-size: 13px;
       line-height: 1.25;
       text-align: center;
+      white-space: nowrap;
     }
 
     html.via-rpg-ui .nav-list:empty {
