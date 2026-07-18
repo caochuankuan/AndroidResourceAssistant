@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小小鸟 · 云巅纪 UI
 // @namespace    https://43.139.92.32/
-// @version      1.1.1
+// @version      1.1.3
 // @description  为小小鸟文字游戏提供现代 RPG 界面、深浅主题和紧凑布局；不修改接口或游戏逻辑。
 // @author       ChuanKuan
 // @match        http://43.139.92.32/*
@@ -360,6 +360,36 @@
       background: linear-gradient(90deg, transparent, var(--vr-primary-soft), transparent);
     }
 
+    /* 玩家资料：标题保持清晰，详细资料用双列小卡压缩纵向空间。 */
+    html.via-rpg-ui .user-info > .info-section {
+      margin: 0 0 8px !important;
+      padding: 8px 10px !important;
+    }
+
+    html.via-rpg-ui .user-info > .info-section + div {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    html.via-rpg-ui .user-info > .info-section + div > .data-item,
+    html.via-rpg-ui .user-info > .info-section + div > div > .data-item {
+      min-width: 0;
+      margin: 0 !important;
+      padding: 7px 9px !important;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    html.via-rpg-ui .user-info > .info-section + div > div:has(> .data-item) {
+      display: contents;
+    }
+
+    html.via-rpg-ui .user-info > .yellowbg {
+      margin: 7px 0 0 !important;
+      padding: 7px 9px !important;
+    }
+
     html.via-rpg-ui .header-line {
       margin: 14px 0 8px !important;
       border: 0 !important;
@@ -451,14 +481,33 @@
     }
 
     html.via-rpg-ui .trap-desc {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: auto auto;
+      justify-content: center;
       align-items: center;
       gap: 2px;
       line-height: 1.25;
     }
 
+    html.via-rpg-ui .trap-desc > .countdown-timer {
+      grid-column: 1 / -1;
+      justify-self: center;
+    }
+
     html.via-rpg-ui .trap-desc > span:not(.countdown-timer) {
+      display: inline-flex !important;
+      align-items: center;
+      min-height: 18px;
+      padding: 1px 6px;
+      color: var(--vr-muted);
+      background: var(--vr-primary-soft);
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    html.via-rpg-ui .trap-desc > span:not(.countdown-timer) > :is(a, br) {
       display: none !important;
     }
 
