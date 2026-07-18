@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小小鸟 · 云巅纪 UI
 // @namespace    https://43.139.92.32/
-// @version      1.0.3
+// @version      1.1.1
 // @description  为小小鸟文字游戏提供现代 RPG 界面、深浅主题和紧凑布局；不修改接口或游戏逻辑。
 // @author       ChuanKuan
 // @match        http://43.139.92.32/*
@@ -389,6 +389,84 @@
       font-size: 12px;
     }
 
+    /* 陷阱列表：组件没有父级列表容器，因此使用 inline-grid 安全地自动换行。 */
+    html.via-rpg-ui .trap {
+      width: calc(25% - 10px);
+      min-width: 0;
+      min-height: 132px;
+      display: inline-grid !important;
+      grid-template-rows: auto 1fr;
+      justify-items: center;
+      align-items: start;
+      gap: 5px !important;
+      margin: 3px !important;
+      padding: 8px 4px !important;
+      vertical-align: top;
+      color: var(--vr-text);
+      background: var(--vr-surface-soft);
+      border: 1px solid var(--vr-line);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(30, 36, 52, .04);
+    }
+
+    html.via-rpg-ui .trap-image {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border-radius: 11px;
+    }
+
+    html.via-rpg-ui .trap-image :is(img, .game-item-image) {
+      width: 50px !important;
+      height: 50px !important;
+      padding: 0 !important;
+      object-fit: cover;
+      border-radius: 10px !important;
+    }
+
+    html.via-rpg-ui .trap-info {
+      width: 100%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      margin: 0 !important;
+      text-align: center;
+    }
+
+    html.via-rpg-ui .trap-name {
+      width: 100%;
+      overflow: hidden;
+      font-size: 12px;
+      line-height: 1.3;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    html.via-rpg-ui .trap-name > span:first-child {
+      display: none !important;
+    }
+
+    html.via-rpg-ui .trap-desc {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      line-height: 1.25;
+    }
+
+    html.via-rpg-ui .trap-desc > span:not(.countdown-timer) {
+      display: none !important;
+    }
+
+    html.via-rpg-ui .trap-desc > a {
+      margin: 0 !important;
+      font-size: 12px;
+    }
+
     html.via-rpg-ui :is(.head-container, .head-wrapper, .user-avatar) {
       flex: 0 0 auto;
     }
@@ -627,6 +705,7 @@
       html.via-rpg-ui .nav-list {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
+
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -784,10 +863,26 @@
     if (rule) link.dataset.viaIcon = rule.icon;
   }
 
+  function decorateTrap(trap) {
+    if (!(trap instanceof HTMLElement) || trap.dataset.viaTrapCompact === "1") return;
+    trap.dataset.viaTrapCompact = "1";
+
+    const description = trap.querySelector(".trap-desc");
+    if (!description) return;
+
+    for (const node of description.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.includes("后捕获")) {
+        node.textContent = node.textContent.replace(/\s*后捕获\s*/g, "");
+      }
+    }
+  }
+
   function decorate(root) {
     if (!(root instanceof Element || root instanceof Document)) return;
     if (root.matches && root.matches("a[href]")) decorateLink(root);
     root.querySelectorAll("a[href]").forEach(decorateLink);
+    if (root.matches && root.matches(".trap")) decorateTrap(root);
+    root.querySelectorAll(".trap").forEach(decorateTrap);
   }
 
   function startObserver() {
