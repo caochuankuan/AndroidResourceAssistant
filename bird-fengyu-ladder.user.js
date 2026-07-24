@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.5
+// @version      1.0.7
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       YiFeng Tools
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -233,7 +233,7 @@
           right: 14px;
           bottom: 104px;
           z-index: 2147483647;
-          width: 76px;
+          width: 42px;
           color: #fff;
           font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
@@ -251,31 +251,34 @@
         }
 
         .main {
-          width: 76px;
-          min-height: 44px;
+          width: 42px;
+          height: 42px;
           display: grid;
           place-items: center;
-          padding: 6px 8px;
+          padding: 0;
           border: 1px solid rgba(255, 255, 255, 0.7);
-          border-radius: 999px;
+          border-radius: 50%;
           color: #fff;
           background: linear-gradient(145deg, #6471ff, #17a1a6);
           box-shadow: 0 8px 22px rgba(35, 62, 155, 0.32);
           font: 800 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-size: 0;
           cursor: pointer;
           user-select: none;
           -webkit-user-select: none;
         }
 
         .main svg {
-          width: 22px;
-          height: 22px;
+          width: 19px;
+          height: 19px;
           pointer-events: none;
         }
 
         .wrap.open .main {
-          width: 100%;
-          border-radius: 10px;
+          width: 42px;
+          height: 42px;
+          margin: 0 auto;
+          border-radius: 50%;
         }
 
         .main.running {
@@ -327,7 +330,7 @@
         }
       </style>
       <div class="wrap">
-        <button class="main" type="button" aria-label="展开天梯挑战开关" title="天梯挑战">
+        <button class="main" type="button" aria-label="天梯挑战开关">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M13 2 5 14h6l-1 8 9-13h-6l1-7Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
           </svg>
@@ -395,8 +398,8 @@
 
     wrap.classList.toggle('open', expanded);
     main.classList.toggle('running', enabled);
-    main.setAttribute('aria-label', expanded ? (enabled ? '停止天梯挑战' : '开始天梯挑战') : '展开天梯挑战开关');
-    main.title = expanded ? (enabled ? '停止' : '开始') : '天梯挑战';
+    main.setAttribute('aria-label', '天梯挑战开关');
+    main.removeAttribute('title');
     if (shadow.activeElement !== delay) {
       delay.value = String(delayMs);
     }
