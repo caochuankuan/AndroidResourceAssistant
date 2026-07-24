@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.9
+// @version      1.0.0
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -12,16 +12,17 @@
 (function () {
   'use strict';
 
-  if (window.top !== window.self || window.__YIFENG_FENGYU_LADDER__) {
+  if (window.top !== window.self || window.__YIFENG_FENGYU_LADDER_MIN_1S__) {
     return;
   }
-  window.__YIFENG_FENGYU_LADDER__ = true;
+  window.__YIFENG_FENGYU_LADDER_MIN_1S__ = true;
 
-  const ROOT_ID = 'yifeng-fengyu-ladder';
-  const ENABLED_STORAGE_KEY = 'yifeng-fengyu-ladder-enabled-v1';
-  const DELAY_STORAGE_KEY = 'yifeng-fengyu-ladder-delay-v1';
-  const POSITION_STORAGE_KEY = 'yifeng-fengyu-ladder-position-v1';
+  const ROOT_ID = 'yifeng-fengyu-ladder-min-1s';
+  const ENABLED_STORAGE_KEY = 'yifeng-fengyu-ladder-min-1s-enabled-v1';
+  const DELAY_STORAGE_KEY = 'yifeng-fengyu-ladder-min-1s-delay-v1';
+  const POSITION_STORAGE_KEY = 'yifeng-fengyu-ladder-min-1s-position-v1';
   const DEFAULT_DELAY_MS = 3000;
+  const MIN_DELAY_MS = 1000;
   const CHALLENGE_MESSAGE = { type: 'ladder_quick_challenge', data: {} };
   const WITHDRAW_MESSAGE = { type: 'bank_withdraw', data: { currency_type: 1, amount: 50000 } };
   const STAMINA_MESSAGE = { type: 'ladder_use_stamina_item', data: { item_id: 1 } };
@@ -50,12 +51,12 @@
 
   const clampDelay = (value) => {
     const number = Number(value);
-    return Number.isFinite(number) ? Math.max(10, Math.min(10000, Math.round(number))) : DEFAULT_DELAY_MS;
+    return Number.isFinite(number) ? Math.max(MIN_DELAY_MS, Math.min(10000, Math.round(number))) : DEFAULT_DELAY_MS;
   };
 
   const randomDelay = () => {
     const jitter = 0.8 + Math.random() * 0.4;
-    return Math.max(10, Math.round(delayMs * jitter));
+    return Math.max(MIN_DELAY_MS, Math.round(delayMs * jitter));
   };
 
   const loadFloatingPosition = () => {
@@ -403,7 +404,7 @@
         </button>
         <div class="detail">
           <label class="field">随机间隔 ms
-            <input class="delay" type="number" min="10" max="10000" step="10" value="3000">
+            <input class="delay" type="number" min="1000" max="10000" step="100" value="3000">
           </label>
           <div class="meta">
           <div>Socket：<span class="socket-count">0/0</span></div>
