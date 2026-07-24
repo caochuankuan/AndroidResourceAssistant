@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.2.0
+// @version      1.3.0
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -30,6 +30,7 @@
   const STAMINA_ERROR_MESSAGE = '天梯体力不足';
   const STAMINA_ITEM_FAIL_MESSAGE = '操作失败，请稍后重试';
   const WITHDRAW_UNLOCK_DELAY_MS = 3000;
+  const MAX_CHALLENGES_WITHOUT_RESPONSE = 10;
   const sockets = new Map();
 
   let enabled = false;
@@ -138,6 +139,27 @@
     activeSocket = socket;
   };
 
+  const switchToNextSocket = () => {
+    const openSockets = getOpenSockets();
+    if (openSockets.length === 0) {
+      activeSocket = null;
+      return null;
+    }
+    const current = getActiveSocket();
+    const currentInfo = getSocketInfo(current);
+    if (currentInfo) {
+      currentInfo.challengesWithoutResponse = 0;
+    }
+    if (openSockets.length === 1) {
+      activeSocket = openSockets[0];
+      return activeSocket;
+    }
+    const currentIndex = Math.max(0, openSockets.indexOf(current));
+    activeSocket = openSockets[(currentIndex + 1) % openSockets.length];
+    updateStatusSoon();
+    return activeSocket;
+  };
+
   const updateStatusSoon = () => {
     if (renderTimer) return;
     renderTimer = window.setTimeout(() => {
@@ -189,6 +211,13 @@
       return;
     }
     markActiveSocket(socket);
+
+    if (message && message.type === 'ladder_quick_challenge') {
+      const info = getSocketInfo(socket);
+      if (info) {
+        info.challengesWithoutResponse = 0;
+      }
+    }
 
     if (
       message &&
@@ -247,8 +276,18 @@
       return;
     }
 
-    if (sendJson(getActiveSocket(), CHALLENGE_MESSAGE)) {
+    let socket = getActiveSocket();
+    let info = getSocketInfo(socket);
+    if (info && info.challengesWithoutResponse >= MAX_CHALLENGES_WITHOUT_RESPONSE) {
+      socket = switchToNextSocket();
+      info = getSocketInfo(socket);
+    }
+
+    if (sendJson(socket, CHALLENGE_MESSAGE)) {
       challengeCount += 1;
+      if (info) {
+        info.challengesWithoutResponse = (info.challengesWithoutResponse || 0) + 1;
+      }
     }
     updateStatusSoon();
     scheduleLoop();
@@ -298,7 +337,7 @@
         ? new OriginalWebSocket(url)
         : new OriginalWebSocket(url, protocols);
 
-      sockets.set(socket, { id: ++socketSeq, openedAt: Date.now(), lastMessageAt: 0 });
+      sockets.set(socket, { id: ++socketSeq, openedAt: Date.now(), lastMessageAt: 0, challengesWithoutResponse: 0 });
       activeSocket = socket;
       socket.addEventListener('open', updateStatusSoon);
       socket.addEventListener('message', (event) => handleServerMessage(socket, event.data));
