@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.2
+// @version      1.0.4
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       YiFeng Tools
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -18,12 +18,15 @@
   window.__YIFENG_FENGYU_LADDER__ = true;
 
   const ROOT_ID = 'yifeng-fengyu-ladder';
-  const STORAGE_KEY = 'yifeng-fengyu-ladder-enabled-v1';
+  const ENABLED_STORAGE_KEY = 'yifeng-fengyu-ladder-enabled-v1';
+  const DELAY_STORAGE_KEY = 'yifeng-fengyu-ladder-delay-v1';
+  const DEFAULT_DELAY_MS = 3000;
   const CHALLENGE_MESSAGE = { type: 'ladder_quick_challenge', data: {} };
   const WITHDRAW_MESSAGE = { type: 'bank_withdraw', data: { currency_type: 1, amount: 50000 } };
   const STAMINA_MESSAGE = { type: 'ladder_use_stamina_item', data: { item_id: 1 } };
   const GOLD_ERROR_MESSAGE = '发起挑战需要金币余额达到 5000';
   const STAMINA_ERROR_MESSAGE = '天梯体力不足';
+  const STAMINA_ITEM_FAIL_MESSAGE = '操作失败，请稍后重试';
   const sockets = new Set();
 
   let enabled = false;
@@ -33,9 +36,21 @@
   let withdrawCount = 0;
   let staminaItemCount = 0;
   let nextMessageId = 19;
+  let expanded = false;
+  let delayMs = DEFAULT_DELAY_MS;
+  let mainClickTimer = 0;
+  let stopReason = '';
   let shadow;
 
-  const randomDelay = () => Math.floor(10 + Math.random() * 91);
+  const clampDelay = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(10, Math.min(10000, Math.round(number))) : DEFAULT_DELAY_MS;
+  };
+
+  const randomDelay = () => {
+    const jitter = 0.8 + Math.random() * 0.4;
+    return Math.max(10, Math.round(delayMs * jitter));
+  };
 
   const stringify = (value) => {
     try {
@@ -80,6 +95,17 @@
     try {
       message = JSON.parse(data);
     } catch (_) {
+      return;
+    }
+
+    if (
+      message &&
+      message.type === 'ladder_use_stamina_item' &&
+      message.code === 1 &&
+      message.msg === STAMINA_ITEM_FAIL_MESSAGE
+    ) {
+      stopReason = STAMINA_ITEM_FAIL_MESSAGE;
+      setEnabled(false);
       return;
     }
 
@@ -132,8 +158,11 @@
 
   const setEnabled = (value) => {
     enabled = Boolean(value);
+    if (enabled) {
+      stopReason = '';
+    }
     try {
-      localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0');
+      localStorage.setItem(ENABLED_STORAGE_KEY, enabled ? '1' : '0');
     } catch (_) {}
     if (enabled) {
       scheduleLoop();
@@ -141,6 +170,19 @@
       window.clearTimeout(loopTimer);
       loopTimer = 0;
     }
+    updateStatus();
+  };
+
+  const setDelayMs = (value) => {
+    delayMs = clampDelay(value);
+    try {
+      localStorage.setItem(DELAY_STORAGE_KEY, String(delayMs));
+    } catch (_) {}
+    updateStatus();
+  };
+
+  const setExpanded = (value) => {
+    expanded = Boolean(value);
     updateStatus();
   };
 
@@ -191,73 +233,76 @@
           right: 14px;
           bottom: 104px;
           z-index: 2147483647;
-          width: 150px;
-          padding: 10px;
+          width: 76px;
+          color: #fff;
+          font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .wrap.open {
+          width: 168px;
+          padding: 8px;
           border: 1px solid rgba(255, 255, 255, 0.72);
-          border-radius: 12px;
+          border-radius: 14px;
           color: #243047;
           background: rgba(255, 255, 255, 0.94);
           box-shadow: 0 10px 28px rgba(19, 30, 58, 0.22);
-          font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           -webkit-backdrop-filter: blur(14px);
           backdrop-filter: blur(14px);
         }
 
-        .top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-        }
-
-        .title {
-          min-width: 0;
-          overflow: hidden;
-          font-weight: 800;
-          white-space: nowrap;
-          text-overflow: ellipsis;
-        }
-
-        .switch {
-          position: relative;
-          width: 44px;
-          height: 24px;
-          flex: 0 0 auto;
-        }
-
-        .switch input {
-          position: absolute;
-          inset: 0;
-          opacity: 0;
-        }
-
-        .track {
-          position: absolute;
-          inset: 0;
+        .main {
+          width: 76px;
+          min-height: 44px;
+          padding: 6px 8px;
+          border: 1px solid rgba(255, 255, 255, 0.7);
           border-radius: 999px;
-          background: #c8cedb;
-          transition: background 150ms ease;
+          color: #fff;
+          background: linear-gradient(145deg, #6471ff, #17a1a6);
+          box-shadow: 0 8px 22px rgba(35, 62, 155, 0.32);
+          font: 800 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          cursor: pointer;
+          user-select: none;
+          -webkit-user-select: none;
         }
 
-        .track::after {
-          content: "";
-          position: absolute;
-          top: 3px;
-          left: 3px;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
+        .wrap.open .main {
+          width: 100%;
+          border-radius: 10px;
+        }
+
+        .main.running {
+          background: linear-gradient(145deg, #1f9b64, #1976d2);
+        }
+
+        .main:active {
+          transform: scale(0.97);
+        }
+
+        .detail {
+          display: none;
+        }
+
+        .wrap.open .detail {
+          display: block;
+        }
+
+        .field {
+          display: grid;
+          gap: 4px;
+          margin-top: 8px;
+          color: #59657a;
+          font-weight: 700;
+        }
+
+        .delay {
+          width: 100%;
+          height: 32px;
+          border: 1px solid #d4dae7;
+          border-radius: 8px;
+          padding: 4px 7px;
+          color: #243047;
           background: #fff;
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.26);
-          transition: transform 150ms ease;
-        }
-
-        .switch input:checked + .track {
-          background: #2563eb;
-        }
-
-        .switch input:checked + .track::after {
-          transform: translateX(20px);
+          font: 700 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
         .meta {
@@ -267,36 +312,53 @@
           color: #59657a;
         }
 
-        .state {
-          font-weight: 700;
-          color: #1f8f5f;
-        }
-
-        .state.off {
-          color: #9b4450;
+        .hint {
+          margin-top: 6px;
+          color: #8a5260;
+          font-size: 11px;
         }
       </style>
       <div class="wrap">
-        <div class="top">
-          <div class="title">天梯挑战</div>
-          <label class="switch" title="开启/停止自动天梯挑战">
-            <input class="toggle" type="checkbox">
-            <span class="track"></span>
+        <button class="main" type="button">天梯</button>
+        <div class="detail">
+          <label class="field">随机间隔 ms
+            <input class="delay" type="number" min="10" max="10000" step="10" value="3000">
           </label>
-        </div>
-        <div class="meta">
-          <div>状态：<span class="state">停止</span></div>
+          <div class="meta">
           <div>Socket：<span class="socket-count">0/0</span></div>
           <div>下个ID：<span class="next-id">19</span></div>
           <div>挑战：<span class="challenge-count">0</span></div>
           <div>取钱：<span class="withdraw-count">0</span></div>
           <div>体力卡：<span class="stamina-count">0</span></div>
+          </div>
+          <div class="reason"></div>
+          <div class="hint">双击按钮收起</div>
         </div>
       </div>
     `;
 
-    shadow.querySelector('.toggle').addEventListener('change', (event) => {
-      setEnabled(event.target.checked);
+    const main = shadow.querySelector('.main');
+    main.addEventListener('click', () => {
+      window.clearTimeout(mainClickTimer);
+      mainClickTimer = window.setTimeout(() => {
+        mainClickTimer = 0;
+        if (!expanded) {
+          setExpanded(true);
+          return;
+        }
+        setEnabled(!enabled);
+      }, 180);
+    });
+    main.addEventListener('dblclick', () => {
+      window.clearTimeout(mainClickTimer);
+      mainClickTimer = 0;
+      setExpanded(!expanded);
+    });
+    shadow.querySelector('.delay').addEventListener('change', (event) => {
+      setDelayMs(event.target.value);
+    });
+    shadow.querySelector('.delay').addEventListener('blur', (event) => {
+      setDelayMs(event.target.value);
     });
 
     (document.body || document.documentElement).appendChild(root);
@@ -308,29 +370,37 @@
       return;
     }
 
-    const toggle = shadow.querySelector('.toggle');
-    const state = shadow.querySelector('.state');
+    const wrap = shadow.querySelector('.wrap');
+    const main = shadow.querySelector('.main');
+    const delay = shadow.querySelector('.delay');
     const socketCount = shadow.querySelector('.socket-count');
     const nextId = shadow.querySelector('.next-id');
     const challenge = shadow.querySelector('.challenge-count');
     const withdraw = shadow.querySelector('.withdraw-count');
     const staminaCount = shadow.querySelector('.stamina-count');
+    const reason = shadow.querySelector('.reason');
     const openCount = getOpenSockets().length;
 
-    toggle.checked = enabled;
-    state.textContent = enabled ? '运行中' : '停止';
-    state.classList.toggle('off', !enabled);
+    wrap.classList.toggle('open', expanded);
+    main.classList.toggle('running', enabled);
+    main.textContent = expanded ? (enabled ? '停止' : '开始') : (enabled ? '天梯开' : '天梯');
+    if (shadow.activeElement !== delay) {
+      delay.value = String(delayMs);
+    }
     socketCount.textContent = `${openCount}/${sockets.size}`;
     nextId.textContent = String(nextMessageId);
     challenge.textContent = String(challengeCount);
     withdraw.textContent = String(withdrawCount);
     staminaCount.textContent = String(staminaItemCount);
+    reason.textContent = stopReason ? `已停止：${stopReason}` : '';
   }
 
   try {
-    enabled = localStorage.getItem(STORAGE_KEY) === '1';
+    enabled = localStorage.getItem(ENABLED_STORAGE_KEY) === '1';
+    delayMs = clampDelay(localStorage.getItem(DELAY_STORAGE_KEY) || DEFAULT_DELAY_MS);
   } catch (_) {
     enabled = false;
+    delayMs = DEFAULT_DELAY_MS;
   }
 
   if (document.readyState === 'loading') {
