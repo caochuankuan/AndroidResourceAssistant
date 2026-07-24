@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.0
+// @version      1.2.0
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -29,7 +29,8 @@
   const GOLD_ERROR_MESSAGE = '发起挑战需要金币余额达到 5000';
   const STAMINA_ERROR_MESSAGE = '天梯体力不足';
   const STAMINA_ITEM_FAIL_MESSAGE = '操作失败，请稍后重试';
-  const sockets = new Set();
+  const WITHDRAW_UNLOCK_DELAY_MS = 3000;
+  const sockets = new Map();
 
   let enabled = false;
   let loopTimer = 0;
@@ -45,6 +46,10 @@
   let floatingPosition = null;
   let dragState = null;
   let suppressNextClick = false;
+  let withdrawPending = false;
+  let withdrawUnlockTimer = 0;
+  let activeSocket = null;
+  let socketSeq = 0;
   let shadow;
 
   const clampNumber = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -108,7 +113,30 @@
     }
   };
 
-  const getOpenSockets = () => Array.from(sockets).filter((socket) => socket.readyState === WebSocket.OPEN);
+  const getOpenSockets = () => Array.from(sockets.keys()).filter((socket) => socket.readyState === WebSocket.OPEN);
+
+  const getSocketInfo = (socket) => sockets.get(socket);
+
+  const getActiveSocket = () => {
+    if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+      return activeSocket;
+    }
+    activeSocket = getOpenSockets()
+      .sort((a, b) => {
+        const left = getSocketInfo(a) || {};
+        const right = getSocketInfo(b) || {};
+        return (right.lastMessageAt || right.openedAt || 0) - (left.lastMessageAt || left.openedAt || 0);
+      })[0] || null;
+    return activeSocket;
+  };
+
+  const markActiveSocket = (socket) => {
+    const info = getSocketInfo(socket);
+    if (info) {
+      info.lastMessageAt = Date.now();
+    }
+    activeSocket = socket;
+  };
 
   const updateStatusSoon = () => {
     if (renderTimer) return;
@@ -126,15 +154,30 @@
     return true;
   };
 
-  const sendToOpenSockets = (payload) => {
-    let sent = 0;
-    getOpenSockets().forEach((socket) => {
-      if (sendJson(socket, payload)) sent += 1;
-    });
-    return sent;
+  const sendToActiveSocket = (payload) => sendJson(getActiveSocket(), payload) ? 1 : 0;
+
+  const unlockWithdrawSoon = () => {
+    window.clearTimeout(withdrawUnlockTimer);
+    withdrawUnlockTimer = window.setTimeout(() => {
+      withdrawPending = false;
+      updateStatusSoon();
+    }, WITHDRAW_UNLOCK_DELAY_MS);
   };
 
-  const handleServerMessage = (data) => {
+  const requestWithdraw = () => {
+    if (withdrawPending) {
+      return;
+    }
+    const sent = sendToActiveSocket(WITHDRAW_MESSAGE);
+    if (sent > 0) {
+      withdrawPending = true;
+      withdrawCount += sent;
+      unlockWithdrawSoon();
+      updateStatusSoon();
+    }
+  };
+
+  const handleServerMessage = (socket, data) => {
     if (typeof data !== 'string' || !data.trim().startsWith('{')) {
       return;
     }
@@ -145,6 +188,7 @@
     } catch (_) {
       return;
     }
+    markActiveSocket(socket);
 
     if (
       message &&
@@ -157,6 +201,13 @@
       return;
     }
 
+    if (message && message.type === 'bank_withdraw') {
+      withdrawPending = false;
+      window.clearTimeout(withdrawUnlockTimer);
+      updateStatusSoon();
+      return;
+    }
+
     if (
       message &&
       message.type === 'ladder_quick_challenge' &&
@@ -164,12 +215,13 @@
       (message.msg === GOLD_ERROR_MESSAGE || message.msg === STAMINA_ERROR_MESSAGE)
     ) {
       const isStaminaError = message.msg === STAMINA_ERROR_MESSAGE;
-      const sent = isStaminaError ? sendToOpenSockets(STAMINA_MESSAGE) : sendToOpenSockets(WITHDRAW_MESSAGE);
+      if (!isStaminaError) {
+        requestWithdraw();
+        return;
+      }
+      const sent = sendToActiveSocket(STAMINA_MESSAGE);
       if (sent > 0 && isStaminaError) {
         staminaItemCount += sent;
-        updateStatusSoon();
-      } else if (sent > 0) {
-        withdrawCount += sent;
         updateStatusSoon();
       }
     }
@@ -189,17 +241,15 @@
     }
 
     const openSockets = getOpenSockets();
-    if (openSockets.length === 0) {
+    if (openSockets.length === 0 || withdrawPending) {
       scheduleLoop();
       updateStatusSoon();
       return;
     }
 
-    openSockets.forEach((socket) => {
-      if (sendJson(socket, CHALLENGE_MESSAGE)) {
-        challengeCount += 1;
-      }
-    });
+    if (sendJson(getActiveSocket(), CHALLENGE_MESSAGE)) {
+      challengeCount += 1;
+    }
     updateStatusSoon();
     scheduleLoop();
   };
@@ -217,6 +267,8 @@
     } else {
       window.clearTimeout(loopTimer);
       loopTimer = 0;
+      withdrawPending = false;
+      window.clearTimeout(withdrawUnlockTimer);
     }
     updateStatus();
   };
@@ -246,11 +298,13 @@
         ? new OriginalWebSocket(url)
         : new OriginalWebSocket(url, protocols);
 
-      sockets.add(socket);
+      sockets.set(socket, { id: ++socketSeq, openedAt: Date.now(), lastMessageAt: 0 });
+      activeSocket = socket;
       socket.addEventListener('open', updateStatusSoon);
-      socket.addEventListener('message', (event) => handleServerMessage(event.data));
+      socket.addEventListener('message', (event) => handleServerMessage(socket, event.data));
       socket.addEventListener('close', () => {
         sockets.delete(socket);
+        if (activeSocket === socket) activeSocket = null;
         updateStatusSoon();
       });
       socket.addEventListener('error', updateStatusSoon);
@@ -524,6 +578,7 @@
     const staminaCount = shadow.querySelector('.stamina-count');
     const reason = shadow.querySelector('.reason');
     const openCount = getOpenSockets().length;
+    const activeInfo = activeSocket && activeSocket.readyState === WebSocket.OPEN ? getSocketInfo(activeSocket) : null;
 
     wrap.classList.toggle('open', expanded);
     applyFloatingPosition(floatingPosition);
@@ -534,7 +589,7 @@
     if (shadow.activeElement !== delay) {
       delay.value = String(delayMs);
     }
-    socketCount.textContent = `${openCount}/${sockets.size}`;
+    socketCount.textContent = `${openCount}/${sockets.size}${activeInfo ? ` #${activeInfo.id}` : ''}`;
     nextId.textContent = String(nextMessageId);
     challenge.textContent = String(challengeCount);
     withdraw.textContent = String(withdrawCount);
