@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.0
+// @version      1.0.2
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       YiFeng Tools
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -19,10 +19,11 @@
 
   const ROOT_ID = 'yifeng-fengyu-ladder';
   const STORAGE_KEY = 'yifeng-fengyu-ladder-enabled-v1';
-  const CHALLENGE_MESSAGE = { id: 19, type: 'ladder_quick_challenge', data: {} };
-  const WITHDRAW_MESSAGE = { id: 26, type: 'bank_withdraw', data: { currency_type: 1, amount: 50000 } };
-  const STAMINA_MESSAGE = { id: 51, type: 'ladder_use_stamina_item', data: { item_id: 1 } };
+  const CHALLENGE_MESSAGE = { type: 'ladder_quick_challenge', data: {} };
+  const WITHDRAW_MESSAGE = { type: 'bank_withdraw', data: { currency_type: 1, amount: 50000 } };
+  const STAMINA_MESSAGE = { type: 'ladder_use_stamina_item', data: { item_id: 1 } };
   const GOLD_ERROR_MESSAGE = '发起挑战需要金币余额达到 5000';
+  const STAMINA_ERROR_MESSAGE = '天梯体力不足';
   const sockets = new Set();
 
   let enabled = false;
@@ -31,8 +32,7 @@
   let challengeCount = 0;
   let withdrawCount = 0;
   let staminaItemCount = 0;
-  let lastStamina = null;
-  let lastAutoStaminaAt = 0;
+  let nextMessageId = 19;
   let shadow;
 
   const randomDelay = () => Math.floor(10 + Math.random() * 91);
@@ -59,7 +59,7 @@
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       return false;
     }
-    socket.send(stringify(payload));
+    socket.send(stringify({ id: nextMessageId++, ...payload }));
     return true;
   };
 
@@ -69,19 +69,6 @@
       if (sendJson(socket, payload)) sent += 1;
     });
     return sent;
-  };
-
-  const useStaminaItem = () => {
-    const now = Date.now();
-    if (now - lastAutoStaminaAt < 800) {
-      return;
-    }
-    const sent = sendToOpenSockets(STAMINA_MESSAGE);
-    if (sent > 0) {
-      lastAutoStaminaAt = now;
-      staminaItemCount += sent;
-      updateStatusSoon();
-    }
   };
 
   const handleServerMessage = (data) => {
@@ -98,26 +85,17 @@
 
     if (
       message &&
-      message.request_id === 20 &&
       message.type === 'ladder_quick_challenge' &&
       message.code === 1 &&
-      message.msg === GOLD_ERROR_MESSAGE
+      (message.msg === GOLD_ERROR_MESSAGE || message.msg === STAMINA_ERROR_MESSAGE)
     ) {
-      const sent = sendToOpenSockets(WITHDRAW_MESSAGE);
-      if (sent > 0) {
-        withdrawCount += sent;
+      const isStaminaError = message.msg === STAMINA_ERROR_MESSAGE;
+      const sent = isStaminaError ? sendToOpenSockets(STAMINA_MESSAGE) : sendToOpenSockets(WITHDRAW_MESSAGE);
+      if (sent > 0 && isStaminaError) {
+        staminaItemCount += sent;
         updateStatusSoon();
-      }
-      return;
-    }
-
-    if (message && message.type === 'player_state_push' && message.code === 0) {
-      const stamina = message.data && message.data.character && Number(message.data.character.stamina);
-      if (Number.isFinite(stamina)) {
-        lastStamina = stamina;
-        if (stamina === 0) {
-          useStaminaItem();
-        }
+      } else if (sent > 0) {
+        withdrawCount += sent;
         updateStatusSoon();
       }
     }
@@ -141,10 +119,6 @@
       scheduleLoop();
       updateStatusSoon();
       return;
-    }
-
-    if (lastStamina === 0) {
-      useStaminaItem();
     }
 
     openSockets.forEach((socket) => {
@@ -313,7 +287,7 @@
         <div class="meta">
           <div>状态：<span class="state">停止</span></div>
           <div>Socket：<span class="socket-count">0/0</span></div>
-          <div>体力：<span class="stamina">未知</span></div>
+          <div>下个ID：<span class="next-id">19</span></div>
           <div>挑战：<span class="challenge-count">0</span></div>
           <div>取钱：<span class="withdraw-count">0</span></div>
           <div>体力卡：<span class="stamina-count">0</span></div>
@@ -337,7 +311,7 @@
     const toggle = shadow.querySelector('.toggle');
     const state = shadow.querySelector('.state');
     const socketCount = shadow.querySelector('.socket-count');
-    const stamina = shadow.querySelector('.stamina');
+    const nextId = shadow.querySelector('.next-id');
     const challenge = shadow.querySelector('.challenge-count');
     const withdraw = shadow.querySelector('.withdraw-count');
     const staminaCount = shadow.querySelector('.stamina-count');
@@ -347,7 +321,7 @@
     state.textContent = enabled ? '运行中' : '停止';
     state.classList.toggle('off', !enabled);
     socketCount.textContent = `${openCount}/${sockets.size}`;
-    stamina.textContent = lastStamina == null ? '未知' : String(lastStamina);
+    nextId.textContent = String(nextMessageId);
     challenge.textContent = String(challengeCount);
     withdraw.textContent = String(withdrawCount);
     staminaCount.textContent = String(staminaItemCount);
