@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.7
+// @version      1.0.8
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       YiFeng Tools
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -274,11 +274,26 @@
           pointer-events: none;
         }
 
+        .main-label {
+          display: none;
+          font-size: 13px;
+          pointer-events: none;
+        }
+
         .wrap.open .main {
-          width: 42px;
-          height: 42px;
+          width: 72px;
+          height: 34px;
           margin: 0 auto;
-          border-radius: 50%;
+          border-radius: 999px;
+          font-size: 13px;
+        }
+
+        .wrap.open .main svg {
+          display: none;
+        }
+
+        .wrap.open .main-label {
+          display: inline;
         }
 
         .main.running {
@@ -334,6 +349,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M13 2 5 14h6l-1 8 9-13h-6l1-7Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
           </svg>
+          <span class="main-label"></span>
         </button>
         <div class="detail">
           <label class="field">随机间隔 ms
@@ -387,6 +403,7 @@
 
     const wrap = shadow.querySelector('.wrap');
     const main = shadow.querySelector('.main');
+    const mainLabel = shadow.querySelector('.main-label');
     const delay = shadow.querySelector('.delay');
     const socketCount = shadow.querySelector('.socket-count');
     const nextId = shadow.querySelector('.next-id');
@@ -398,6 +415,7 @@
 
     wrap.classList.toggle('open', expanded);
     main.classList.toggle('running', enabled);
+    mainLabel.textContent = enabled ? '停止' : '开始';
     main.setAttribute('aria-label', '天梯挑战开关');
     main.removeAttribute('title');
     if (shadow.activeElement !== delay) {
