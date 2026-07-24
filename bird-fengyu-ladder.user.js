@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.4
+// @version      1.0.5
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       YiFeng Tools
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -253,6 +253,8 @@
         .main {
           width: 76px;
           min-height: 44px;
+          display: grid;
+          place-items: center;
           padding: 6px 8px;
           border: 1px solid rgba(255, 255, 255, 0.7);
           border-radius: 999px;
@@ -263,6 +265,12 @@
           cursor: pointer;
           user-select: none;
           -webkit-user-select: none;
+        }
+
+        .main svg {
+          width: 22px;
+          height: 22px;
+          pointer-events: none;
         }
 
         .wrap.open .main {
@@ -319,7 +327,11 @@
         }
       </style>
       <div class="wrap">
-        <button class="main" type="button">天梯</button>
+        <button class="main" type="button" aria-label="展开天梯挑战开关" title="天梯挑战">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13 2 5 14h6l-1 8 9-13h-6l1-7Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div class="detail">
           <label class="field">随机间隔 ms
             <input class="delay" type="number" min="10" max="10000" step="10" value="3000">
@@ -383,7 +395,8 @@
 
     wrap.classList.toggle('open', expanded);
     main.classList.toggle('running', enabled);
-    main.textContent = expanded ? (enabled ? '停止' : '开始') : (enabled ? '天梯开' : '天梯');
+    main.setAttribute('aria-label', expanded ? (enabled ? '停止天梯挑战' : '开始天梯挑战') : '展开天梯挑战开关');
+    main.title = expanded ? (enabled ? '停止' : '开始') : '天梯挑战';
     if (shadow.activeElement !== delay) {
       delay.value = String(delayMs);
     }
