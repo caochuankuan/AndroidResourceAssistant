@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.4.0
+// @version      1.4.1
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -531,11 +531,7 @@
     `;
 
     const main = shadow.querySelector('.main');
-    main.addEventListener('click', () => {
-      if (suppressNextClick) {
-        suppressNextClick = false;
-        return;
-      }
+    const handleMainPress = () => {
       window.clearTimeout(mainClickTimer);
       mainClickTimer = window.setTimeout(() => {
         mainClickTimer = 0;
@@ -545,7 +541,7 @@
         }
         setEnabled(!enabled);
       }, 180);
-    });
+    };
     main.addEventListener('dblclick', () => {
       window.clearTimeout(mainClickTimer);
       mainClickTimer = 0;
@@ -575,7 +571,8 @@
         startY: event.clientY,
         left: rect.left,
         top: rect.top,
-        moved: false
+        moved: false,
+        startedOnMain: Boolean(event.target.closest('.main'))
       };
       wrap.setPointerCapture(event.pointerId);
     });
@@ -600,6 +597,7 @@
       if (!dragState || dragState.pointerId !== event.pointerId) {
         return;
       }
+      const wasClickOnMain = dragState.startedOnMain && !dragState.moved;
       if (dragState.moved) {
         saveFloatingPosition();
       }
@@ -607,6 +605,9 @@
       try {
         wrap.releasePointerCapture(event.pointerId);
       } catch (_) {}
+      if (wasClickOnMain) {
+        handleMainPress();
+      }
     });
     wrap.addEventListener('pointercancel', () => {
       dragState = null;
@@ -615,6 +616,7 @@
       if (suppressNextClick && !event.target.closest('.main')) {
         suppressNextClick = false;
       }
+      event.preventDefault();
     }, true);
     window.addEventListener('resize', () => {
       applyFloatingPosition(floatingPosition, true);
