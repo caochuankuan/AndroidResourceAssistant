@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.4.1
+// @version      1.4.2
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -217,9 +217,8 @@
     } catch (_) {
       return;
     }
-    markActiveSocket(socket);
-
     if (message && message.type === 'ladder_quick_challenge') {
+      markActiveSocket(socket);
       const info = getSocketInfo(socket);
       if (info) {
         info.challengesWithoutResponse = 0;
@@ -645,6 +644,7 @@
     const reason = shadow.querySelector('.reason');
     const openCount = getOpenSockets().length;
     const activeInfo = activeSocket && activeSocket.readyState === WebSocket.OPEN ? getSocketInfo(activeSocket) : null;
+    const noResponseCount = activeInfo ? activeInfo.challengesWithoutResponse || 0 : 0;
 
     wrap.classList.toggle('open', expanded);
     applyFloatingPosition(floatingPosition);
@@ -658,7 +658,7 @@
     if (shadow.activeElement !== withdrawAmountInput) {
       withdrawAmountInput.value = String(withdrawAmount);
     }
-    socketCount.textContent = `${openCount}/${sockets.size}${activeInfo ? ` #${activeInfo.id}` : ''}`;
+    socketCount.textContent = `${openCount}/${sockets.size}${activeInfo ? ` #${activeInfo.id} ${noResponseCount}/${MAX_CHALLENGES_WITHOUT_RESPONSE}` : ''}`;
     nextId.textContent = String(nextMessageId);
     challenge.textContent = String(challengeCount);
     withdraw.textContent = String(withdrawCount);
