@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.3.0
+// @version      1.4.0
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -20,10 +20,11 @@
   const ROOT_ID = 'yifeng-fengyu-ladder';
   const ENABLED_STORAGE_KEY = 'yifeng-fengyu-ladder-enabled-v1';
   const DELAY_STORAGE_KEY = 'yifeng-fengyu-ladder-delay-v1';
+  const WITHDRAW_AMOUNT_STORAGE_KEY = 'yifeng-fengyu-ladder-withdraw-amount-v1';
   const POSITION_STORAGE_KEY = 'yifeng-fengyu-ladder-position-v1';
   const DEFAULT_DELAY_MS = 3000;
+  const DEFAULT_WITHDRAW_AMOUNT = 50000;
   const CHALLENGE_MESSAGE = { type: 'ladder_quick_challenge', data: {} };
-  const WITHDRAW_MESSAGE = { type: 'bank_withdraw', data: { currency_type: 1, amount: 50000 } };
   const STAMINA_MESSAGE = { type: 'ladder_use_stamina_item', data: { item_id: 1 } };
   const GOLD_ERROR_MESSAGE = '发起挑战需要金币余额达到 5000';
   const STAMINA_ERROR_MESSAGE = '天梯体力不足';
@@ -41,6 +42,7 @@
   let nextMessageId = 19;
   let expanded = false;
   let delayMs = DEFAULT_DELAY_MS;
+  let withdrawAmount = DEFAULT_WITHDRAW_AMOUNT;
   let mainClickTimer = 0;
   let stopReason = '';
   let floatingPosition = null;
@@ -57,6 +59,11 @@
   const clampDelay = (value) => {
     const number = Number(value);
     return Number.isFinite(number) ? Math.max(10, Math.min(10000, Math.round(number))) : DEFAULT_DELAY_MS;
+  };
+
+  const clampWithdrawAmount = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(1, Math.min(999999999, Math.round(number))) : DEFAULT_WITHDRAW_AMOUNT;
   };
 
   const randomDelay = () => {
@@ -189,7 +196,7 @@
     if (withdrawPending) {
       return;
     }
-    const sent = sendToActiveSocket(WITHDRAW_MESSAGE);
+    const sent = sendToActiveSocket({ type: 'bank_withdraw', data: { currency_type: 1, amount: withdrawAmount } });
     if (sent > 0) {
       withdrawPending = true;
       withdrawCount += sent;
@@ -315,6 +322,14 @@
     delayMs = clampDelay(value);
     try {
       localStorage.setItem(DELAY_STORAGE_KEY, String(delayMs));
+    } catch (_) {}
+    updateStatus();
+  };
+
+  const setWithdrawAmount = (value) => {
+    withdrawAmount = clampWithdrawAmount(value);
+    try {
+      localStorage.setItem(WITHDRAW_AMOUNT_STORAGE_KEY, String(withdrawAmount));
     } catch (_) {}
     updateStatus();
   };
@@ -498,6 +513,9 @@
           <label class="field">随机间隔 ms
             <input class="delay" type="number" min="10" max="10000" step="10" value="3000">
           </label>
+          <label class="field">取钱金额
+            <input class="withdraw-amount" type="number" min="1" max="999999999" step="1000" value="50000">
+          </label>
           <div class="meta">
           <div>Socket：<span class="socket-count">0/0</span></div>
           <div>下个ID：<span class="next-id">19</span></div>
@@ -538,9 +556,15 @@
     shadow.querySelector('.delay').addEventListener('blur', (event) => {
       setDelayMs(event.target.value);
     });
+    shadow.querySelector('.withdraw-amount').addEventListener('change', (event) => {
+      setWithdrawAmount(event.target.value);
+    });
+    shadow.querySelector('.withdraw-amount').addEventListener('blur', (event) => {
+      setWithdrawAmount(event.target.value);
+    });
     const wrap = shadow.querySelector('.wrap');
     wrap.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || event.target.closest('.delay')) {
+      if (event.button !== 0 || event.target.closest('.delay, .withdraw-amount')) {
         return;
       }
       const rect = wrap.getBoundingClientRect();
@@ -609,6 +633,7 @@
     const main = shadow.querySelector('.main');
     const mainLabel = shadow.querySelector('.main-label');
     const delay = shadow.querySelector('.delay');
+    const withdrawAmountInput = shadow.querySelector('.withdraw-amount');
     const socketCount = shadow.querySelector('.socket-count');
     const nextId = shadow.querySelector('.next-id');
     const challenge = shadow.querySelector('.challenge-count');
@@ -627,6 +652,9 @@
     if (shadow.activeElement !== delay) {
       delay.value = String(delayMs);
     }
+    if (shadow.activeElement !== withdrawAmountInput) {
+      withdrawAmountInput.value = String(withdrawAmount);
+    }
     socketCount.textContent = `${openCount}/${sockets.size}${activeInfo ? ` #${activeInfo.id}` : ''}`;
     nextId.textContent = String(nextMessageId);
     challenge.textContent = String(challengeCount);
@@ -638,10 +666,12 @@
   try {
     enabled = localStorage.getItem(ENABLED_STORAGE_KEY) === '1';
     delayMs = clampDelay(localStorage.getItem(DELAY_STORAGE_KEY) || DEFAULT_DELAY_MS);
+    withdrawAmount = clampWithdrawAmount(localStorage.getItem(WITHDRAW_AMOUNT_STORAGE_KEY) || DEFAULT_WITHDRAW_AMOUNT);
     floatingPosition = loadFloatingPosition();
   } catch (_) {
     enabled = false;
     delayMs = DEFAULT_DELAY_MS;
+    withdrawAmount = DEFAULT_WITHDRAW_AMOUNT;
     floatingPosition = null;
   }
 
