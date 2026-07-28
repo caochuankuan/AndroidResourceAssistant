@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.4.2
+// @version      1.5.0
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -25,7 +25,7 @@
   const DEFAULT_DELAY_MS = 3000;
   const DEFAULT_WITHDRAW_AMOUNT = 50000;
   const MIN_DELAY_MS = 1000;
-  const CHALLENGE_MESSAGE = { type: 'ladder_quick_challenge', data: {} };
+  const CHALLENGE_RESPONSE_TYPE = 'ladder_challenge';
   const STAMINA_MESSAGE = { type: 'ladder_use_stamina_item', data: { item_id: 1 } };
   const GOLD_ERROR_MESSAGE = '发起挑战需要金币余额达到 5000';
   const STAMINA_ERROR_MESSAGE = '天梯体力不足';
@@ -53,6 +53,7 @@
   let withdrawUnlockTimer = 0;
   let activeSocket = null;
   let socketSeq = 0;
+  let latestRankData = null;
   let shadow;
 
   const clampNumber = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -185,6 +186,42 @@
 
   const sendToActiveSocket = (payload) => sendJson(getActiveSocket(), payload) ? 1 : 0;
 
+  const getChallengeTargetPlayerId = () => {
+    const data = latestRankData;
+    const currentRank = Number(data && data.current_player && data.current_player.rank);
+    if (!Number.isFinite(currentRank)) {
+      return null;
+    }
+
+    const rows = []
+      .concat(Array.isArray(data.items) ? data.items : [])
+      .concat(Array.isArray(data.top_items) ? data.top_items : []);
+    const candidates = rows
+      .map((item) => ({
+        playerId: Number(item && item.player_id),
+        rank: Number(item && item.fields && item.fields.rank),
+        isCurrentPlayer: Boolean(item && item.fields && item.fields.is_current_player),
+        canChallenge: item && item.fields ? item.fields.can_challenge : undefined
+      }))
+      .filter((item) => (
+        Number.isFinite(item.playerId) &&
+        Number.isFinite(item.rank) &&
+        item.rank < currentRank &&
+        !item.isCurrentPlayer &&
+        item.canChallenge !== false
+      ))
+      .sort((a, b) => b.rank - a.rank);
+
+    return candidates.length > 0 ? candidates[0].playerId : null;
+  };
+
+  const getChallengeMessage = () => {
+    const targetPlayerId = getChallengeTargetPlayerId();
+    return targetPlayerId
+      ? { type: CHALLENGE_RESPONSE_TYPE, data: { target_player_id: targetPlayerId } }
+      : null;
+  };
+
   const unlockWithdrawSoon = () => {
     window.clearTimeout(withdrawUnlockTimer);
     withdrawUnlockTimer = window.setTimeout(() => {
@@ -217,7 +254,13 @@
     } catch (_) {
       return;
     }
-    if (message && message.type === 'ladder_quick_challenge') {
+    if (message && message.type === 'ladder_rank_changed_push' && message.code === 0 && message.data) {
+      latestRankData = message.data;
+      updateStatusSoon();
+      return;
+    }
+
+    if (message && message.type === CHALLENGE_RESPONSE_TYPE) {
       markActiveSocket(socket);
       const info = getSocketInfo(socket);
       if (info) {
@@ -245,7 +288,7 @@
 
     if (
       message &&
-      message.type === 'ladder_quick_challenge' &&
+      message.type === CHALLENGE_RESPONSE_TYPE &&
       message.code === 1 &&
       (message.msg === GOLD_ERROR_MESSAGE || message.msg === STAMINA_ERROR_MESSAGE)
     ) {
@@ -289,7 +332,14 @@
       info = getSocketInfo(socket);
     }
 
-    if (sendJson(socket, CHALLENGE_MESSAGE)) {
+    const challengeMessage = getChallengeMessage();
+    if (!challengeMessage) {
+      scheduleLoop();
+      updateStatusSoon();
+      return;
+    }
+
+    if (sendJson(socket, challengeMessage)) {
       challengeCount += 1;
       if (info) {
         info.challengesWithoutResponse = (info.challengesWithoutResponse || 0) + 1;
