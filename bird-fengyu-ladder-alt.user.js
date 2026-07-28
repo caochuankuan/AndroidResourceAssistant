@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟风雨互娱天梯开关
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.5.0
+// @version      1.5.1
 // @description  在 bird.fengyuhuyu.com 页面添加悬浮开关，通过当前 WebSocket 自动发起天梯快速挑战。
 // @author       Moonlit Finch
 // @match        https://bird.fengyuhuyu.com/web/index.html
@@ -188,31 +188,60 @@
 
   const getChallengeTargetPlayerId = () => {
     const data = latestRankData;
-    const currentRank = Number(data && data.current_player && data.current_player.rank);
-    if (!Number.isFinite(currentRank)) {
-      return null;
-    }
-
     const rows = []
       .concat(Array.isArray(data.items) ? data.items : [])
       .concat(Array.isArray(data.top_items) ? data.top_items : []);
-    const candidates = rows
-      .map((item) => ({
+
+    const normalized = rows
+      .map((item, index) => ({
+        index,
         playerId: Number(item && item.player_id),
-        rank: Number(item && item.fields && item.fields.rank),
+        rank: Number(item && item.fields ? item.fields.rank : item && item.rank),
         isCurrentPlayer: Boolean(item && item.fields && item.fields.is_current_player),
         canChallenge: item && item.fields ? item.fields.can_challenge : undefined
       }))
-      .filter((item) => (
-        Number.isFinite(item.playerId) &&
-        Number.isFinite(item.rank) &&
-        item.rank < currentRank &&
-        !item.isCurrentPlayer &&
-        item.canChallenge !== false
-      ))
-      .sort((a, b) => b.rank - a.rank);
+      .filter((item) => Number.isFinite(item.playerId));
 
-    return candidates.length > 0 ? candidates[0].playerId : null;
+    const currentPlayerId = Number(data && data.current_player && (data.current_player.player_id || data.current_player.id));
+    let currentRank = Number(data && data.current_player && data.current_player.rank);
+    const currentItem = normalized.find((item) => (
+      item.isCurrentPlayer ||
+      (Number.isFinite(currentPlayerId) && item.playerId === currentPlayerId)
+    ));
+    if (!Number.isFinite(currentRank) && currentItem && Number.isFinite(currentItem.rank)) {
+      currentRank = currentItem.rank;
+    }
+
+    if (Number.isFinite(currentRank)) {
+      const rankedCandidates = normalized
+        .filter((item) => (
+          Number.isFinite(item.rank) &&
+          item.rank < currentRank &&
+          !item.isCurrentPlayer &&
+          item.playerId !== currentPlayerId &&
+          item.canChallenge !== false
+        ))
+        .sort((a, b) => b.rank - a.rank);
+      if (rankedCandidates.length > 0) {
+        return rankedCandidates[0].playerId;
+      }
+    }
+
+    const currentIndex = currentItem ? currentItem.index : normalized.findIndex((item) => Number.isFinite(item.rank) && item.rank === currentRank);
+    if (currentIndex > 0) {
+      const previous = normalized[currentIndex - 1];
+      if (previous && previous.canChallenge !== false && previous.playerId !== currentPlayerId) {
+        return previous.playerId;
+      }
+    }
+
+    const fallback = normalized.find((item) => (
+        Number.isFinite(item.playerId) &&
+        !item.isCurrentPlayer &&
+        item.playerId !== currentPlayerId &&
+        item.canChallenge !== false
+    ));
+    return fallback ? fallback.playerId : null;
   };
 
   const getChallengeMessage = () => {
@@ -568,6 +597,7 @@
           </label>
           <div class="meta">
           <div>Socket：<span class="socket-count">0/0</span></div>
+          <div>目标：<span class="target-player">-</span></div>
           <div>下个ID：<span class="next-id">19</span></div>
           <div>挑战：<span class="challenge-count">0</span></div>
           <div>取钱：<span class="withdraw-count">0</span></div>
@@ -687,6 +717,7 @@
     const delay = shadow.querySelector('.delay');
     const withdrawAmountInput = shadow.querySelector('.withdraw-amount');
     const socketCount = shadow.querySelector('.socket-count');
+    const targetPlayer = shadow.querySelector('.target-player');
     const nextId = shadow.querySelector('.next-id');
     const challenge = shadow.querySelector('.challenge-count');
     const withdraw = shadow.querySelector('.withdraw-count');
@@ -709,6 +740,7 @@
       withdrawAmountInput.value = String(withdrawAmount);
     }
     socketCount.textContent = `${openCount}/${sockets.size}${activeInfo ? ` #${activeInfo.id} ${noResponseCount}/${MAX_CHALLENGES_WITHOUT_RESPONSE}` : ''}`;
+    targetPlayer.textContent = String(getChallengeTargetPlayerId() || '-');
     nextId.textContent = String(nextMessageId);
     challenge.textContent = String(challengeCount);
     withdraw.textContent = String(withdrawCount);
