@@ -6,7 +6,7 @@
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
 // @match        https://43.139.92.32/*
-// @run-at       document-end
+// @run-at       document-start
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM.getValue
@@ -28,6 +28,8 @@
   const ACTIVE_USER_STORAGE_KEY = 'yifeng-bird-active-user-v1';
   const PUMPKIN_BAIT_ID = 66;
   const BIRD_BOOK_SOURCE_URL = 'https://raw.githubusercontent.com/caochuankuan/AndroidResourceAssistant/main/bird/js/bird-book.js';
+  const vipProfiles = new Map();
+  let vipProfileObserver = null;
   const BAIT_LIST = [
     { id: 1, name: '谷子', birds: '麻雀', price: 2 },
     { id: 2, name: '燕麦', birds: '燕子,乌鸦,麻雀', price: 4 },
@@ -78,6 +80,120 @@
     { id: 148, name: '云之结晶', birds: '微火兽,锁链鸟', price: 565 },
     { id: 209, name: '福果', birds: '白鹇', price: 6 }
   ];
+
+  function isPlayerProfileUrl(url) {
+    try {
+      return new URL(url, location.href).pathname === '/api/home/player';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function rememberVipProfile(payload) {
+    const player = payload?.data?.data;
+
+    if (!player?.nickname || !player?.vipLevel) {
+      return;
+    }
+
+    vipProfiles.set(String(player.uid || player.nickname), {
+      nickname: String(player.nickname).trim(),
+      vipLevel: String(player.vipLevel)
+    });
+    renderVipProfiles();
+  }
+
+  function createVipBadge(vipLevel) {
+    const badge = document.createElement('span');
+    badge.dataset.yifengVipBadge = 'true';
+    badge.textContent = vipLevel;
+    badge.style.cssText = [
+      'display:inline-block',
+      'margin-left:6px',
+      'padding:1px 6px',
+      'border-radius:8px',
+      'color:#fff',
+      'background:linear-gradient(135deg,#ffb02e,#f05a28)',
+      'font:700 11px/16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+      'vertical-align:middle',
+      'white-space:nowrap',
+      'box-shadow:0 1px 3px rgba(190,76,20,.28)'
+    ].join(';');
+    return badge;
+  }
+
+  function renderVipProfiles() {
+    if (!document.body) {
+      return;
+    }
+
+    for (const profile of vipProfiles.values()) {
+      const normalizedNickname = profile.nickname.replace(/\s+/g, ' ').trim();
+      const elements = document.body.querySelectorAll('*');
+
+      for (const element of elements) {
+        if (element.dataset.yifengVipBadge || element.children.length > 3) {
+          continue;
+        }
+
+        const text = element.textContent.replace(/\s+/g, ' ').trim();
+
+        if (text !== normalizedNickname || !text) {
+          continue;
+        }
+
+        if (!element.querySelector('[data-yifeng-vip-badge]')) {
+          element.appendChild(createVipBadge(profile.vipLevel));
+        }
+        break;
+      }
+    }
+  }
+
+  function installVipProfileHooks() {
+    const originalFetch = window.fetch;
+
+    if (typeof originalFetch === 'function') {
+      window.fetch = async function (...args) {
+        const response = await originalFetch.apply(this, args);
+        const requestUrl = typeof args[0] === 'string' ? args[0] : args[0]?.url;
+
+        if (isPlayerProfileUrl(requestUrl)) {
+          response.clone().json().then(rememberVipProfile).catch(() => {});
+        }
+
+        return response;
+      };
+    }
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    const originalSend = XMLHttpRequest.prototype.send;
+
+    XMLHttpRequest.prototype.open = function (method, url, ...args) {
+      this.__yifengPlayerProfileUrl = isPlayerProfileUrl(url) ? url : '';
+      return originalOpen.call(this, method, url, ...args);
+    };
+
+    XMLHttpRequest.prototype.send = function (...args) {
+      if (this.__yifengPlayerProfileUrl) {
+        this.addEventListener('load', function () {
+          try {
+            rememberVipProfile(JSON.parse(this.responseText));
+          } catch (error) {
+            // The page may return a non-JSON error response.
+          }
+        });
+      }
+      return originalSend.apply(this, args);
+    };
+
+    if (document.documentElement) {
+      vipProfileObserver = new MutationObserver(renderVipProfiles);
+      vipProfileObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
+
+  installVipProfileHooks();
 
   if (document.getElementById(ROOT_ID)) {
     return;
