@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟循环挑战最后一名
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.0.0
+// @version      1.1.0
 // @description  循环获取战斗排行榜最后一名并发起挑战
 // @match        http://116.62.238.93/*
 // @match        https://116.62.238.93/*
@@ -39,6 +39,7 @@
     </style>
     <h3>循环挑战排行榜最后一名</h3>
     <input class="token" type="password" placeholder="令牌（优先读取网址 t 参数）">
+    <input class="recovery-item" type="text" value="admin_mtco2xm4_9dbb4f" placeholder="战斗恢复卡 item_id">
     <input class="interval" type="number" min="3" step="1" value="5" placeholder="间隔秒数">
     <button class="start" type="button">开始循环</button>
     <button class="stop" type="button" hidden>停止循环</button>
@@ -47,6 +48,7 @@
   document.body.appendChild(panel);
 
   const tokenInput = panel.querySelector('.token');
+  const recoveryItemInput = panel.querySelector('.recovery-item');
   const intervalInput = panel.querySelector('.interval');
   const startButton = panel.querySelector('.start');
   const stopButton = panel.querySelector('.stop');
@@ -67,9 +69,10 @@
   }
 
   async function requestJson(path, options = {}) {
+    const { allowError = false, ...requestOptions } = options;
     const response = await fetch(path, {
       credentials: 'include',
-      ...options,
+      ...requestOptions,
       headers: {
         Accept: '*/*',
         'Content-Type': 'application/json',
@@ -78,7 +81,7 @@
     });
     const data = await response.json();
 
-    if (!response.ok || data.ok === false) {
+    if (!allowError && (!response.ok || data.ok === false)) {
       throw new Error(data.message || data.msg || `HTTP ${response.status}`);
     }
 
@@ -115,7 +118,7 @@
       throw new Error('排行榜中没有可挑战的对象');
     }
 
-    const result = await requestJson('/api/ladder/battle', {
+    const battleRequest = {
       method: 'POST',
       body: JSON.stringify({
         token,
@@ -124,7 +127,43 @@
         target_username: target.opponent.username,
         对手条目: target.opponent
       })
+    };
+    let result = await requestJson('/api/ladder/battle', {
+      ...battleRequest,
+      allowError: true
     });
+
+    if (result.ok === false && /战斗次数不足/.test(result.msg || result.message || '')) {
+      const itemId = recoveryItemInput.value.trim();
+
+      if (!itemId) {
+        throw new Error('战斗次数不足，请填写战斗恢复卡 item_id');
+      }
+
+      setStatus('战斗次数不足，正在使用恢复卡...');
+      const recovery = await requestJson('/api/bag/operate', {
+        method: 'POST',
+        body: JSON.stringify({
+          token,
+          operation_id: `battle_recovery_${makeOperationId()}`,
+          action: 'use_battle_recovery',
+          item_id: itemId
+        })
+      });
+
+      setStatus(recovery.msg || '恢复成功，正在重试挑战...');
+      result = await requestJson('/api/ladder/battle', {
+        ...battleRequest,
+        body: JSON.stringify({
+          ...JSON.parse(battleRequest.body),
+          operation_id: makeOperationId()
+        })
+      });
+    }
+
+    if (result.ok === false) {
+      throw new Error(result.msg || result.message || '挑战失败');
+    }
 
     const resultText = result['胜负'] || result.message || '完成';
     return `${target.sceneId} / ${target.opponent['昵称'] || target.opponent.username}：${resultText}`;
