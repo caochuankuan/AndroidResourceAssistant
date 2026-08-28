@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟全功能助手
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      3.1.1
+// @version      3.1.2
 // @description  小鸟游戏全功能工具，支持独立用户管理、多账户操作、天梯、种鸟、配鸟等
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
@@ -90,7 +90,7 @@
   }
 
   function rememberVipProfile(payload) {
-    const player = payload?.data?.data;
+    const player = payload?.data;
 
     if (!player?.nickname || !player?.vipLevel) {
       return;
@@ -178,7 +178,10 @@
       if (this.__yifengPlayerProfileUrl) {
         this.addEventListener('load', function () {
           try {
-            rememberVipProfile(JSON.parse(this.responseText));
+            const payload = this.responseType === 'json'
+              ? this.response
+              : JSON.parse(this.responseText);
+            rememberVipProfile(payload);
           } catch (error) {
             // The page may return a non-JSON error response.
           }
