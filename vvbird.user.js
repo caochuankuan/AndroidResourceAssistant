@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟全功能助手
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      3.1.2
+// @version      3.1.3
 // @description  小鸟游戏全功能工具，支持独立用户管理、多账户操作、天梯、种鸟、配鸟等
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
@@ -30,6 +30,7 @@
   const BIRD_BOOK_SOURCE_URL = 'https://raw.githubusercontent.com/caochuankuan/AndroidResourceAssistant/main/bird/js/bird-book.js';
   const vipProfiles = new Map();
   let vipProfileObserver = null;
+  let fightMemberBirds = [];
   const BAIT_LIST = [
     { id: 1, name: '谷子', birds: '麻雀', price: 2 },
     { id: 2, name: '燕麦', birds: '燕子,乌鸦,麻雀', price: 4 },
@@ -87,6 +88,65 @@
     } catch (error) {
       return false;
     }
+  }
+
+  function isFightMemberBirdsUrl(url) {
+    try {
+      return new URL(url, location.href).pathname === '/api/fight/memberbirds';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function formatBirdWeight(value) {
+    const weight = Number(value);
+
+    if (!Number.isFinite(weight)) {
+      return '-';
+    }
+
+    return `${(weight / 100).toFixed(2)} 斤`;
+  }
+
+  function rememberFightMemberBirds(payload) {
+    const birds = payload?.data;
+
+    if (!Array.isArray(birds)) {
+      return;
+    }
+
+    fightMemberBirds = birds;
+    renderFightMemberBirds();
+  }
+
+  function renderFightMemberBirds() {
+    if (location.pathname !== '/invade/confirm' || !document.body || fightMemberBirds.length === 0) {
+      return;
+    }
+
+    const entries = Array.from(document.querySelectorAll('#app .flex')).filter((entry) => (
+      entry.querySelector('img[alt="笼"]')
+    ));
+
+    entries.forEach((entry, index) => {
+      const bird = fightMemberBirds[index];
+      const detail = entry.children[1];
+
+      if (!bird || !detail) {
+        return;
+      }
+
+      let stats = detail.querySelector('[data-yifeng-fight-member-bird]');
+
+      if (!stats) {
+        stats = document.createElement('span');
+        stats.dataset.yifengFightMemberBird = 'true';
+        stats.style.cssText = 'display:block;color:#16805c;font-size:.9em;line-height:1.6;';
+        detail.appendChild(stats);
+      }
+
+      stats.textContent = `剩余：${bird.remain ?? '-'} 次｜重量：${formatBirdWeight(bird.birdWeight)}`;
+    });
   }
 
   function rememberVipProfile(payload) {
@@ -162,6 +222,10 @@
           response.clone().json().then(rememberVipProfile).catch(() => {});
         }
 
+        if (isFightMemberBirdsUrl(requestUrl)) {
+          response.clone().json().then(rememberFightMemberBirds).catch(() => {});
+        }
+
         return response;
       };
     }
@@ -171,6 +235,7 @@
 
     XMLHttpRequest.prototype.open = function (method, url, ...args) {
       this.__yifengPlayerProfileUrl = isPlayerProfileUrl(url) ? url : '';
+      this.__yifengFightMemberBirdsUrl = isFightMemberBirdsUrl(url) ? url : '';
       return originalOpen.call(this, method, url, ...args);
     };
 
@@ -187,11 +252,27 @@
           }
         });
       }
+
+      if (this.__yifengFightMemberBirdsUrl) {
+        this.addEventListener('load', function () {
+          try {
+            const payload = this.responseType === 'json'
+              ? this.response
+              : JSON.parse(this.responseText);
+            rememberFightMemberBirds(payload);
+          } catch (error) {
+            // The page may return a non-JSON error response.
+          }
+        });
+      }
       return originalSend.apply(this, args);
     };
 
     if (document.documentElement) {
-      vipProfileObserver = new MutationObserver(renderVipProfiles);
+      vipProfileObserver = new MutationObserver(() => {
+        renderVipProfiles();
+        renderFightMemberBirds();
+      });
       vipProfileObserver.observe(document.documentElement, { childList: true, subtree: true });
     }
   }
