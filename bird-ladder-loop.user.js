@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         小鸟循环挑战最后一名
+// @name         小鸟循环挑战玩家后第五名
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.1.0
-// @description  循环获取战斗排行榜最后一名并发起挑战
+// @version      1.2.1
+// @description  循环获取战斗排行榜中玩家后的第五名并发起挑战
 // @match        http://116.62.238.93/*
 // @match        https://116.62.238.93/*
 // @run-at       document-end
@@ -37,7 +37,7 @@
       #bird-ladder-loop-panel button.stop { background: #c94b58; }
       #bird-ladder-loop-panel .status { margin-top: 9px; color: #626a80; word-break: break-all; }
     </style>
-    <h3>循环挑战排行榜最后一名</h3>
+    <h3>循环挑战玩家后第五名</h3>
     <input class="token" type="password" placeholder="令牌（优先读取网址 t 参数）">
     <input class="recovery-item" type="text" value="admin_mtco2xm4_9dbb4f" placeholder="战斗恢复卡 item_id">
     <input class="interval" type="number" min="3" step="1" value="5" placeholder="间隔秒数">
@@ -55,6 +55,7 @@
   const status = panel.querySelector('.status');
   const urlParams = new URLSearchParams(location.search);
   let running = false;
+  let cachedPlayer = null;
 
   tokenInput.value = urlParams.get('t') || urlParams.get('token') || '';
 
@@ -66,6 +67,16 @@
   function makeOperationId() {
     const random = crypto.getRandomValues(new Uint32Array(2));
     return `lb_${random[0].toString(36)}_${random[1].toString(36)}`;
+  }
+
+  async function getPlayerUsername(token) {
+    if (cachedPlayer?.token === token) {
+      return cachedPlayer.username;
+    }
+
+    const player = await requestJson(`/api/token/verify?token=${encodeURIComponent(token)}`);
+    cachedPlayer = { token, username: player.username };
+    return player.username;
   }
 
   async function requestJson(path, options = {}) {
@@ -88,22 +99,37 @@
     return data;
   }
 
-  function getLastOpponent(rankingData) {
+  function getFifthOpponentAfterPlayer(rankingData, playerUsername) {
     const scenes = rankingData?.rankings?.scenes || [];
     const battle = rankingData?.rankings?.battle || {};
 
-    for (let index = scenes.length - 1; index >= 0; index--) {
-      const scene = scenes[index];
-      const entries = battle[scene.id];
+    function makeTarget(sceneId, entries, playerIndex) {
+      const opponentIndex = Math.min(playerIndex + 5, entries.length - 1);
 
-      if (Array.isArray(entries) && entries.length > 0) {
-        return { sceneId: scene.id, opponent: entries[entries.length - 1] };
+      return {
+        sceneId,
+        opponent: opponentIndex > playerIndex ? entries[opponentIndex] : null
+      };
+    }
+
+    for (const scene of scenes) {
+      const entries = battle[scene.id];
+      const playerIndex = Array.isArray(entries)
+        ? entries.findIndex((entry) => String(entry.username) === String(playerUsername))
+        : -1;
+
+      if (playerIndex >= 0) {
+        return makeTarget(scene.id, entries, playerIndex);
       }
     }
 
     for (const [sceneId, entries] of Object.entries(battle)) {
-      if (Array.isArray(entries) && entries.length > 0) {
-        return { sceneId, opponent: entries[entries.length - 1] };
+      const playerIndex = Array.isArray(entries)
+        ? entries.findIndex((entry) => String(entry.username) === String(playerUsername))
+        : -1;
+
+      if (playerIndex >= 0) {
+        return makeTarget(sceneId, entries, playerIndex);
       }
     }
 
@@ -111,11 +137,14 @@
   }
 
   async function challengeOnce(token) {
-    const ranking = await requestJson(`/api/rankings?token=${encodeURIComponent(token)}&view=battle`);
-    const target = getLastOpponent(ranking);
+    const [playerUsername, ranking] = await Promise.all([
+      getPlayerUsername(token),
+      requestJson(`/api/rankings?token=${encodeURIComponent(token)}&view=battle`)
+    ]);
+    const target = getFifthOpponentAfterPlayer(ranking, playerUsername);
 
     if (!target?.opponent?.username) {
-      throw new Error('排行榜中没有可挑战的对象');
+      throw new Error('排行榜中玩家后面没有可挑战的对象');
     }
 
     const battleRequest = {
