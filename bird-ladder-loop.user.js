@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟循环挑战玩家后第五名
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.3.0
+// @version      1.4.0
 // @description  循环获取战斗排行榜中玩家后的第五名并发起挑战
 // @match        http://116.62.238.93/*
 // @match        https://116.62.238.93/*
@@ -40,6 +40,7 @@
     <h3>循环挑战玩家后第五名</h3>
     <input class="token" type="password" placeholder="令牌（优先读取网址 t 参数）">
     <input class="recovery-item" type="text" readonly placeholder="自动读取战斗恢复卡 item_id">
+    <input class="scene" type="text" value="rainbow" placeholder="场景 ID">
     <input class="interval" type="number" min="3" step="1" value="5" placeholder="间隔秒数">
     <button class="start" type="button">开始循环</button>
     <button class="stop" type="button" hidden>停止循环</button>
@@ -49,6 +50,7 @@
 
   const tokenInput = panel.querySelector('.token');
   const recoveryItemInput = panel.querySelector('.recovery-item');
+  const sceneInput = panel.querySelector('.scene');
   const intervalInput = panel.querySelector('.interval');
   const startButton = panel.querySelector('.start');
   const stopButton = panel.querySelector('.stop');
@@ -158,10 +160,12 @@
     return null;
   }
 
-  async function challengeOnce(token) {
+  async function challengeOnce(token, sceneId) {
     const [playerUsername, ranking] = await Promise.all([
       getPlayerUsername(token),
-      requestJson(`/api/rankings?token=${encodeURIComponent(token)}&view=battle`)
+      requestJson(
+        `/api/rankings?token=${encodeURIComponent(token)}&view=battle&scene=${encodeURIComponent(sceneId)}`
+      )
     ]);
     const target = getFifthOpponentAfterPlayer(ranking, playerUsername);
 
@@ -226,6 +230,7 @@
 
   async function runLoop() {
     const token = tokenInput.value.trim();
+    const sceneId = sceneInput.value.trim() || 'rainbow';
     const interval = Math.max(3, Number(intervalInput.value) || 5);
 
     if (!token) {
@@ -251,7 +256,7 @@
     while (running) {
       try {
         setStatus('正在读取排行榜...');
-        setStatus(await challengeOnce(token));
+        setStatus(await challengeOnce(token, sceneId));
       } catch (error) {
         setStatus(`失败：${error.message}`, true);
       }
