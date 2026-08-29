@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟循环挑战玩家后第五名
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.2.1
+// @version      1.3.0
 // @description  循环获取战斗排行榜中玩家后的第五名并发起挑战
 // @match        http://116.62.238.93/*
 // @match        https://116.62.238.93/*
@@ -39,7 +39,7 @@
     </style>
     <h3>循环挑战玩家后第五名</h3>
     <input class="token" type="password" placeholder="令牌（优先读取网址 t 参数）">
-    <input class="recovery-item" type="text" value="admin_mtco2xm4_9dbb4f" placeholder="战斗恢复卡 item_id">
+    <input class="recovery-item" type="text" readonly placeholder="自动读取战斗恢复卡 item_id">
     <input class="interval" type="number" min="3" step="1" value="5" placeholder="间隔秒数">
     <button class="start" type="button">开始循环</button>
     <button class="stop" type="button" hidden>停止循环</button>
@@ -56,6 +56,7 @@
   const urlParams = new URLSearchParams(location.search);
   let running = false;
   let cachedPlayer = null;
+  let cachedRecoveryItem = null;
 
   tokenInput.value = urlParams.get('t') || urlParams.get('token') || '';
 
@@ -77,6 +78,27 @@
     const player = await requestJson(`/api/token/verify?token=${encodeURIComponent(token)}`);
     cachedPlayer = { token, username: player.username };
     return player.username;
+  }
+
+  async function getRecoveryItemId(token) {
+    if (cachedRecoveryItem?.token === token) {
+      return cachedRecoveryItem.itemId;
+    }
+
+    const warehouse = await requestJson(
+      `/api/load?token=${encodeURIComponent(token)}&view=warehouse`
+    );
+    const data = typeof warehouse.data === 'string'
+      ? JSON.parse(warehouse.data)
+      : warehouse.data;
+    const recoveryItem = data?.['背包物品列表']?.find(
+      (item) => item['名称'] === '战斗恢复卡' && Number(item['数量']) > 0
+    );
+    const itemId = recoveryItem?.id || '';
+
+    cachedRecoveryItem = { token, itemId };
+    recoveryItemInput.value = itemId;
+    return itemId;
   }
 
   async function requestJson(path, options = {}) {
@@ -166,7 +188,7 @@
       const itemId = recoveryItemInput.value.trim();
 
       if (!itemId) {
-        throw new Error('战斗次数不足，请填写战斗恢复卡 item_id');
+        throw new Error('战斗次数不足，背包中没有可用的战斗恢复卡');
       }
 
       setStatus('战斗次数不足，正在使用恢复卡...');
@@ -208,6 +230,17 @@
 
     if (!token) {
       setStatus('请先填写令牌', true);
+      return;
+    }
+
+    try {
+      setStatus('正在读取玩家和背包信息...');
+      await Promise.all([
+        getPlayerUsername(token),
+        getRecoveryItemId(token)
+      ]);
+    } catch (error) {
+      setStatus(`初始化失败：${error.message}`, true);
       return;
     }
 
