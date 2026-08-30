@@ -1,4 +1,5 @@
 const UPSTREAM_ORIGIN = 'http://api-origin.yujian.love';
+const UPSTREAM_HOST = '116.62.238.93';
 
 const ALLOWED_PATHS = new Set([
   '/api/register',
@@ -42,6 +43,7 @@ async function proxyApi(request, requestUrl) {
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      Host: UPSTREAM_HOST,
     },
     body: request.body,
     redirect: 'manual',
