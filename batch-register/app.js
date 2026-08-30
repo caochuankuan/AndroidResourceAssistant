@@ -174,7 +174,7 @@ async function apiRequest(path, payload, outerSignal) {
   } catch (error) {
     if (outerSignal.aborted) throw new DOMException('任务已停止', 'AbortError');
     if (error.name === 'AbortError' || error.name === 'TimeoutError') throw new Error('请求超时，请稍后重试');
-    if (error instanceof TypeError) throw new Error('无法连接接口，请检查网络、CORS 或 HTTPS 混合内容限制');
+    if (error instanceof TypeError) throw new Error('无法连接 Cloudflare API 代理，请检查网络或部署状态');
     throw error;
   } finally {
     clearTimeout(timeout);
