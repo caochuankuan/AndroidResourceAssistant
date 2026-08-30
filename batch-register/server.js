@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PORT = 8765;
-const HOST = '127.0.0.1';
+const HOST = '0.0.0.0';
 const API_HOST = '116.62.238.93';
 const projectRoot = path.resolve(__dirname, '..');
 let batchRegistrationEnabled = true;

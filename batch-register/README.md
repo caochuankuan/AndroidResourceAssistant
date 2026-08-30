@@ -21,7 +21,7 @@
 每日密码查看页面：
 
 ```text
-http://127.0.0.1:8765/batch-register/daily-code.html
+http://服务器公网IP:8765/batch-register/daily-code.html
 ```
 
 该页面包含“批量注册入口”开关。关闭后，批量注册首页和 `/api/*` 请求都会被服务端拒绝。开关只保存在 Node.js 进程内存中，重启 Node 或 PM2 后会恢复为开启状态。
@@ -55,14 +55,14 @@ node batch-register/server.js
 看到以下内容表示启动成功：
 
 ```text
-批量注册页面：http://127.0.0.1:8765/batch-register/
+批量注册页面：http://0.0.0.0:8765/batch-register/
 按 Ctrl+C 停止服务
 ```
 
 浏览器打开：
 
 ```text
-http://127.0.0.1:8765/batch-register/
+http://服务器公网IP:8765/batch-register/
 ```
 
 停止服务时，在运行服务的终端按 `Ctrl+C`。
@@ -175,7 +175,7 @@ batch-register/
 不要直接双击打开 `index.html`。请先启动 `server.js`，再访问：
 
 ```text
-http://127.0.0.1:8765/batch-register/
+http://服务器公网IP:8765/batch-register/
 ```
 
 ### 提示端口 8765 已被占用
@@ -215,6 +215,6 @@ pm2 logs batch-register
 ## 安全说明
 
 - 密码只用于当前页面执行任务，不会写入浏览器本地存储。
-- 本地服务只监听 `127.0.0.1:8765`，局域网和公网设备默认无法访问。
-- 不要将本地服务改为监听公网地址，除非同时增加身份验证和访问控制。
+- 服务监听 `0.0.0.0:8765`，可通过服务器公网 IP 访问。
+- 请仅在阿里云安全组和宝塔防火墙中向可信来源开放 `8765/TCP`，每日密码查看页和入口开关也会暴露在该端口。
 - CSV 结果包含账号信息，请妥善保管导出的文件。
