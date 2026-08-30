@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="description" content="批量创建账号并实时查看礼包兑换结果">
+  <title>账号批量注册台</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <a class="back-link" href="../index.html" aria-label="返回工具首页">← 工具首页</a>
+      <div class="eyebrow"><span></span> BATCH REGISTRATION</div>
+      <h1>账号批量注册台</h1>
+      <p>按序生成账号，完成注册与初始化，并实时追踪三份礼包的兑换结果。</p>
+    </header>
+
+    <main>
+      <section class="panel setup-panel" aria-labelledby="setup-title">
+        <div class="section-heading">
+          <div>
+            <span class="step">01</span>
+            <h2 id="setup-title">创建任务</h2>
+          </div>
+          <span class="endpoint-state"><i></i> API · 116.62.238.93</span>
+        </div>
+
+        <form id="registerForm">
+          <div class="field-grid">
+            <label class="field">
+              <span>用户名开头</span>
+              <input id="prefix" name="prefix" type="text" value="account" maxlength="19" placeholder="6-20位数字/字母/符号" autocomplete="off" required>
+              <small id="namePreview">将生成 account1、account2、account3…</small>
+            </label>
+            <label class="field">
+              <span>注册数量</span>
+              <input id="count" name="count" type="number" value="10" min="1" max="500" inputmode="numeric" required>
+              <small>单次最多 500 个账号</small>
+            </label>
+            <label class="field password-field">
+              <span>统一密码</span>
+              <div class="password-wrap">
+                <input id="password" name="password" type="password" minlength="6" maxlength="32" placeholder="6~32位数字/字母/符号" autocomplete="new-password" required>
+                <button id="togglePassword" class="icon-button" type="button" aria-label="显示密码" title="显示密码">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                </button>
+              </div>
+              <small>不允许中文或空格</small>
+            </label>
+            <label class="field compact-field">
+              <span>同时处理</span>
+              <select id="concurrency" name="concurrency">
+                <option value="1">1 个（稳妥）</option>
+                <option value="2" selected>2 个（推荐）</option>
+                <option value="3">3 个</option>
+                <option value="5">5 个</option>
+              </select>
+              <small>接口繁忙时请调低</small>
+            </label>
+          </div>
+
+          <div class="gift-strip" aria-label="自动兑换礼包">
+            <span class="gift-label">自动兑换</span>
+            <span>再见小鸟</span><b>·</b><span>VIP8888</span><b>·</b><span>VIP2345</span>
+          </div>
+
+          <div class="form-actions">
+            <button id="startButton" class="button button-primary" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
+              开始批量注册
+            </button>
+            <button id="stopButton" class="button button-danger" type="button" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+              停止任务
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section id="resultsPanel" class="results-section" aria-labelledby="results-title">
+        <div class="results-head">
+          <div>
+            <span class="step">02</span>
+            <h2 id="results-title">执行结果</h2>
+          </div>
+          <div class="result-actions">
+            <button id="retryButton" class="button button-secondary" type="button" disabled>重试未完成</button>
+            <button id="exportButton" class="button button-secondary" type="button" disabled>导出 CSV</button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span>任务进度</span>
+            <strong><em id="completedCount">0</em> / <em id="totalCount">0</em></strong>
+            <div class="progress-track"><i id="progressBar"></i></div>
+          </article>
+          <article class="stat-card success-card">
+            <span>全部兑换成功</span>
+            <strong id="successCount">0</strong>
+            <small>三个礼包均成功</small>
+          </article>
+          <article class="stat-card failure-card">
+            <span>失败 / 未完成</span>
+            <strong id="failureCount">0</strong>
+            <small>可在结束后重试</small>
+          </article>
+          <article class="stat-card running-card">
+            <span>当前状态</span>
+            <strong id="runStatus">等待开始</strong>
+            <small id="elapsedTime">耗时 00:00</small>
+          </article>
+        </div>
+
+        <div class="table-card">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>账号</th>
+                  <th>基础流程</th>
+                  <th>再见小鸟</th>
+                  <th>VIP8888</th>
+                  <th>VIP2345</th>
+                  <th>结果</th>
+                </tr>
+              </thead>
+              <tbody id="resultBody">
+                <tr class="empty-row"><td colspan="7"><span class="empty-icon">◎</span>填写任务信息后，结果会实时显示在这里</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
