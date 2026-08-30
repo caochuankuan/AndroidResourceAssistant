@@ -26,13 +26,13 @@
 页面只请求当前 Cloudflare 站点的同源 `/api/*` 地址。仓库根目录下的 `_worker.js` 会在 Cloudflare Workers Runtime 中将请求转发到：
 
 ```text
-http://api-origin.yujian.love
+http://116.62.238.93
 ```
 
 请求链路：
 
 ```text
-浏览器 → Cloudflare /api/* → api-origin.yujian.love（仅用于连接）→ 116.62.238.93/api/*
+浏览器 → Cloudflare /api/* → 116.62.238.93/api/*
 ```
 
 浏览器不会直接访问目标 IP，因此不会遇到目标服务器的 CORS 或 HTTPS 混合内容限制。
@@ -57,20 +57,6 @@ _worker.js
 ```
 
 将代码推送到 Cloudflare Pages 绑定的 Git 分支后，Cloudflare 会同时部署静态网页和 Function。
-
-### 配置上游 DNS
-
-Cloudflare Workers 不能直接使用裸 IP 作为 `fetch` 目标。部署前需要在 `yujian.love` 的 Cloudflare DNS 中添加：
-
-| 设置 | 值 |
-|---|---|
-| 类型 | `A` |
-| 名称 | `api-origin` |
-| IPv4 地址 | `116.62.238.93` |
-| 代理状态 | `仅 DNS`（灰云） |
-| TTL | 自动 |
-
-配置完成后，`api-origin.yujian.love` 只作为 Worker 连接上游时使用的 DNS 名称。源站位于阿里云且该子域名未备案，直接把它作为 HTTP `Host` 会被拦截；因此 `_worker.js` 会将上游 `Host` 固定为 `116.62.238.93`。不要删除这项设置，也不要将网页 API 地址改成该子域名，浏览器仍然只请求同源 `/api/*`。
 
 部署完成后，通过 Cloudflare 网站地址访问：
 
@@ -158,7 +144,7 @@ batch-register/
 
 ### 页面打开正常，但请求返回 502
 
-这表示 Cloudflare Function 已运行，但无法连接上游接口。检查 `api-origin.yujian.love` 的 DNS-only A 记录是否正确、`http://116.62.238.93` 是否可访问、`_worker.js` 是否仍设置了 `Host: 116.62.238.93`，并在 Cloudflare 控制台查看 Functions 日志。
+这表示 Cloudflare Function 已运行，但无法连接上游接口。检查 `http://116.62.238.93` 是否可访问，并在 Cloudflare 控制台查看 Functions 日志。
 
 ### 请求返回 403
 

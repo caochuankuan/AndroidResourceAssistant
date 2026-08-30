@@ -1,5 +1,4 @@
-const UPSTREAM_ORIGIN = 'http://api-origin.yujian.love';
-const UPSTREAM_HOST = '116.62.238.93';
+const UPSTREAM_ORIGIN = 'http://116.62.238.93';
 
 const ALLOWED_PATHS = new Set([
   '/api/register',
@@ -28,7 +27,7 @@ async function proxyApi(request, requestUrl) {
   }
 
   const origin = request.headers.get('Origin');
-  if (origin && origin !== 'null' && origin !== requestUrl.origin) {
+  if (origin && origin !== requestUrl.origin) {
     return jsonResponse({ ok: false, msg: '不允许跨站请求' }, 403);
   }
 
@@ -43,7 +42,6 @@ async function proxyApi(request, requestUrl) {
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Host: UPSTREAM_HOST,
     },
     body: request.body,
     redirect: 'manual',
