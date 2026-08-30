@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>每日密码</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      color: #17202a;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(134, 190, 157, .28), transparent 30rem),
+        #f5f6f1;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    main {
+      width: min(480px, calc(100% - 32px));
+      padding: 42px 28px;
+      text-align: center;
+      background: rgba(255, 255, 255, .86);
+      border: 1px solid #d8dfda;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(32, 45, 39, .1);
+    }
+    p { margin: 0 0 15px; color: #738079; font-size: 13px; letter-spacing: .08em; }
+    output {
+      display: block;
+      color: #126c53;
+      font: 700 clamp(36px, 11vw, 58px) ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .1em;
+      overflow-wrap: anywhere;
+    }
+    time { display: block; margin-top: 20px; color: #8a948e; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p>今日访问密码</p>
+    <output id="dailyCode">--------</output>
+    <time id="chinaDate"></time>
+  </main>
+
+  <script src="access-code.js"></script>
+  <script>
+    function renderCode() {
+      const parts = getChinaDateParts();
+      document.getElementById('dailyCode').textContent = getDailyAccessCode();
+      document.getElementById('chinaDate').textContent = `北京时间 ${parts.year}-${parts.month}-${parts.day}`;
+    }
+
+    renderCode();
+    setInterval(renderCode, 30000);
+  </script>
+</body>
+</html>
