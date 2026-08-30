@@ -63,7 +63,7 @@ h2 { font-family: Georgia, "Songti SC", serif; font-size: 24px; font-weight: 500
 .endpoint-state { color: var(--muted); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .endpoint-state i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3baa7b; margin-right: 6px; box-shadow: 0 0 0 4px rgba(59, 170, 123, .12); }
 
-.field-grid { display: grid; grid-template-columns: 1.2fr .7fr 1.2fr .7fr; gap: 16px; }
+.field-grid { display: grid; grid-template-columns: 1.1fr .65fr 1.1fr .7fr .9fr; gap: 16px; }
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field > span { font-size: 13px; font-weight: 750; }
 .field small { color: var(--muted); font-size: 12px; min-height: 16px; }

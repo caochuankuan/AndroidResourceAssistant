@@ -3,12 +3,14 @@
 const API_BASE = '/api';
 const REDEEM_CODES = ['再见小鸟', 'VIP8888', 'VIP2345'];
 const VISIBLE_ASCII_PATTERN = /^[\x21-\x7E]+$/;
+const ACCESS_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const form = document.getElementById('registerForm');
 const prefixInput = document.getElementById('prefix');
 const countInput = document.getElementById('count');
 const passwordInput = document.getElementById('password');
 const concurrencyInput = document.getElementById('concurrency');
+const accessCodeInput = document.getElementById('accessCode');
 const namePreview = document.getElementById('namePreview');
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
@@ -35,6 +37,45 @@ let toastId = null;
 function updatePreview() {
   const prefix = prefixInput.value.trim() || 'account';
   namePreview.textContent = `将生成 ${prefix}1、${prefix}2、${prefix}3…`;
+}
+
+function getChinaDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}${values.month}${values.day}`;
+}
+
+function getDailyAccessCode(date = new Date()) {
+  const source = `BATCH@${getChinaDateKey(date)}#YJ-ACCESS`;
+  let state = 0x811c9dc5;
+
+  for (const character of source) {
+    state = Math.imul(state ^ character.charCodeAt(0), 0x01000193) >>> 0;
+  }
+
+  let code = '';
+  for (let index = 0; index < 8; index += 1) {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    state >>>= 0;
+    code += ACCESS_CODE_ALPHABET[state % ACCESS_CODE_ALPHABET.length];
+  }
+  return code;
+}
+
+function hasValidAccessCode() {
+  const enteredCode = accessCodeInput.value.trim().toUpperCase();
+  if (enteredCode === getDailyAccessCode()) return true;
+  showToast('每日访问密码错误，请检查今天的动态密码');
+  accessCodeInput.focus();
+  accessCodeInput.select();
+  return false;
 }
 
 function showToast(message) {
@@ -141,6 +182,7 @@ function setRunningUi(running) {
   countInput.disabled = running;
   passwordInput.disabled = running;
   concurrencyInput.disabled = running;
+  accessCodeInput.disabled = running;
   runStatus.textContent = running ? '正在执行' : accounts.length ? '任务结束' : '等待开始';
 }
 
@@ -320,6 +362,7 @@ form.addEventListener('submit', event => {
   if (isRunning || !form.reportValidity()) return;
   const prefix = prefixInput.value.trim();
   const count = Number(countInput.value);
+  if (!hasValidAccessCode()) return;
   if (!prefix) return showToast('请输入用户名开头');
   if (!Number.isInteger(count) || count < 1 || count > 500) return showToast('注册数量需要在 1 到 500 之间');
   if (!VISIBLE_ASCII_PATTERN.test(prefix)) return showToast('用户名开头只能包含数字、英文字母和符号，不能包含中文或空格');
@@ -345,6 +388,7 @@ stopButton.addEventListener('click', () => {
 });
 
 retryButton.addEventListener('click', () => {
+  if (!hasValidAccessCode()) return;
   const targets = accounts.filter(account => account.result !== 'success');
   targets.forEach(account => {
     account.finished = false;
