@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟循环挑战玩家后第五名
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      1.4.0
+// @version      1.4.1
 // @description  循环获取战斗排行榜中玩家后的第五名并发起挑战
 // @match        http://116.62.238.93/*
 // @match        https://116.62.238.93/*
@@ -129,10 +129,11 @@
 
     function makeTarget(sceneId, entries, playerIndex) {
       const opponentIndex = Math.min(playerIndex + 5, entries.length - 1);
+      const fallbackIndex = playerIndex - 1;
 
       return {
         sceneId,
-        opponent: opponentIndex > playerIndex ? entries[opponentIndex] : null
+        opponent: entries[opponentIndex > playerIndex ? opponentIndex : fallbackIndex] || null
       };
     }
 
@@ -170,7 +171,7 @@
     const target = getFifthOpponentAfterPlayer(ranking, playerUsername);
 
     if (!target?.opponent?.username) {
-      throw new Error('排行榜中玩家后面没有可挑战的对象');
+      throw new Error('排行榜中没有可挑战的其他玩家');
     }
 
     const battleRequest = {
