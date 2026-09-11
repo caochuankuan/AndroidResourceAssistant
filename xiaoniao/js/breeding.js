@@ -184,10 +184,8 @@ async function fetchBirds() {
             });
             
             const data = await response.json();
-            if (data.code === 200 && data.data) {
-                const birds = Array.isArray(data.data.records)
-                    ? data.data.records
-                    : (Array.isArray(data.data.content) ? data.data.content : []);
+            if (data.code === 200 && data.data && data.data.content) {
+                const birds = data.data.content;
                 allBirds.push(...birds);
                 hasMore = birds.length > 0 && birds.length >= 10;
                 page++;
@@ -280,10 +278,8 @@ async function performInitialBreeding() {
             });
             
             const blesserBirdData = await blesserBirdResponse.json();
-            if (blesserBirdData.code === 200 && blesserBirdData.data) {
-                const birds = Array.isArray(blesserBirdData.data.records)
-                    ? blesserBirdData.data.records
-                    : (Array.isArray(blesserBirdData.data.content) ? blesserBirdData.data.content : []);
+            if (blesserBirdData.code === 200 && blesserBirdData.data && blesserBirdData.data.content) {
+                const birds = blesserBirdData.data.content;
                 blesserBirds.push(...birds);
                 hasMore = birds.length > 0 && birds.length >= 10;
                 page++;
@@ -637,10 +633,8 @@ async function findBirdsByName(birdName) {
             });
             
             const data = await response.json();
-            if (data.code === 200 && data.data) {
-                const pageBirds = Array.isArray(data.data.records)
-                    ? data.data.records
-                    : (Array.isArray(data.data.content) ? data.data.content : []);
+            if (data.code === 200 && data.data && data.data.content) {
+                const pageBirds = data.data.content;
                 birds.push(...pageBirds);
                 hasMore = pageBirds.length > 0 && pageBirds.length >= 10;
                 page++;
@@ -680,10 +674,8 @@ async function performBreeding(bird) {
             });
             
             const blesserBirdData = await blesserBirdResponse.json();
-            if (blesserBirdData.code === 200 && blesserBirdData.data) {
-                const birds = Array.isArray(blesserBirdData.data.records)
-                    ? blesserBirdData.data.records
-                    : (Array.isArray(blesserBirdData.data.content) ? blesserBirdData.data.content : []);
+            if (blesserBirdData.code === 200 && blesserBirdData.data && blesserBirdData.data.content) {
+                const birds = blesserBirdData.data.content;
                 blesserBirds.push(...birds);
                 hasMore = birds.length > 0 && birds.length >= 10;
                 page++;
