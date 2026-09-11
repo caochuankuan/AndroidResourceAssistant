@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一键出售</title>
+    <link rel="stylesheet" href="../css/one-click.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>一键出售</h1>
+            <button class="back-btn" onclick="window.location.href='../index.html'">返回首页</button>
+        </div>
+        <div class="content">
+            <div class="user-selector">
+                <div class="user-selection-area">
+                    <h3 id="userListLabel">选择用户</h3>
+                    <div class="selection-controls">
+                        <button class="control-btn" onclick="setAllUsersSelected(true)">全选</button>
+                        <button class="control-btn" onclick="setAllUsersSelected(false)">取消全选</button>
+                    </div>
+                    <div id="userList" class="user-list" role="group" aria-labelledby="userListLabel"></div>
+                </div>
+            </div>
+            <div class="button-area">
+                <button class="action-btn" id="sellAllBtn" onclick="sellAllBirds()">一键出售</button>
+            </div>
+            <div class="output-area">
+                <h3>输出结果</h3>
+                <div id="outputContent" class="output-content empty" role="status">等待操作...</div>
+            </div>
+        </div>
+    </div>
+    <script src="../js/sell-all.js"></script>
+</body>
+</html>

@@ -14,6 +14,10 @@ function goToBatchBless() {
     window.location.href = 'html/batch-bless.html';
 }
 
+function goToSellAll() {
+    window.location.href = 'html/sell-all.html';
+}
+
 function goToBreeding() {
     // 跳转到一键配鸟页面
     window.location.href = 'html/breeding.html';

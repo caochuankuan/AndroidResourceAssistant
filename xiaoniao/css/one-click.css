@@ -384,6 +384,11 @@ body {
     cursor: pointer;
 }
 
+.user-selector .user-item {
+    display: flex;
+    margin-bottom: 0;
+}
+
 .user-item:hover {
     background: #e9ecef;
 }
