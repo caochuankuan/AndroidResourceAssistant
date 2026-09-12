@@ -88,7 +88,7 @@ function serveStatic(request, response) {
     return send(response, 400, '无效路径');
   }
 
-  if (!batchRegistrationEnabled && ['/', '/batch-register', '/batch-register/', '/batch-register/index.html', '/batch-register/claim.html'].includes(pathname)) {
+  if (!batchRegistrationEnabled && ['/', '/batch-register', '/batch-register/', '/batch-register/index.html', '/batch-register/claim.html', '/batch-register/vip.html'].includes(pathname)) {
     return send(response, 403, '批量注册功能已关闭');
   }
 
