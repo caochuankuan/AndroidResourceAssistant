@@ -30,7 +30,7 @@ function render() { resultBody.innerHTML = accounts.map(item => `<tr id="account
 function renderAccount(item) { const row = $(`account-${item.index}`); if (!row) return; row.querySelector('[data-cell="login"]').innerHTML = stageHtml(item.login); CLAIM_KEYS.forEach(key => { row.querySelector(`[data-cell="claim-${key}"]`).innerHTML = stageHtml(item.claims[key]); }); row.querySelector('[data-cell="result"]').innerHTML = resultHtml(item); updateStats(); }
 function updateStats() { const done = accounts.filter(item => item.finished).length; $('completedCount').textContent = done; $('totalCount').textContent = accounts.length; $('successCount').textContent = accounts.filter(item => item.result === 'success').length; $('failureCount').textContent = accounts.filter(item => item.finished && item.result !== 'success').length; $('progressBar').style.width = accounts.length ? `${done / accounts.length * 100}%` : '0%'; }
 function set(item, state, text, detail = '') { Object.assign(item, { state, text, detail }); }
-function operationId() { return `cloud_nest_claim_${Date.now().toString(36)}_${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`; }
+function operationId() { const bytes = new Uint32Array(2); crypto.getRandomValues(bytes); return `cloud_nest_claim_${Date.now().toString(36)}_${Array.from(bytes, value => value.toString(36)).join('')}`; }
 async function request(path, payload, signal) {
   const response = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload), cache: 'no-store', signal });
   const raw = await response.text(); let data;
