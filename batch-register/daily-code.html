@@ -23,6 +23,11 @@
     .switch input:checked + span { background: #16775b; }
     .switch input:checked + span::after { transform: translateX(22px); }
     .switch input:disabled + span { cursor: wait; opacity: .55; }
+    .entry-links { margin-top: 18px; padding-top: 18px; border-top: 1px solid #d8e2db; text-align: left; }
+    .entry-links strong { display: block; margin-bottom: 10px; font-size: 14px; }
+    .entry-links nav { display: grid; gap: 8px; }
+    .entry-links a { display: block; padding: 10px 12px; color: #126c53; background: #f2f6f3; border: 1px solid #d8e2db; border-radius: 9px; font-size: 13px; text-decoration: none; }
+    .entry-links a:hover { background: #e5f3ed; border-color: #9ccbb4; }
   </style>
 </head>
 <body>
@@ -39,6 +44,15 @@
         <input id="entranceSwitch" type="checkbox" disabled>
         <span></span>
       </label>
+    </section>
+    <section class="entry-links" aria-label="批量工具入口">
+      <strong>批量工具入口</strong>
+      <nav>
+        <a href="index.html">账号批量注册台</a>
+        <a href="claim.html">云巢批量领取</a>
+        <a href="vip.html">VIP 批量开通</a>
+        <a href="trap.html">批量下诱 / 捕获</a>
+      </nav>
     </section>
   </main>
   <script src="access-code.js"></script>
