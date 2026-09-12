@@ -6,7 +6,7 @@ const path = require('node:path');
 
 const PORT = 8765;
 const HOST = '0.0.0.0';
-const API_HOST = '116.62.238.93';
+const API_HOST = 'niao.hboqy.cn';
 const projectRoot = path.resolve(__dirname, '..');
 let batchRegistrationEnabled = true;
 
