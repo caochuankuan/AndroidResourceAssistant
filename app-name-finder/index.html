@@ -75,11 +75,16 @@
         status.textContent = `正在扫描：${root.name}`;
 
         const files = await collectFiles(root);
-        const icons = files.filter(file => ICON_NAMES.includes(file.name));
-        const results = await Promise.all(icons.map(icon => readProjectName(icon, files)));
+        const manifests = files.filter(file => file.path.slice(-4).join('/') === 'app/src/main/AndroidManifest.xml');
+        const projects = manifests.map(manifest => ({
+          manifest,
+          icon: files.find(file => ICON_NAMES.includes(file.name) && sameSourceRoot(file.path, manifest.path)) || null
+        }));
+        const results = await Promise.all(projects.map(project => readProjectName(project, files)));
         results.sort((a, b) => a.iconPath.localeCompare(b.iconPath, 'zh-CN'));
         renderResults(results);
-        status.innerHTML = `扫描完成：共扫描 <strong>${files.length}</strong> 个文件，找到 <strong>${results.length}</strong> 个图标项目`;
+        const iconCount = projects.filter(project => project.icon).length;
+        status.innerHTML = `扫描完成：共扫描 <strong>${files.length}</strong> 个文件，找到 <strong>${projects.length}</strong> 个项目，其中 <strong>${iconCount}</strong> 个有目标图标`;
       } catch (error) {
         if (error.name === 'AbortError') return;
         status.innerHTML = `<span class="error">扫描失败：${escapeHtml(error.message)}</span>`;
@@ -106,17 +111,21 @@
       return name === '.git' || name === '.gradle' || name === 'build' || name === '.idea' || name === 'node_modules';
     }
 
-    async function readProjectName(icon, files) {
-      const stringsFile = findStringsFile(icon, files);
+    async function readProjectName(project, files) {
+      const { icon, manifest } = project;
+      const sourceFile = icon || manifest;
+      const stringsFile = findStringsFile(sourceFile, files);
       const valuesPath = stringsFile ? stringsFile.path : null;
       let appName = '';
       let message = stringsFile ? '已读取 strings.xml' : '未找到同组 strings.xml';
       let iconUrl = '';
 
-      try {
-        iconUrl = URL.createObjectURL(await icon.handle.getFile());
-      } catch (error) {
-        message = `图标预览失败：${error.message}`;
+      if (icon) {
+        try {
+          iconUrl = URL.createObjectURL(await icon.handle.getFile());
+        } catch (error) {
+          message = `图标预览失败：${error.message}`;
+        }
       }
 
       if (stringsFile) {
@@ -131,11 +140,10 @@
 
       // strings.xml 无法取得名称时，退回读取同一 src/main 下的 AndroidManifest.xml。
       if (!appName) {
-        const manifestFile = findManifestFile(icon, files);
-        if (manifestFile) {
+        if (manifest) {
           try {
-            const manifest = await manifestFile.handle.getFile().then(file => file.text());
-            const manifestName = parseManifestLabel(manifest);
+            const manifestXml = await manifest.handle.getFile().then(file => file.text());
+            const manifestName = parseManifestLabel(manifestXml);
             if (manifestName) {
               appName = manifestName;
               message = '已从 AndroidManifest.xml 读取';
@@ -148,14 +156,8 @@
         }
       }
 
-      return { appName: appName || '未读取到名称', iconPath: icon.path.join('/'), stringsPath: valuesPath ? valuesPath.join('/') : '', iconUrl, message, ok: Boolean(appName) };
-    }
-
-    function findManifestFile(icon, files) {
-      const iconMainIndex = sourceMainIndex(icon.path);
-      if (iconMainIndex < 0) return null;
-      const sourceRoot = icon.path.slice(0, iconMainIndex + 2);
-      return files.find(file => file.name === 'AndroidManifest.xml' && samePath(file.path.slice(0, sourceMainIndex(file.path) + 2), sourceRoot) && file.path.at(-1) === 'AndroidManifest.xml') || null;
+      if (!icon && appName) message = '未找到目标图标，但已读取名称';
+      return { appName: appName || '未读取到名称', projectPath: manifest.path.slice(0, -4).join('/'), iconPath: icon ? icon.path.join('/') : '未找到目标图标', stringsPath: valuesPath ? valuesPath.join('/') : '', iconUrl, message, ok: Boolean(appName && icon) };
     }
 
     function findStringsFile(icon, files) {
@@ -203,6 +205,12 @@
 
     function samePath(a, b) { return a.length === b.length && a.every((part, index) => part === b[index]); }
 
+    function sameSourceRoot(a, b) {
+      const aIndex = sourceMainIndex(a);
+      const bIndex = sourceMainIndex(b);
+      return aIndex >= 0 && bIndex >= 0 && samePath(a.slice(0, aIndex + 2), b.slice(0, bIndex + 2));
+    }
+
     function renderResults(results) {
       if (!results.length) {
         resultArea.className = 'empty';
@@ -210,7 +218,7 @@
         return;
       }
       resultArea.className = '';
-      resultArea.innerHTML = `<div class="table-wrap"><table><thead><tr><th>图片</th><th>App 名称</th><th>图标路径</th><th>strings.xml</th><th>状态</th></tr></thead><tbody>${results.map(result => `<tr><td>${result.iconUrl ? `<img class="preview" src="${escapeHtml(result.iconUrl)}" alt="${escapeHtml(result.appName)} 图标">` : '—'}</td><td class="app-name">${escapeHtml(result.appName)}</td><td class="path">${escapeHtml(result.iconPath)}</td><td class="path">${escapeHtml(result.stringsPath || '—')}</td><td><span class="badge${result.ok ? '' : ' warn'}">${escapeHtml(result.message)}</span></td></tr>`).join('')}</tbody></table></div>`;
+      resultArea.innerHTML = `<div class="table-wrap"><table><thead><tr><th>图片</th><th>App 名称</th><th>项目路径</th><th>图标路径</th><th>strings.xml</th><th>状态</th></tr></thead><tbody>${results.map(result => `<tr><td>${result.iconUrl ? `<img class="preview" src="${escapeHtml(result.iconUrl)}" alt="${escapeHtml(result.appName)} 图标">` : '—'}</td><td class="app-name">${escapeHtml(result.appName)}</td><td class="path">${escapeHtml(result.projectPath)}</td><td class="path">${escapeHtml(result.iconPath)}</td><td class="path">${escapeHtml(result.stringsPath || '—')}</td><td><span class="badge${result.ok ? '' : ' warn'}">${escapeHtml(result.message)}</span></td></tr>`).join('')}</tbody></table></div>`;
     }
 
     function escapeHtml(value) {
