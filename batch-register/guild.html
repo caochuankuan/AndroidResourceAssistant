@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
+  <title>工会捐赠</title><link rel="stylesheet" href="style.css">
+  <style>
+    .choice-list { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+    .choice { display:inline-flex; align-items:center; gap:8px; padding:10px 13px; color:#435048; background:#f2f6f3; border:1px solid #c5d2ca; border-radius:9px; font-size:13px; cursor:pointer; }
+    .choice input { width:16px; height:16px; accent-color:var(--green); }
+    .choice:has(input:checked) { color:var(--green-dark); background:var(--green-soft); border-color:#9ccbb4; }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero"><a class="back-link" href="index.html">← 批量注册台</a><div class="eyebrow"><span></span> GUILD DONATION</div><h1>工会捐赠</h1><p>逐个登录账号，在 4 号工会执行已选择的动作。</p></header>
+    <main>
+      <section class="panel setup-panel" aria-labelledby="setup-title">
+        <div class="section-heading"><div><span class="step">01</span><h2 id="setup-title">创建任务</h2></div><span class="endpoint-state"><i></i> API · niao.hboqy.cn</span></div>
+        <form id="guildForm">
+          <div class="field-grid claim-fields">
+            <label class="field"><span>账号开头</span><input id="prefix" type="text" value="account" maxlength="19" autocomplete="off" required><small id="namePreview">将处理 account1、account2、account3…</small></label>
+            <label class="field"><span>账号数量</span><input id="count" type="number" value="10" min="1" max="500" inputmode="numeric" required><small>单次最多 500 个账号</small></label>
+            <label class="field"><span>统一密码</span><input id="password" type="password" minlength="6" maxlength="32" autocomplete="new-password" required><small>用于逐个登录获取 token</small></label>
+            <label class="field compact-field"><span>同时处理</span><select id="concurrency"><option value="1">1 个（稳妥）</option><option value="2" selected>2 个（推荐）</option><option value="3">3 个</option><option value="5">5 个</option></select><small>接口繁忙时请调低</small></label>
+            <label class="field access-field"><span>每日访问密码</span><input id="accessCode" type="password" minlength="8" maxlength="8" autocomplete="off" required><small>按北京时间每日更新</small></label>
+          </div>
+          <div class="choice-list" aria-label="选择工会动作"><label class="choice"><input type="checkbox" name="action" value="apply" checked>进会</label><label class="choice"><input type="checkbox" name="action" value="donate_currency" checked>捐赠 38800 金刚石</label><label class="choice"><input type="checkbox" name="action" value="leave" checked>退会</label></div>
+          <div class="gift-strip"><span class="gift-label">固定参数</span><span>工会 ID：4</span><b>·</b><span>捐赠货币：gems</span><b>·</b><span>数量：38800</span></div>
+          <div class="form-actions"><button id="startButton" class="button button-primary" type="submit">开始批量执行</button><button id="stopButton" class="button button-danger" type="button" hidden>停止任务</button></div>
+        </form>
+      </section>
+      <section id="resultsPanel" class="results-section" aria-labelledby="results-title">
+        <div class="results-head"><div><span class="step">02</span><h2 id="results-title">执行结果</h2></div><div class="result-actions"><button id="retryButton" class="button button-secondary" type="button" disabled>重试未完成</button></div></div>
+        <div class="stats-grid"><article class="stat-card"><span>任务进度</span><strong><em id="completedCount">0</em> / <em id="totalCount">0</em></strong><div class="progress-track"><i id="progressBar"></i></div></article><article class="stat-card success-card"><span>全部成功</span><strong id="successCount">0</strong><small>所选动作均成功</small></article><article class="stat-card failure-card"><span>失败 / 未完成</span><strong id="failureCount">0</strong><small>可在结束后重试</small></article><article class="stat-card running-card"><span>当前状态</span><strong id="runStatus">等待开始</strong></article></div>
+        <div class="table-card"><div class="table-scroll"><table><thead><tr><th>#</th><th>账号</th><th>登录</th><th>进会</th><th>捐赠</th><th>退会</th><th>结果</th></tr></thead><tbody id="resultBody"><tr class="empty-row"><td colspan="7">填写任务信息后，结果会实时显示在这里</td></tr></tbody></table></div></div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div><script src="access-code.js"></script><script src="guild.js"></script>
+</body>
+</html>
