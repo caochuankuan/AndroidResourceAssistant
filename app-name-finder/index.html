@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Android App 名称扫描器</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#6f7b91; --line:#e6eaf0; --brand:#3d63f3; --soft:#eef2ff; --ok:#14804a; --warn:#a15b00; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:#f6f8fc; color:var(--ink); font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(1120px, calc(100% - 32px)); margin:0 auto; padding:56px 0 72px; }
+    .hero { margin-bottom:28px; }
+    .eyebrow { color:var(--brand); font-size:12px; font-weight:750; letter-spacing:.12em; text-transform:uppercase; }
+    h1 { margin:8px 0 10px; font-size:clamp(28px, 5vw, 44px); line-height:1.1; letter-spacing:-.04em; }
+    .intro { max-width:720px; margin:0; color:var(--muted); font-size:16px; }
+    .panel { overflow:hidden; border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 12px 40px rgba(25,42,80,.07); }
+    .toolbar { display:flex; align-items:center; gap:16px; padding:22px; border-bottom:1px solid var(--line); }
+    button { border:0; border-radius:11px; padding:11px 18px; color:#fff; background:var(--brand); cursor:pointer; font:inherit; font-weight:700; box-shadow:0 5px 14px rgba(61,99,243,.22); }
+    button:hover { filter:brightness(.96); } button:disabled { opacity:.55; cursor:wait; }
+    .status { color:var(--muted); }
+    .status strong { color:var(--ink); }
+    .tip { padding:14px 22px; color:var(--muted); background:#fbfcff; font-size:13px; }
+    .table-wrap { overflow:auto; }
+    table { width:100%; border-collapse:collapse; min-width:700px; }
+    th, td { padding:15px 22px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--muted); background:#fafbfe; font-size:12px; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }
+    tbody tr:last-child td { border-bottom:0; }
+    .preview { width:52px; height:52px; display:block; object-fit:contain; border:1px solid var(--line); border-radius:10px; background:#f7f8fb; }
+    .app-name { font-weight:750; font-size:16px; }
+    .path { color:var(--muted); font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
+    .badge { display:inline-block; border-radius:999px; padding:3px 9px; color:var(--ok); background:#e9f8f0; font-size:12px; font-weight:700; }
+    .badge.warn { color:var(--warn); background:#fff4df; }
+    .empty { padding:56px 24px; color:var(--muted); text-align:center; }
+    .error { color:#b42318; }
+    @media (max-width:600px) { main { width:min(100% - 20px, 1120px); padding-top:32px; } .toolbar { align-items:flex-start; flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Android Resource Assistant</div>
+      <h1>扫描 Android App 名称</h1>
+      <p class="intro">选择一个总目录，递归遍历所有层级，查找 Play Store 图标，并从同一组 <code>res/values/strings.xml</code> 中读取 <code>app_name</code>。</p>
+    </section>
+
+    <section class="panel" aria-live="polite">
+      <div class="toolbar">
+        <button id="chooseButton" type="button">选择目录并开始扫描</button>
+        <div id="status" class="status">尚未选择目录</div>
+      </div>
+      <div class="tip">文件只在浏览器本地读取，不会上传。建议使用最新版 Chrome 或 Edge。</div>
+      <div id="resultArea" class="empty">扫描结果会显示在这里</div>
+    </section>
+  </main>
+
+  <script>
+    const ICON_NAMES = ['icon_app_launcher-playstore.png', 'ic_launcher-playstore.png'];
+    const chooseButton = document.querySelector('#chooseButton');
+    const status = document.querySelector('#status');
+    const resultArea = document.querySelector('#resultArea');
+
+    chooseButton.addEventListener('click', chooseDirectory);
+
+    async function chooseDirectory() {
+      if (!window.showDirectoryPicker) {
+        status.innerHTML = '<span class="error">当前浏览器不支持目录访问，请使用最新版 Chrome 或 Edge。</span>';
+        return;
+      }
+
+      try {
+        const root = await window.showDirectoryPicker({ mode: 'read' });
+        chooseButton.disabled = true;
+        resultArea.className = 'empty';
+        resultArea.textContent = '正在递归扫描，请稍候…';
+        status.textContent = `正在扫描：${root.name}`;
+
+        const files = await collectFiles(root);
+        const icons = files.filter(file => ICON_NAMES.includes(file.name));
+        const results = await Promise.all(icons.map(icon => readProjectName(icon, files)));
+        results.sort((a, b) => a.iconPath.localeCompare(b.iconPath, 'zh-CN'));
+        renderResults(results);
+        status.innerHTML = `扫描完成：共扫描 <strong>${files.length}</strong> 个文件，找到 <strong>${results.length}</strong> 个图标项目`;
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        status.innerHTML = `<span class="error">扫描失败：${escapeHtml(error.message)}</span>`;
+      } finally {
+        chooseButton.disabled = false;
+      }
+    }
+
+    // pathParts 保留相对路径，使任意深度的子目录都能被处理。
+    async function collectFiles(directory, pathParts = []) {
+      const files = [];
+      for await (const entry of directory.values()) {
+        const nextPath = [...pathParts, entry.name];
+        if (entry.kind === 'file') {
+          files.push({ name: entry.name, path: nextPath, handle: entry });
+        } else if (entry.kind === 'directory' && !shouldSkip(entry.name)) {
+          files.push(...await collectFiles(entry, nextPath));
+        }
+      }
+      return files;
+    }
+
+    function shouldSkip(name) {
+      return name === '.git' || name === '.gradle' || name === 'build' || name === '.idea' || name === 'node_modules';
+    }
+
+    async function readProjectName(icon, files) {
+      const stringsFile = findStringsFile(icon, files);
+      const valuesPath = stringsFile ? stringsFile.path : null;
+      let appName = '';
+      let message = stringsFile ? '已读取 strings.xml' : '未找到同组 strings.xml';
+      let iconUrl = '';
+
+      try {
+        iconUrl = URL.createObjectURL(await icon.handle.getFile());
+      } catch (error) {
+        message = `图标预览失败：${error.message}`;
+      }
+
+      if (stringsFile) {
+        try {
+          const xml = await stringsFile.handle.getFile().then(file => file.text());
+          appName = parseAppName(xml);
+          if (!appName) message = 'strings.xml 中没有 app_name';
+        } catch (error) {
+          message = `读取失败：${error.message}`;
+        }
+      }
+
+      // strings.xml 无法取得名称时，退回读取同一 src/main 下的 AndroidManifest.xml。
+      if (!appName) {
+        const manifestFile = findManifestFile(icon, files);
+        if (manifestFile) {
+          try {
+            const manifest = await manifestFile.handle.getFile().then(file => file.text());
+            const manifestName = parseManifestLabel(manifest);
+            if (manifestName) {
+              appName = manifestName;
+              message = '已从 AndroidManifest.xml 读取';
+            } else {
+              message = 'AndroidManifest.xml 中没有可读取的 android:label';
+            }
+          } catch (error) {
+            message = `AndroidManifest.xml 读取失败：${error.message}`;
+          }
+        }
+      }
+
+      return { appName: appName || '未读取到名称', iconPath: icon.path.join('/'), stringsPath: valuesPath ? valuesPath.join('/') : '', iconUrl, message, ok: Boolean(appName) };
+    }
+
+    function findManifestFile(icon, files) {
+      const iconMainIndex = sourceMainIndex(icon.path);
+      if (iconMainIndex < 0) return null;
+      const sourceRoot = icon.path.slice(0, iconMainIndex + 2);
+      return files.find(file => file.name === 'AndroidManifest.xml' && samePath(file.path.slice(0, sourceMainIndex(file.path) + 2), sourceRoot) && file.path.at(-1) === 'AndroidManifest.xml') || null;
+    }
+
+    function findStringsFile(icon, files) {
+      const iconMainIndex = sourceMainIndex(icon.path);
+      const candidates = files.filter(file => file.name === 'strings.xml' && file.path.at(-3) === 'res' && file.path.at(-2) === 'values');
+
+      // 常见结构：icon 在 app/src/main/ 下，strings.xml 在 app/src/main/res/values/ 下。
+      if (iconMainIndex >= 0) {
+        const sourceRoot = icon.path.slice(0, iconMainIndex + 2);
+        const match = candidates.find(file => samePath(file.path.slice(0, sourceMainIndex(file.path) + 2), sourceRoot));
+        if (match) return match;
+      }
+
+      // 兼容图标本身位于 res 子目录中的项目。
+      const iconResIndex = icon.path.reduce((found, part, index) => part === 'res' ? index : found, -1);
+      if (iconResIndex >= 0) {
+        const expected = [...icon.path.slice(0, iconResIndex + 1), 'values', 'strings.xml'];
+        return candidates.find(file => samePath(file.path, expected)) || null;
+      }
+      return null;
+    }
+
+    function sourceMainIndex(path) {
+      for (let index = 0; index < path.length - 1; index += 1) {
+        if (path[index] === 'src' && path[index + 1] === 'main') return index;
+      }
+      return -1;
+    }
+
+    function parseAppName(xml) {
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      if (doc.querySelector('parsererror')) return '';
+      const node = [...doc.getElementsByTagName('string')].find(item => item.getAttribute('name') === 'app_name');
+      return node ? node.textContent.trim() : '';
+    }
+
+    function parseManifestLabel(xml) {
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      if (doc.querySelector('parsererror')) return '';
+      const application = doc.getElementsByTagName('application')[0];
+      if (!application) return '';
+      const label = application.getAttribute('android:label') || application.getAttributeNS('http://schemas.android.com/apk/res/android', 'label') || '';
+      return label && !label.startsWith('@string/') ? label.trim() : '';
+    }
+
+    function samePath(a, b) { return a.length === b.length && a.every((part, index) => part === b[index]); }
+
+    function renderResults(results) {
+      if (!results.length) {
+        resultArea.className = 'empty';
+        resultArea.textContent = `没有找到 Play Store 图标（${ICON_NAMES.join(' 或 ')}）`;
+        return;
+      }
+      resultArea.className = '';
+      resultArea.innerHTML = `<div class="table-wrap"><table><thead><tr><th>图片</th><th>App 名称</th><th>图标路径</th><th>strings.xml</th><th>状态</th></tr></thead><tbody>${results.map(result => `<tr><td>${result.iconUrl ? `<img class="preview" src="${escapeHtml(result.iconUrl)}" alt="${escapeHtml(result.appName)} 图标">` : '—'}</td><td class="app-name">${escapeHtml(result.appName)}</td><td class="path">${escapeHtml(result.iconPath)}</td><td class="path">${escapeHtml(result.stringsPath || '—')}</td><td><span class="badge${result.ok ? '' : ' warn'}">${escapeHtml(result.message)}</span></td></tr>`).join('')}</tbody></table></div>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+    }
+  </script>
+</body>
+</html>
