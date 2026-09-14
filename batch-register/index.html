@@ -17,7 +17,7 @@
       <a class="back-link" href="../index.html" aria-label="返回工具首页">← 工具首页</a>
       <div class="eyebrow"><span></span> BATCH REGISTRATION</div>
       <h1>账号批量注册台</h1>
-      <p>按序生成账号，完成注册初始化，或进入云巢批量领取页面。</p>
+      <p>按序处理账号，可选择注册和领取礼包，也可以跳过注册直接登录。</p>
       <p><a class="back-link" href="claim.html">→ 云巢批量领取</a></p>
       <p><a class="back-link" href="vip.html">→ VIP 批量开通</a></p>
       <p><a class="back-link" href="trap.html">→ 批量下诱 / 捕获</a></p>
@@ -72,6 +72,13 @@
             </label>
           </div>
 
+          <div class="choice-list" aria-label="选择执行步骤">
+            <label class="choice"><input type="checkbox" name="task" value="register" checked>注册账号并初始化</label>
+            <label class="choice"><input type="checkbox" name="task" value="再见小鸟" checked>领取再见小鸟</label>
+            <label class="choice"><input type="checkbox" name="task" value="VIP8888" checked>领取 VIP8888</label>
+            <label class="choice"><input type="checkbox" name="task" value="VIP2345" checked>领取 VIP2345</label>
+          </div>
+
           <div class="gift-strip" aria-label="自动兑换礼包">
             <span class="gift-label">自动兑换</span>
             <span>再见小鸟</span><b>·</b><span>VIP8888</span><b>·</b><span>VIP2345</span>
@@ -80,7 +87,7 @@
           <div class="form-actions">
             <button id="startButton" class="button button-primary" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>
-              开始批量注册
+              开始批量执行
             </button>
             <button id="stopButton" class="button button-danger" type="button" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>

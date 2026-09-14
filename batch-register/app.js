@@ -32,6 +32,8 @@ let runController = null;
 let startedAt = 0;
 let timerId = null;
 let toastId = null;
+let registerEnabled = true;
+let selectedRedeems = [...REDEEM_CODES];
 
 function updatePreview() {
   const prefix = prefixInput.value.trim() || 'account';
@@ -59,7 +61,7 @@ function makeStage() {
 }
 
 function createAccount(username, index) {
-  return {
+  const account = {
     index,
     username,
     uid: '',
@@ -73,6 +75,12 @@ function createAccount(username, index) {
     result: 'pending',
     finished: false,
   };
+  if (!registerEnabled) {
+    setStage(account.register, 'pending', '未选择');
+    setStage(account.save, 'pending', '未选择');
+  }
+  REDEEM_CODES.filter(code => !selectedRedeems.includes(code)).forEach(code => setStage(account.redeems[code], 'pending', '未选择'));
+  return account;
 }
 
 function stageMarkup(stage) {
@@ -131,12 +139,12 @@ function setStage(stage, state, text, detail = '') {
 }
 
 function setFlowFromSteps(account) {
-  const steps = [account.register, account.login, account.save];
+  const steps = [account.login, ...(registerEnabled ? [account.register, account.save] : [])];
   const failed = steps.find(step => step.state === 'error');
   const running = steps.find(step => step.state === 'running');
   if (failed) setStage(account.flow, 'error', failed.text, failed.detail);
   else if (running) setStage(account.flow, 'running', running.text, running.detail);
-  else if (steps.every(step => step.state === 'success')) setStage(account.flow, 'success', '注册并初始化成功');
+  else if (steps.every(step => step.state === 'success')) setStage(account.flow, 'success', registerEnabled ? '注册并初始化成功' : '登录成功');
   else setStage(account.flow, 'pending', '等待');
 }
 
@@ -152,6 +160,7 @@ function setRunningUi(running) {
   passwordInput.disabled = running;
   concurrencyInput.disabled = running;
   accessCodeInput.disabled = running;
+  document.querySelectorAll('input[name="task"]').forEach(input => { input.disabled = running; });
   runStatus.textContent = running ? '正在执行' : accounts.length ? '任务结束' : '等待开始';
 }
 
@@ -234,7 +243,7 @@ async function processAccount(account, password, signal) {
   account.finished = false;
   account.result = 'running';
   try {
-    if (account.register.state !== 'success') {
+    if (registerEnabled && account.register.state !== 'success') {
       setStage(account.register, 'running', '正在注册');
       setFlowFromSteps(account); renderAccount(account);
       const registered = await apiRequest('/register', { username: account.username, password }, signal);
@@ -251,7 +260,7 @@ async function processAccount(account, password, signal) {
       setStage(account.login, 'success', '登录成功', loggedIn.msg || '登录成功');
     }
 
-    if (account.save.state !== 'success') {
+    if (registerEnabled && account.save.state !== 'success') {
       setStage(account.save, 'running', '正在初始化');
       setFlowFromSteps(account); renderAccount(account);
       const saved = await apiRequest('/save', {
@@ -273,7 +282,7 @@ async function processAccount(account, password, signal) {
     return;
   }
 
-  for (const code of REDEEM_CODES) {
+  for (const code of selectedRedeems) {
     if (signal.aborted) break;
     const stage = account.redeems[code];
     if (stage.state === 'success') continue;
@@ -289,7 +298,7 @@ async function processAccount(account, password, signal) {
   }
 
   account.finished = true;
-  account.result = REDEEM_CODES.every(code => account.redeems[code].state === 'success') ? 'success' : signal.aborted ? 'stopped' : 'error';
+  account.result = selectedRedeems.every(code => account.redeems[code].state === 'success') && (!registerEnabled || [account.register, account.save].every(step => step.state === 'success')) ? 'success' : signal.aborted ? 'stopped' : 'error';
   renderAccount(account);
 }
 
@@ -331,9 +340,11 @@ form.addEventListener('submit', event => {
   if (isRunning || !form.reportValidity()) return;
   const prefix = prefixInput.value.trim();
   const count = Number(countInput.value);
+  registerEnabled = document.querySelector('input[name="task"][value="register"]').checked;
+  selectedRedeems = REDEEM_CODES.filter(code => document.querySelector(`input[name="task"][value="${code}"]`).checked);
   if (!hasValidAccessCode()) return;
   if (!prefix) return showToast('请输入用户名开头');
-  if (!Number.isInteger(count) || count < 1 || count > 500) return showToast('注册数量需要在 1 到 500 之间');
+  if (!Number.isInteger(count) || count < 1 || count > 500) return showToast('账号数量需要在 1 到 500 之间');
   if (!VISIBLE_ASCII_PATTERN.test(prefix)) return showToast('用户名开头只能包含数字、英文字母和符号，不能包含中文或空格');
   if (!VISIBLE_ASCII_PATTERN.test(passwordInput.value) || passwordInput.value.length < 6 || passwordInput.value.length > 32) {
     return showToast('密码必须是 6–32 位数字、英文字母或符号，不能包含中文或空格');
@@ -362,10 +373,10 @@ retryButton.addEventListener('click', () => {
   targets.forEach(account => {
     account.finished = false;
     account.result = 'pending';
-    [account.register, account.login, account.save].forEach(stage => {
+    (registerEnabled ? [account.register, account.login, account.save] : [account.login]).forEach(stage => {
       if (stage.state === 'error') setStage(stage, 'pending', '等待重试');
     });
-    REDEEM_CODES.forEach(code => {
+    selectedRedeems.forEach(code => {
       if (account.redeems[code].state !== 'success') setStage(account.redeems[code], 'pending', '等待重试');
     });
     setFlowFromSteps(account);
