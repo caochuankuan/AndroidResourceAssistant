@@ -351,6 +351,20 @@
       catch (error) { logError(error); }
     }
 
+    async function readStreamText(stream) {
+      if (!stream?.getReader) return '';
+      const reader = stream.getReader(); const decoder = new TextDecoder(); let output = '';
+      try {
+        while (true) {
+          const part = await reader.read();
+          if (part.done) break;
+          output += decoder.decode(part.value, { stream: true });
+        }
+        output += decoder.decode();
+      } finally { reader.releaseLock?.(); }
+      return output;
+    }
+
     async function startScreen() {
       if (!adb || scrcpyClient) return;
       if (location.protocol === 'file:') { screenStatus.textContent = '投屏需要通过 localhost 或 HTTPS 打开'; log('投屏停止：当前是 file://，无法读取同目录 scrcpy server'); return; }
@@ -378,7 +392,15 @@
         log(`投屏已启动：${video.metadata.codec}`);
         void video.stream.pipeTo(screenDecoder.writable).catch(error => { logError(error); screenStatus.textContent = `投屏中断：${error.message}`; });
         screenButton.textContent = '停止投屏'; screenButton.disabled = false; screenButton.onclick = stopScreen;
-      } catch (error) { scrcpyClient = undefined; logError(error); screenStatus.textContent = `投屏失败：${error.message}`; screenButton.disabled = false; }
+      } catch (error) {
+        const serverOutput = Array.isArray(error?.output) ? error.output.join('') : await readStreamText(scrcpyClient?.output);
+        if (serverOutput.trim()) log(`scrcpy server 输出：\n${serverOutput.trim()}`);
+        try { await scrcpyClient?.close?.(); } catch (closeError) { logError(closeError); }
+        scrcpyClient = undefined;
+        logError(error);
+        screenStatus.textContent = `投屏失败：${error.message}`;
+        screenButton.disabled = false;
+      }
     }
 
     async function stopScreen() {
