@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>本地数据文件浏览</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#6f7b91; --line:#e6eaf0; --brand:#0f9f92; --soft:#effcf9; --danger:#b42318; }
+    * { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    body { margin:0; min-height:100vh; background:#f6f8fc; color:var(--ink); font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(1180px, calc(100% - 32px)); margin:0 auto; padding:52px 0 72px; }
+    .hero { margin-bottom:26px; }
+    .back { color:var(--brand); text-decoration:none; font-weight:700; }
+    h1 { margin:18px 0 8px; font-size:clamp(28px, 5vw, 44px); line-height:1.1; letter-spacing:-.04em; }
+    .intro { max-width:760px; margin:0; color:var(--muted); font-size:16px; }
+    .panel { overflow:hidden; border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 12px 40px rgba(25,42,80,.07); }
+    .toolbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:22px; border-bottom:1px solid var(--line); }
+    .format-tabs { display:flex; gap:6px; width:100%; }
+    .format-tab { padding:8px 15px; color:var(--muted); background:#f1f4f8; box-shadow:none; }
+    .format-tab.active { color:#fff; background:var(--brand); }
+    input[type=file], input[type=text], select { max-width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); background:#fff; font:inherit; }
+    input[type=file] { flex:1 1 280px; }
+    input[type=text] { flex:1 1 340px; }
+    button { border:0; border-radius:10px; padding:11px 17px; color:#fff; background:var(--brand); cursor:pointer; font:inherit; font-weight:700; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .status { width:100%; color:var(--muted); }
+    .tip { padding:14px 22px; color:var(--muted); background:var(--soft); font-size:13px; }
+    .workspace { display:grid; grid-template-columns:220px 1fr; min-height:300px; }
+    .tables { padding:18px; border-right:1px solid var(--line); }
+    .tables h2 { margin:0 0 10px; font-size:14px; }
+    .table-list { display:flex; flex-direction:column; gap:6px; }
+    .table-button { width:100%; padding:8px 10px; color:var(--ink); background:#f7f8fb; text-align:left; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .table-button.active { color:#fff; background:var(--brand); }
+    .results { min-width:0; }
+    .querybar { display:flex; gap:10px; padding:18px; border-bottom:1px solid var(--line); }
+    .table-wrap { overflow:auto; }
+    table { width:100%; border-collapse:collapse; min-width:600px; }
+    th, td { padding:12px 16px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; white-space:pre-wrap; }
+    th { position:sticky; top:0; color:var(--muted); background:#fafbfe; font-size:12px; }
+    .empty { padding:58px 24px; color:var(--muted); text-align:center; }
+    .error { color:var(--danger); }
+    .datastore-workspace { min-height:300px; }
+    .datastore-meta { margin:0 auto; max-width:760px; padding:30px 24px; text-align:left; }
+    .datastore-meta h2 { margin:0 0 8px; font-size:20px; }
+    .datastore-meta p { margin:8px 0; color:var(--muted); }
+    .hex { margin-top:18px; padding:16px; overflow:auto; border-radius:10px; color:#d1fae5; background:#172033; font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-all; }
+    .text-preview { margin:0; padding:24px; overflow:auto; color:var(--ink); background:#fbfcff; font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; }
+    code { padding:2px 5px; border-radius:5px; background:#f1f3f7; }
+    @media (max-width:700px) { main { width:min(100% - 20px, 1180px); padding-top:30px; } .workspace { grid-template-columns:1fr; } .tables { border-right:0; border-bottom:1px solid var(--line); } .querybar { flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <a class="back" href="../index.html">← 返回工具首页</a>
+      <h1>本地数据文件浏览</h1>
+      <p class="intro">选择常见的 Android 数据文件，在浏览器本地尝试读取。文件不会上传到服务器。</p>
+    </section>
+
+    <section class="panel" aria-live="polite">
+      <div class="toolbar">
+        <div class="format-tabs" role="tablist" aria-label="文件类型">
+          <button class="format-tab active" type="button" data-format="sqlite" role="tab" aria-selected="true">SQLite</button>
+          <button class="format-tab" type="button" data-format="datastore" role="tab" aria-selected="false">DataStore</button>
+          <button class="format-tab" type="button" data-format="shared-preferences" role="tab" aria-selected="false">SharedPreferences</button>
+          <button class="format-tab" type="button" data-format="generic" role="tab" aria-selected="false">JSON / 文本 / XML</button>
+        </div>
+        <input id="fileInput" type="file" accept=".db,.sqlite,.sqlite3,application/vnd.sqlite3">
+        <div id="status" class="status">尚未选择数据库</div>
+      </div>
+      <div id="tip" class="tip">首次使用需要加载 SQLite 浏览器引擎，请保持网络连接。查询仅允许执行单条 <code>SELECT</code> 语句。</div>
+      <div id="sqliteWorkspace" class="workspace">
+        <aside class="tables">
+          <h2>数据表</h2>
+          <div id="tableList" class="table-list"><div class="empty">选择数据库后显示</div></div>
+        </aside>
+        <section class="results">
+          <div class="querybar">
+            <input id="queryInput" type="text" placeholder="输入 SQL，例如 SELECT * FROM users LIMIT 100" disabled>
+            <button id="queryButton" type="button" disabled>执行查询</button>
+          </div>
+          <div id="resultArea" class="empty">数据结果会显示在这里</div>
+        </section>
+      </div>
+      <div id="datastoreWorkspace" class="datastore-workspace" hidden>
+        <div id="datastoreResult" class="empty">选择 DataStore 文件后显示读取结果</div>
+      </div>
+      <div id="sharedPreferencesWorkspace" class="datastore-workspace" hidden>
+        <div id="sharedPreferencesResult" class="empty">选择 SharedPreferences XML 文件后显示读取结果</div>
+      </div>
+      <div id="genericWorkspace" class="datastore-workspace" hidden>
+        <div id="genericResult" class="empty">选择 JSON、文本或 XML 文件后显示读取结果</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <script>
+    const fileInput = document.querySelector('#fileInput');
+    const status = document.querySelector('#status');
+    const tableList = document.querySelector('#tableList');
+    const queryInput = document.querySelector('#queryInput');
+    const queryButton = document.querySelector('#queryButton');
+    const resultArea = document.querySelector('#resultArea');
+    const sqliteWorkspace = document.querySelector('#sqliteWorkspace');
+    const datastoreWorkspace = document.querySelector('#datastoreWorkspace');
+    const datastoreResult = document.querySelector('#datastoreResult');
+    const sharedPreferencesWorkspace = document.querySelector('#sharedPreferencesWorkspace');
+    const sharedPreferencesResult = document.querySelector('#sharedPreferencesResult');
+    const genericWorkspace = document.querySelector('#genericWorkspace');
+    const genericResult = document.querySelector('#genericResult');
+    const tip = document.querySelector('#tip');
+    const formatTabs = document.querySelectorAll('.format-tab');
+    let db;
+    let currentFormat = 'sqlite';
+
+    fileInput.addEventListener('change', loadDatabase);
+    queryButton.addEventListener('click', runQuery);
+    queryInput.addEventListener('keydown', event => { if (event.key === 'Enter') runQuery(); });
+    formatTabs.forEach(tab => tab.addEventListener('click', () => switchFormat(tab.dataset.format)));
+
+    function switchFormat(format) {
+      currentFormat = format;
+      formatTabs.forEach(tab => {
+        const active = tab.dataset.format === format;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active);
+      });
+      fileInput.value = '';
+      fileInput.accept = format === 'sqlite' ? '.db,.sqlite,.sqlite3,application/vnd.sqlite3' : format === 'shared-preferences' ? '.xml,text/xml,application/xml' : format === 'generic' ? '.json,.txt,.xml,text/*,application/json,application/xml' : '*/*';
+      sqliteWorkspace.hidden = format !== 'sqlite';
+      datastoreWorkspace.hidden = format !== 'datastore';
+      sharedPreferencesWorkspace.hidden = format !== 'shared-preferences';
+      genericWorkspace.hidden = format !== 'generic';
+      tip.innerHTML = format === 'sqlite'
+        ? '首次使用需要加载 SQLite 浏览器引擎，请保持网络连接。查询仅允许执行单条 <code>SELECT</code> 语句。'
+        : format === 'datastore'
+          ? 'DataStore 通常是 protobuf 二进制文件；本工具会先尝试按文本读取，无法识别时显示文件信息和十六进制预览。'
+          : format === 'shared-preferences'
+            ? 'SharedPreferences 是 XML 文件，本工具会读取其中的 string、boolean、int、long、float 和 set 配置项。'
+            : '根据文件扩展名和内容尝试识别 JSON、XML 或普通文本，并在浏览器本地展示。';
+      status.textContent = format === 'sqlite' ? '尚未选择数据库' : format === 'datastore' ? '尚未选择 DataStore 文件' : format === 'shared-preferences' ? '尚未选择 SharedPreferences 文件' : '尚未选择文件';
+      if (format === 'sqlite') {
+        db = undefined;
+        queryInput.disabled = true;
+        queryButton.disabled = true;
+        datastoreResult.className = 'empty';
+        datastoreResult.textContent = '选择 DataStore 文件后显示读取结果';
+        sharedPreferencesResult.className = 'empty';
+        sharedPreferencesResult.textContent = '选择 SharedPreferences XML 文件后显示读取结果';
+        genericResult.className = 'empty';
+        genericResult.textContent = '选择 JSON、文本或 XML 文件后显示读取结果';
+      } else {
+        tableList.innerHTML = '<div class="empty">选择 SQLite 数据库后显示</div>';
+        resultArea.className = 'empty';
+        resultArea.textContent = '数据结果会显示在这里';
+        sharedPreferencesResult.className = 'empty';
+        sharedPreferencesResult.textContent = '选择 SharedPreferences XML 文件后显示读取结果';
+        genericResult.className = 'empty';
+        genericResult.textContent = '选择 JSON、文本或 XML 文件后显示读取结果';
+      }
+    }
+
+    async function loadDatabase() {
+      const file = fileInput.files[0];
+      if (!file) return;
+      if (currentFormat === 'datastore') return readDataStore(file);
+      if (currentFormat === 'shared-preferences') return readSharedPreferences(file);
+      if (currentFormat === 'generic') return readGenericFile(file);
+      status.textContent = `正在读取：${file.name}`;
+      tableList.innerHTML = '<div class="empty">正在加载…</div>';
+      resultArea.className = 'empty';
+      resultArea.textContent = '正在加载数据库…';
+      try {
+        const SQL = await initSqlJs({ locateFile: name => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${name}` });
+        db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
+        const tables = db.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")[0]?.values || [];
+        tableList.innerHTML = '';
+        if (!tables.length) tableList.innerHTML = '<div class="empty">没有找到数据表</div>';
+        tables.forEach(([name]) => {
+          const button = document.createElement('button');
+          button.className = 'table-button'; button.type = 'button'; button.textContent = name; button.title = name;
+          button.addEventListener('click', () => showTable(name, button));
+          tableList.append(button);
+        });
+        queryInput.disabled = false; queryButton.disabled = false;
+        status.innerHTML = `<strong>${escapeHtml(file.name)}</strong> · ${tables.length} 个数据表`;
+        if (tables[0]) showTable(tables[0][0], tableList.firstElementChild);
+        else resultArea.textContent = '数据库中没有可显示的数据表';
+      } catch (error) { showError(`无法读取数据库：${error.message}`); }
+    }
+
+    async function readDataStore(file) {
+      status.textContent = `正在读取：${file.name}`;
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const text = new TextDecoder().decode(bytes).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+        const printable = text.replace(/[\uFFFD]/g, '').trim();
+        const readableCount = [...printable].filter(char => char >= ' ' || '\n\r\t'.includes(char)).length;
+        const looksReadable = printable.length > 0 && readableCount / printable.length > 0.85;
+        const preview = Array.from(bytes.slice(0, 256), byte => byte.toString(16).padStart(2, '0')).join(' ');
+        datastoreResult.className = 'datastore-meta';
+        datastoreResult.innerHTML = `<h2>${escapeHtml(file.name)}</h2><p>文件大小：${bytes.byteLength.toLocaleString()} 字节</p><p>${looksReadable ? '已尝试按文本读取，以下是内容预览：' : '这是二进制 DataStore 文件，当前无法在没有 schema 的情况下直接解析。'}</p>${looksReadable ? `<div class="hex">${escapeHtml(printable.slice(0, 4000))}</div>` : `<div class="hex">${preview || '空文件'}</div>`}`;
+        status.textContent = looksReadable ? 'DataStore 文本读取完成' : 'DataStore 无法直接解析';
+      } catch (error) { datastoreResult.className = 'empty error'; datastoreResult.textContent = `无法读取 DataStore：${error.message}`; }
+    }
+
+    async function readSharedPreferences(file) {
+      status.textContent = `正在读取：${file.name}`;
+      try {
+        const xml = await file.text();
+        const document = new DOMParser().parseFromString(xml, 'application/xml');
+        if (document.querySelector('parsererror') || document.documentElement.nodeName !== 'map') throw new Error('不是有效的 SharedPreferences XML 文件');
+        const rows = [...document.documentElement.children].map(item => {
+          const name = item.getAttribute('name') || '';
+          const type = item.tagName;
+          const value = type === 'set' ? [...item.children].map(child => child.textContent).join(', ') : item.getAttribute('value') ?? item.textContent ?? '';
+          return `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(type)}</td><td>${escapeHtml(value)}</td></tr>`;
+        });
+        sharedPreferencesResult.className = 'table-wrap';
+        sharedPreferencesResult.innerHTML = rows.length ? `<table><thead><tr><th>Key</th><th>类型</th><th>Value</th></tr></thead><tbody>${rows.join('')}</tbody></table>` : '<div class="empty">没有找到配置项</div>';
+        status.textContent = `${file.name} · ${rows.length} 个配置项`;
+      } catch (error) { sharedPreferencesResult.className = 'empty error'; sharedPreferencesResult.textContent = `无法读取 SharedPreferences：${error.message}`; }
+    }
+
+    async function readGenericFile(file) {
+      status.textContent = `正在读取：${file.name}`;
+      try {
+        const text = await file.text();
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        let format = '文本';
+        let content = text;
+        if (extension === 'json' || /^\s*[\[{]/.test(text)) {
+          try { content = JSON.stringify(JSON.parse(text), null, 2); format = 'JSON'; }
+          catch (error) { format = '文本（JSON 解析失败）'; }
+        } else if (extension === 'xml' || /^\s*<\?xml|^\s*</.test(text)) {
+          const document = new DOMParser().parseFromString(text, 'application/xml');
+          if (document.querySelector('parsererror')) throw new Error('XML 格式无效');
+          content = new XMLSerializer().serializeToString(document);
+          format = 'XML';
+        }
+        genericResult.className = 'text-preview';
+        genericResult.textContent = content || '文件为空';
+        status.textContent = `${file.name} · ${format} · ${file.size.toLocaleString()} 字节`;
+      } catch (error) { genericResult.className = 'empty error'; genericResult.textContent = `无法读取文件：${error.message}`; }
+    }
+
+    function showTable(name, button) {
+      document.querySelectorAll('.table-button').forEach(item => item.classList.remove('active'));
+      button?.classList.add('active');
+      queryInput.value = `SELECT * FROM "${name.replaceAll('"', '""')}" LIMIT 100`;
+      runQuery();
+    }
+
+    function runQuery() {
+      if (!db) return;
+      const sql = queryInput.value.trim();
+      if (!/^select\b/i.test(sql) || /;\s*\S/.test(sql)) return showError('为了避免修改上传文件，只允许执行单条 SELECT 查询。');
+      try {
+        const results = db.exec(sql);
+        renderResults(results[0]);
+      } catch (error) { showError(`查询失败：${error.message}`); }
+    }
+
+    function renderResults(result) {
+      if (!result || !result.values.length) { resultArea.className = 'empty'; resultArea.textContent = '查询没有返回数据'; return; }
+      const table = document.createElement('table');
+      table.innerHTML = `<thead><tr>${result.columns.map(column => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>`;
+      const body = document.createElement('tbody');
+      result.values.forEach(row => { const tr = document.createElement('tr'); row.forEach(value => { const td = document.createElement('td'); td.textContent = value == null ? 'NULL' : String(value); tr.append(td); }); body.append(tr); });
+      table.append(body); resultArea.className = 'table-wrap'; resultArea.replaceChildren(table);
+    }
+
+    function showError(message) { resultArea.className = 'empty error'; resultArea.textContent = message; }
+    function escapeHtml(value) { const div = document.createElement('div'); div.textContent = value; return div.innerHTML; }
+  </script>
+</body>
+</html>
