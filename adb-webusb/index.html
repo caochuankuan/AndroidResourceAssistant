@@ -46,7 +46,7 @@
     .terminal-input { display:flex; gap:10px; margin-top:12px; }
     .terminal-screen { min-height:420px; padding:12px; overflow:hidden; border-radius:10px; background:#111827; }
     .screen-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-    .screen-output { min-height:420px; display:grid; place-items:center; overflow:hidden; border-radius:10px; background:#111827; color:#94a3b8; }
+    .screen-output { min-height:420px; display:grid; place-items:center; overflow:hidden; border-radius:10px; background:#111827; color:#94a3b8; touch-action:none; }
     .screen-output canvas { display:block; max-width:100%; max-height:760px; }
     .terminal-size { display:flex; align-items:center; gap:10px; margin-bottom:10px; color:var(--muted); font-size:13px; }
     .terminal-size input { flex:0 1 220px; padding:0; accent-color:var(--brand); }
@@ -140,6 +140,9 @@
     let fitAddon;
     let scrcpyClient;
     let screenDecoder;
+    let screenVideoWidth = 0;
+    let screenVideoHeight = 0;
+    let screenControl;
 
     tabs.forEach(tab => tab.addEventListener('click', async () => {
       const view = tab.dataset.view;
@@ -351,18 +354,81 @@
       catch (error) { logError(error); }
     }
 
-    async function readStreamText(stream) {
-      if (!stream?.getReader) return '';
-      const reader = stream.getReader(); const decoder = new TextDecoder(); let output = '';
-      try {
-        while (true) {
-          const part = await reader.read();
-          if (part.done) break;
-          output += decoder.decode(part.value, { stream: true });
-        }
-        output += decoder.decode();
-      } finally { reader.releaseLock?.(); }
-      return output;
+    function consumeScrcpyOutput(client) {
+      if (!client?.output?.pipeTo) return;
+      void client.output.pipeTo(new WritableStream({
+        write(chunk) {
+          const text = typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
+          if (text.trim()) log(`scrcpy server：${text.trim()}`);
+        },
+      })).catch(error => logError(error));
+    }
+
+    function androidButtons(buttons) {
+      if (!screenControl) return 0;
+      let value = 0;
+      if (buttons & 1) value |= screenControl.AndroidMotionEventButton.Primary;
+      if (buttons & 2) value |= screenControl.AndroidMotionEventButton.Secondary;
+      if (buttons & 4) value |= screenControl.AndroidMotionEventButton.Tertiary;
+      return value;
+    }
+
+    function screenPointerEvent(event) {
+      if (event.type !== 'pointermove') log(`收到网页手势：${event.type}`);
+      event.preventDefault();
+      event.stopPropagation();
+      const target = event.currentTarget;
+      const canvas = screenOutput.querySelector('canvas');
+      if (!canvas) return;
+      const videoWidth = screenVideoWidth || canvas.width;
+      const videoHeight = screenVideoHeight || canvas.height;
+      if (!screenControl || !scrcpyClient?.controller || !videoWidth || !videoHeight) {
+        if (event.type !== 'pointermove') log(`手势未发送：control=${Boolean(screenControl)} controller=${Boolean(scrcpyClient?.controller)} size=${videoWidth}×${videoHeight}`);
+        return;
+      }
+      if (event.type === 'pointerdown') { target.setPointerCapture(event.pointerId); canvas.focus(); }
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+      const action = event.type === 'pointerdown'
+        ? screenControl.AndroidMotionEventAction.Down
+        : event.type === 'pointerup'
+          ? screenControl.AndroidMotionEventAction.Up
+          : event.type === 'pointercancel'
+            ? screenControl.AndroidMotionEventAction.Cancel
+          : screenControl.AndroidMotionEventAction.Move;
+      void scrcpyClient.controller.injectTouch({
+        action,
+        pointerId: BigInt(event.pointerId),
+        pointerX: x * videoWidth,
+        pointerY: y * videoHeight,
+        videoWidth,
+        videoHeight,
+        pressure: event.buttons ? 1 : 0,
+        actionButton: event.button === 0 ? screenControl.AndroidMotionEventButton.Primary : screenControl.AndroidMotionEventButton.None,
+        buttons: androidButtons(event.buttons),
+      }).then(() => {
+        if (event.type !== 'pointermove') log(`已发送触摸事件：${event.type}`);
+      }).catch(error => logError(error));
+    }
+
+    function screenKeyEvent(event) {
+      if (!screenControl || !scrcpyClient?.controller) return;
+      const keyCode = screenControl.AndroidKeyCode[event.code];
+      if (keyCode === undefined) return;
+      event.preventDefault();
+      event.stopPropagation();
+      let metaState = screenControl.AndroidKeyEventMeta.None;
+      if (event.shiftKey) metaState |= screenControl.AndroidKeyEventMeta.Shift;
+      if (event.ctrlKey) metaState |= screenControl.AndroidKeyEventMeta.Ctrl;
+      if (event.altKey) metaState |= screenControl.AndroidKeyEventMeta.Alt;
+      if (event.metaKey) metaState |= screenControl.AndroidKeyEventMeta.Meta;
+      void scrcpyClient.controller.injectKeyCode({
+        action: event.type === 'keydown' ? screenControl.AndroidKeyEventAction.Down : screenControl.AndroidKeyEventAction.Up,
+        keyCode,
+        repeat: event.repeat ? 1 : 0,
+        metaState,
+      }).then(() => log(`已发送按键事件：${event.code}`)).catch(error => logError(error));
     }
 
     async function startScreen() {
@@ -373,27 +439,71 @@
       screenStatus.textContent = '正在加载投屏组件…';
       log('开始初始化 scrcpy 投屏');
       try {
-        const [{ AdbScrcpyClient, AdbScrcpyOptions2_1 }, { WebCodecsVideoDecoder }] = await Promise.all([
-          import('./vendor/adb-scrcpy.js'),
-          import('./vendor/scrcpy-decoder-webcodecs.js'),
-        ]);
-        if (!AdbScrcpyOptions2_1) throw new Error('当前 scrcpy 库未提供 2.1 选项');
+        const loadModule = async (path, label) => {
+          log(`加载本地模块：${label}`);
+          const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} 加载超时`)), 15000));
+          const module = await Promise.race([import(path), timeout]);
+          log(`本地模块已加载：${label}`);
+          return module;
+        };
+        const { AdbScrcpyClient, AdbScrcpyOptions3_3_3 } = await loadModule('./vendor/adb-scrcpy.js?v=2.3.2', 'adb-scrcpy');
+        screenControl = await loadModule('./vendor/scrcpy.js?v=2.3.2', 'scrcpy control');
+        const { WebCodecsVideoDecoder } = await loadModule('./vendor/scrcpy-decoder-webcodecs.js?v=2.5.3', 'scrcpy decoder');
+        if (!AdbScrcpyOptions3_3_3) throw new Error('当前 scrcpy 库未提供 3.3.3 选项');
         const serverPath = '/data/local/tmp/scrcpy-server.jar';
         screenStatus.textContent = '正在下载并推送 scrcpy server…';
-        const response = await fetch('./scrcpy-server-v2.1');
+        log('开始读取本地 scrcpy server');
+        const response = await fetch('./scrcpy-server-v3.3.3');
         if (!response.ok || !response.body) throw new Error(`scrcpy server 下载失败：HTTP ${response.status}`);
+        log('开始推送 scrcpy server 到设备');
         await AdbScrcpyClient.pushServer(adb, response.body, serverPath);
+        log('scrcpy server 推送完成，开始启动');
         screenStatus.textContent = '正在启动设备投屏…';
-        scrcpyClient = await AdbScrcpyClient.start(adb, serverPath, new AdbScrcpyOptions2_1({ audio: false, control: false }));
+        scrcpyClient = await AdbScrcpyClient.start(adb, serverPath, new AdbScrcpyOptions3_3_3({
+          audio: false,
+          control: true,
+          tunnelForward: true,
+        }));
+        log(`控制通道：${scrcpyClient.controller ? '已建立' : '未建立'}`);
+        consumeScrcpyOutput(scrcpyClient);
         const video = await scrcpyClient.videoStream;
-        screenDecoder = new WebCodecsVideoDecoder({ codec: video.metadata.codec });
-        screenOutput.replaceChildren(screenDecoder.renderer.canvas);
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d', { alpha: false });
+        const renderer = {
+          canvas,
+          setSize(width, height) {
+            canvas.width = width;
+            canvas.height = height;
+          },
+          async draw(frame) {
+            context.drawImage(frame, 0, 0, canvas.width, canvas.height);
+          },
+        };
+        screenVideoWidth = video.metadata.width || scrcpyClient.videoWidth || 0;
+        screenVideoHeight = video.metadata.height || scrcpyClient.videoHeight || 0;
+        screenDecoder = new WebCodecsVideoDecoder({ codec: video.metadata.codec, renderer });
+        screenDecoder.sizeChanged(({ width, height }) => {
+          screenVideoWidth = width;
+          screenVideoHeight = height;
+          renderer.canvas.style.aspectRatio = `${width} / ${height}`;
+          screenStatus.textContent = `投屏中 · ${width}×${height}`;
+        });
+        renderer.canvas.tabIndex = 0;
+        renderer.canvas.style.touchAction = 'none';
+        renderer.canvas.style.touchAction = 'none';
+        screenOutput.onpointerdown = screenPointerEvent;
+        screenOutput.onpointermove = screenPointerEvent;
+        screenOutput.onpointerup = screenPointerEvent;
+        screenOutput.onpointercancel = screenPointerEvent;
+        renderer.canvas.onkeydown = screenKeyEvent;
+        renderer.canvas.onkeyup = screenKeyEvent;
+        screenOutput.replaceChildren(renderer.canvas);
         screenStatus.textContent = `投屏中 · ${video.metadata.width || '?'}×${video.metadata.height || '?'}`;
         log(`投屏已启动：${video.metadata.codec}`);
         void video.stream.pipeTo(screenDecoder.writable).catch(error => { logError(error); screenStatus.textContent = `投屏中断：${error.message}`; });
         screenButton.textContent = '停止投屏'; screenButton.disabled = false; screenButton.onclick = stopScreen;
       } catch (error) {
-        const serverOutput = Array.isArray(error?.output) ? error.output.join('') : await readStreamText(scrcpyClient?.output);
+        const serverOutput = Array.isArray(error?.output) ? error.output.join('') : '';
         if (serverOutput.trim()) log(`scrcpy server 输出：\n${serverOutput.trim()}`);
         try { await scrcpyClient?.close?.(); } catch (closeError) { logError(closeError); }
         scrcpyClient = undefined;
@@ -407,6 +517,10 @@
       try { await scrcpyClient?.close?.(); } catch (error) { logError(error); }
       try { screenDecoder?.dispose?.(); } catch {}
       scrcpyClient = undefined; screenDecoder = undefined;
+      screenOutput.onpointerdown = null;
+      screenOutput.onpointermove = null;
+      screenOutput.onpointerup = null;
+      screenOutput.onpointercancel = null;
       screenOutput.textContent = '投屏画面会显示在这里'; screenStatus.textContent = adb ? '已停止投屏' : '连接设备后开始投屏';
       screenButton.textContent = '开始投屏'; screenButton.onclick = startScreen; screenButton.disabled = !adb;
     }
