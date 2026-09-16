@@ -24,9 +24,29 @@
     .tab.active { color:var(--brand); background:#fff; border-color:var(--line); border-bottom-color:var(--brand); }
     .view { padding:22px; }
     .toolbar { display:flex; gap:10px; margin-bottom:14px; }
+    .pathbar { display:flex; gap:8px; align-items:center; margin-bottom:14px; color:var(--muted); font-size:13px; }
+    .pathbar button { padding:7px 11px; }
+    .file-list { overflow:auto; border:1px solid var(--line); border-radius:10px; }
+    .file-row { display:grid; grid-template-columns:minmax(0,1fr) 120px 180px 80px 120px; gap:12px; align-items:center; padding:11px 14px; border-bottom:1px solid var(--line); }
+    .file-row:last-child { border-bottom:0; }
+    .file-row.header { color:var(--muted); background:#fafbfe; font-size:12px; font-weight:700; }
+    .file-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .file-link { padding:0; overflow:hidden; color:var(--brand); background:none; text-align:left; text-overflow:ellipsis; white-space:nowrap; }
+    .file-link:hover { text-decoration:underline; }
+    .file-action { padding:5px 9px; font-size:12px; }
+    .file-actions { display:flex; gap:5px; }
+    .file-preview { padding:18px; text-align:center; }
+    .file-preview img, .file-preview iframe { max-width:100%; border:0; border-radius:8px; }
+    .file-preview img { max-height:620px; object-fit:contain; }
+    .file-preview iframe { width:100%; height:680px; }
+    .file-preview audio, .file-preview video { max-width:100%; }
     input { min-width:0; flex:1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); font:inherit; }
     pre { min-height:320px; margin:0; padding:16px; overflow:auto; border-radius:10px; color:#d1fae5; background:#172033; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; }
     .terminal-input { display:flex; gap:10px; margin-top:12px; }
+    .debug { margin-top:18px; border-top:1px solid var(--line); padding-top:16px; }
+    .debug-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; color:var(--muted); font-size:13px; font-weight:700; }
+    .debug-head button { padding:5px 10px; color:var(--muted); background:#eef1f5; font-size:12px; }
+    .debug pre { min-height:100px; max-height:260px; color:#cbd5e1; background:#111827; font-size:12px; }
     .empty { min-height:320px; display:grid; place-items:center; color:var(--muted); text-align:center; }
     .error { color:var(--danger); }
     [hidden] { display:none !important; }
@@ -44,26 +64,41 @@
         <button id="disconnectButton" class="secondary" type="button" disabled>断开</button>
         <span id="status" class="status">未连接</span>
       </div>
-      <div class="notice">要求 HTTPS 或 localhost、Chrome / Edge、开启 USB 调试，并在手机上确认 USB 调试授权。连接前请关闭电脑上的 adb server、Android Studio 或 scrcpy。</div>
+      <div class="notice">要求 HTTPS 或 localhost、Chrome / Edge，并开启 USB 调试。首次连接时手机可能弹出授权提示；已经授权的设备不会重复弹窗。连接前请关闭电脑上的 adb server、Android Studio 或 scrcpy。</div>
       <div class="tabs" role="tablist" aria-label="ADB 工具">
         <button class="tab active" data-view="files" role="tab" aria-selected="true">文件浏览器</button>
         <button class="tab" data-view="terminal" role="tab" aria-selected="false">命令终端</button>
       </div>
       <section id="filesView" class="view">
         <div class="toolbar"><input id="pathInput" value="/sdcard" placeholder="设备路径，例如 /sdcard"><button id="listButton" type="button" disabled>列出文件</button></div>
-        <pre id="fileOutput" class="empty">连接设备后列出目录</pre>
+        <div class="pathbar"><button id="upButton" class="secondary" type="button" disabled>↑ 返回上级</button><span id="currentPath">/sdcard</span></div>
+        <div id="fileOutput" class="empty">连接设备后列出目录</div>
       </section>
       <section id="terminalView" class="view" hidden>
         <pre id="terminalOutput" class="empty">连接设备后执行命令</pre>
         <div class="terminal-input"><input id="commandInput" value="getprop ro.product.model" placeholder="输入 Android shell 命令"><button id="runButton" type="button" disabled>执行</button></div>
       </section>
+      <section class="view debug">
+        <div class="debug-head"><span>调试日志</span><button id="clearLogButton" type="button">清空</button></div>
+        <pre id="debugLog">等待操作…</pre>
+      </section>
     </section>
   </main>
 
+  <script>
+    window.addEventListener('error', event => {
+      const status = document.querySelector('#status');
+      if (status && event.message) { status.textContent = `页面脚本加载失败：${event.message}`; status.classList.add('error'); }
+    });
+    window.addEventListener('unhandledrejection', event => {
+      const status = document.querySelector('#status');
+      if (status && event.reason) { status.textContent = `页面模块加载失败：${event.reason.message || event.reason}`; status.classList.add('error'); }
+    });
+  </script>
   <script type="module">
-    import { Adb, AdbDaemonTransport } from 'https://esm.sh/@yume-chan/adb@2.6.4';
-    import AdbWebCredentialStore from 'https://esm.sh/@yume-chan/adb-credential-web@2.1.0';
-    import { AdbDaemonWebUsbDeviceManager } from 'https://esm.sh/@yume-chan/adb-daemon-webusb@2.3.2';
+    import { Adb, AdbDaemonTransport } from 'https://esm.sh/@yume-chan/adb@2.6.4?bundle';
+    import AdbWebCredentialStore from 'https://esm.sh/@yume-chan/adb-credential-web@2.1.0?bundle';
+    import { AdbDaemonWebUsbDeviceManager } from 'https://esm.sh/@yume-chan/adb-daemon-webusb@2.3.2?bundle';
 
     const connectButton = document.querySelector('#connectButton');
     const disconnectButton = document.querySelector('#disconnectButton');
@@ -71,12 +106,17 @@
     const pathInput = document.querySelector('#pathInput');
     const listButton = document.querySelector('#listButton');
     const fileOutput = document.querySelector('#fileOutput');
+    const upButton = document.querySelector('#upButton');
+    const currentPath = document.querySelector('#currentPath');
     const commandInput = document.querySelector('#commandInput');
     const runButton = document.querySelector('#runButton');
     const terminalOutput = document.querySelector('#terminalOutput');
+    const debugLog = document.querySelector('#debugLog');
+    const clearLogButton = document.querySelector('#clearLogButton');
     const tabs = document.querySelectorAll('.tab');
     let adb;
     let backend;
+    let previewUrl;
 
     tabs.forEach(tab => tab.addEventListener('click', () => {
       const terminal = tab.dataset.view === 'terminal';
@@ -87,28 +127,42 @@
     connectButton.addEventListener('click', connect);
     disconnectButton.addEventListener('click', disconnect);
     listButton.addEventListener('click', listFiles);
+    upButton.addEventListener('click', goUp);
     runButton.addEventListener('click', runCommand);
     commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') runCommand(); });
+    clearLogButton.addEventListener('click', () => { debugLog.textContent = '日志已清空'; });
 
     async function connect() {
       if (!AdbDaemonWebUsbDeviceManager.BROWSER) return showStatus('当前浏览器不支持 WebUSB，请使用 Chrome / Edge。', true);
       connectButton.disabled = true;
+      connectButton.textContent = '连接中…';
+      showStatus('请在浏览器弹窗中选择设备并点击“连接”…');
+      log('开始请求 WebUSB 设备');
       try {
         backend = await AdbDaemonWebUsbDeviceManager.BROWSER.requestDevice();
         if (!backend) throw new Error('未选择设备');
-        const connection = await backend.connect();
-        const credentialStore = new AdbWebCredentialStore();
-        const transport = await AdbDaemonTransport.authenticate({ serial: backend.serial, connection, credentialStore });
+        log(`已选择设备：serial=${backend.serial || '(空)'}`);
+        showStatus('设备已选择，正在打开 USB 通道…');
+        const connection = await withTimeout(backend.connect(), 15000, '打开 USB 通道超时，请关闭电脑上的 adb server、Android Studio 或 scrcpy 后重试');
+        log('USB 通道已打开');
+        const credentialStore = new AdbWebCredentialStore('AndroidResourceAssistant-WebUSB-v2');
+        showStatus('正在验证 ADB 授权并建立连接…');
+        log('开始 ADB authenticate；已授权设备通常不会弹手机提示');
+        const transport = await withTimeout(AdbDaemonTransport.authenticate({ serial: backend.serial, connection, credentialStore }), 30000, 'ADB 握手超时，请确认 adb server 已停止，并重新插拔 USB 后重试');
+        log('ADB authenticate 成功');
         adb = new Adb(transport);
         setConnected(true);
+        connectButton.textContent = '已连接';
         showStatus(`已连接：${backend.serial || 'Android 设备'}`);
+        log('ADB 设备对象已创建，开始列出 /sdcard');
         await listFiles();
-      } catch (error) { showStatus(`连接失败：${error.message}`, true); connectButton.disabled = false; }
+      } catch (error) { logError(error); showStatus(`连接失败：${error.message}`, true); connectButton.disabled = false; connectButton.textContent = '连接 Android 设备'; }
     }
 
     async function disconnect() {
       try { await adb?.transport?.close?.(); } catch {}
-      adb = undefined; backend = undefined; setConnected(false); showStatus('已断开');
+      log('已请求断开 ADB 连接');
+      adb = undefined; backend = undefined; setConnected(false); connectButton.textContent = '连接 Android 设备'; showStatus('已断开');
     }
 
     async function runShell(command) {
@@ -119,15 +173,116 @@
 
     async function listFiles() {
       if (!adb) return;
+      revokePreviewUrl();
       listButton.disabled = true;
       try {
-        const path = pathInput.value.trim() || '/sdcard';
-        const result = await runShell(`ls -la -- ${shellQuote(path)}`);
-        fileOutput.className = '';
-        fileOutput.textContent = `${result.stdout}${result.stderr ? `\n${result.stderr}` : ''}`;
-      } catch (error) { fileOutput.className = 'error'; fileOutput.textContent = error.message; }
+        const path = normalizePath(pathInput.value);
+        pathInput.value = path;
+        currentPath.textContent = path;
+        log(`读取目录：${path}`);
+        const sync = await adb.sync();
+        try {
+          const entries = await sync.readdir(path);
+          renderFiles(path, entries);
+        } finally { await sync.dispose(); }
+      } catch (error) { logError(error); fileOutput.className = 'error'; fileOutput.textContent = error.message; }
       finally { listButton.disabled = false; }
     }
+
+    function renderFiles(path, entries) {
+      const sorted = entries.sort((a, b) => {
+        const aDir = isDirectory(a); const bDir = isDirectory(b);
+        return aDir === bDir ? a.name.localeCompare(b.name) : aDir ? -1 : 1;
+      });
+      fileOutput.className = 'file-list';
+      fileOutput.innerHTML = '<div class="file-row header"><span>名称</span><span>类型</span><span>修改时间</span><span>大小</span><span></span></div>';
+      if (!sorted.length) { fileOutput.innerHTML += '<div class="empty">目录为空</div>'; return; }
+      sorted.forEach(entry => {
+        const directory = isDirectory(entry);
+        const row = document.createElement('div'); row.className = 'file-row';
+        const name = document.createElement(directory ? 'button' : 'span');
+        name.className = directory ? 'file-link' : 'file-name'; name.textContent = `${directory ? '📁 ' : '📄 '}${entry.name}`;
+        if (directory) name.addEventListener('click', () => openDirectory(joinPath(path, entry.name)));
+        const type = document.createElement('span'); type.textContent = directory ? '文件夹' : '文件';
+        const mtime = document.createElement('span'); mtime.textContent = formatTime(entry.mtime);
+        const size = document.createElement('span'); size.textContent = directory ? '—' : formatSize(entry.size);
+        row.append(name, type, mtime, size);
+        if (!directory) {
+          const actions = document.createElement('div'); actions.className = 'file-actions';
+          if (Number(entry.size) <= 1024 * 1024) {
+            const view = document.createElement('button'); view.className = 'file-action'; view.textContent = '查看';
+            view.addEventListener('click', () => previewFile(joinPath(path, entry.name), entry.name)); actions.append(view);
+          }
+          const download = document.createElement('button'); download.className = 'file-action'; download.textContent = '下载';
+          download.addEventListener('click', () => downloadFile(joinPath(path, entry.name), entry.name, download)); actions.append(download); row.append(actions);
+        }
+        fileOutput.append(row);
+      });
+    }
+
+    async function openDirectory(path) { pathInput.value = path; await listFiles(); }
+    async function goUp() {
+      const path = normalizePath(pathInput.value);
+      if (path === '/') return;
+      await openDirectory(path.slice(0, path.lastIndexOf('/')) || '/');
+    }
+
+    async function previewFile(path, name) {
+      try {
+        const bytes = await readRemoteFile(path);
+        const extension = name.split('.').pop()?.toLowerCase() || '';
+        const mime = getMimeType(extension);
+        const binaryPreview = mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('audio/') || mime.startsWith('video/');
+        fileOutput.className = binaryPreview ? 'file-preview' : 'file-list';
+        fileOutput.replaceChildren();
+        const pathbar = document.createElement('div'); pathbar.className = 'pathbar';
+        const back = document.createElement('button'); back.className = 'secondary'; back.textContent = '← 返回目录'; back.addEventListener('click', listFiles);
+        const title = document.createElement('span'); title.textContent = name; pathbar.append(back, title); fileOutput.append(pathbar);
+        if (mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('audio/') || mime.startsWith('video/')) {
+          previewUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+          const element = mime.startsWith('image/') ? document.createElement('img') : mime === 'application/pdf' ? document.createElement('iframe') : mime.startsWith('audio/') ? document.createElement('audio') : document.createElement('video');
+          element.src = previewUrl; element.controls = true; element.alt = name; fileOutput.append(element);
+        } else if (isTextFile(extension)) {
+          const pre = document.createElement('pre'); let content = new TextDecoder().decode(bytes);
+          if (extension === 'json') { try { content = JSON.stringify(JSON.parse(content), null, 2); } catch {} }
+          pre.textContent = content; fileOutput.append(pre);
+        } else {
+          const message = document.createElement('div'); message.className = 'empty'; message.textContent = '该格式不适合直接预览，请使用“下载”保存到电脑后打开。'; fileOutput.append(message);
+        }
+      } catch (error) { logError(error); fileOutput.className = 'empty error'; fileOutput.textContent = `无法读取文件：${error.message}`; }
+    }
+
+    async function downloadFile(path, name, button) {
+      button.disabled = true;
+      try {
+        log(`下载文件：${path}`);
+        const bytes = await readRemoteFile(path);
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+        const link = document.createElement('a'); link.href = url; link.download = name; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (error) { logError(error); showStatus(`下载失败：${error.message}`, true); }
+      finally { button.disabled = false; }
+    }
+
+    async function readRemoteFile(path) {
+      const sync = await adb.sync();
+      try {
+        const reader = sync.read(path).getReader(); const chunks = []; let total = 0;
+        while (true) { const part = await reader.read(); if (part.done) break; chunks.push(part.value); total += part.value.byteLength; }
+        const bytes = new Uint8Array(total); let offset = 0;
+        chunks.forEach(chunk => { bytes.set(chunk, offset); offset += chunk.byteLength; });
+        return bytes;
+      } finally { await sync.dispose(); }
+    }
+
+    function isDirectory(entry) { return String(entry.type).toLowerCase().includes('directory') || (Number(entry.mode) & 0o170000) === 0o040000; }
+    function normalizePath(path) { const value = (path || '/sdcard').trim(); return `/${value.replace(/^\/+|\/+$/g, '')}`.replace('//', '/') || '/'; }
+    function joinPath(parent, name) { return `${parent.replace(/\/$/, '')}/${name}`; }
+    function formatSize(size) { const value = Number(size); if (!Number.isFinite(value)) return String(size); if (value < 1024) return `${value} B`; if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`; return `${(value / 1024 ** 2).toFixed(1)} MB`; }
+    function formatTime(seconds) { const value = Number(seconds); return Number.isFinite(value) && value > 0 ? new Date(value * 1000).toLocaleString() : '—'; }
+    function isTextFile(extension) { return ['txt', 'log', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts', 'kt', 'java', 'properties', 'ini', 'yaml', 'yml', 'md', 'csv', 'sql', 'sh', 'conf'].includes(extension); }
+    function getMimeType(extension) { const types = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', pdf:'application/pdf', mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime' }; return types[extension] || 'application/octet-stream'; }
+    function revokePreviewUrl() { if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = undefined; } }
 
     async function runCommand() {
       if (!adb) return;
@@ -135,10 +290,11 @@
       try {
         const command = commandInput.value.trim();
         if (!command) return;
+        log(`执行终端命令：${command}`);
         const result = await runShell(command);
         terminalOutput.className = '';
         terminalOutput.textContent = `${result.stdout}${result.stderr ? `\n${result.stderr}` : ''}\n[exit ${result.exitCode}]`;
-      } catch (error) { terminalOutput.className = 'error'; terminalOutput.textContent = error.message; }
+      } catch (error) { logError(error); terminalOutput.className = 'error'; terminalOutput.textContent = error.message; }
       finally { runButton.disabled = false; }
     }
 
@@ -147,8 +303,22 @@
       disconnectButton.disabled = !connected;
       listButton.disabled = !connected;
       runButton.disabled = !connected;
+      upButton.disabled = !connected;
     }
     function showStatus(message, error = false) { status.textContent = message; status.classList.toggle('error', error); }
+    function log(message) {
+      const time = new Date().toLocaleTimeString();
+      if (debugLog.textContent === '等待操作…' || debugLog.textContent === '日志已清空') debugLog.textContent = '';
+      debugLog.textContent += `[${time}] ${message}\n`;
+      debugLog.scrollTop = debugLog.scrollHeight;
+    }
+    function logError(error) { log(`ERROR: ${error?.stack || error?.message || error}`); }
+    function escapeHtml(value) { const div = document.createElement('div'); div.textContent = value; return div.innerHTML; }
+    function withTimeout(promise, milliseconds, message) {
+      let timer;
+      const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), milliseconds); });
+      return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
+    }
     function shellQuote(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
   </script>
 </body>
