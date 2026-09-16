@@ -95,7 +95,7 @@
     </section>
   </main>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+  <script src="../vendor/sql-wasm.js"></script>
   <script>
     const fileInput = document.querySelector('#fileInput');
     const status = document.querySelector('#status');
@@ -173,7 +173,7 @@
       resultArea.className = 'empty';
       resultArea.textContent = '正在加载数据库…';
       try {
-        const SQL = await initSqlJs({ locateFile: name => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${name}` });
+        const SQL = await initSqlJs({ locateFile: name => `../vendor/${name}` });
         db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
         const tables = db.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")[0]?.values || [];
         tableList.innerHTML = '';

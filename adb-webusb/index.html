@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Android ADB WebUSB</title>
+  <link rel="stylesheet" href="./vendor/xterm.css">
   <style>
     :root { color-scheme: light; --ink:#172033; --muted:#6f7b91; --line:#e6eaf0; --brand:#16a34a; --soft:#effcf3; --danger:#b42318; }
     * { box-sizing:border-box; }
@@ -43,6 +44,12 @@
     input { min-width:0; flex:1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); font:inherit; }
     pre { min-height:320px; margin:0; padding:16px; overflow:auto; border-radius:10px; color:#d1fae5; background:#172033; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; }
     .terminal-input { display:flex; gap:10px; margin-top:12px; }
+    .terminal-screen { min-height:420px; padding:12px; overflow:hidden; border-radius:10px; background:#111827; }
+    .screen-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .screen-output { min-height:420px; display:grid; place-items:center; overflow:hidden; border-radius:10px; background:#111827; color:#94a3b8; }
+    .screen-output canvas { display:block; max-width:100%; max-height:760px; }
+    .terminal-size { display:flex; align-items:center; gap:10px; margin-bottom:10px; color:var(--muted); font-size:13px; }
+    .terminal-size input { flex:0 1 220px; padding:0; accent-color:var(--brand); }
     .debug { margin-top:18px; border-top:1px solid var(--line); padding-top:16px; }
     .debug-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; color:var(--muted); font-size:13px; font-weight:700; }
     .debug-head button { padding:5px 10px; color:var(--muted); background:#eef1f5; font-size:12px; }
@@ -68,6 +75,7 @@
       <div class="tabs" role="tablist" aria-label="ADB 工具">
         <button class="tab active" data-view="files" role="tab" aria-selected="true">文件浏览器</button>
         <button class="tab" data-view="terminal" role="tab" aria-selected="false">命令终端</button>
+        <button class="tab" data-view="screen" role="tab" aria-selected="false">投屏</button>
       </div>
       <section id="filesView" class="view">
         <div class="toolbar"><input id="pathInput" value="/sdcard" placeholder="设备路径，例如 /sdcard"><button id="listButton" type="button" disabled>列出文件</button></div>
@@ -75,8 +83,12 @@
         <div id="fileOutput" class="empty">连接设备后列出目录</div>
       </section>
       <section id="terminalView" class="view" hidden>
-        <pre id="terminalOutput" class="empty">连接设备后执行命令</pre>
-        <div class="terminal-input"><input id="commandInput" value="getprop ro.product.model" placeholder="输入 Android shell 命令"><button id="runButton" type="button" disabled>执行</button></div>
+        <div class="terminal-size"><span>终端高度</span><input id="terminalHeight" type="range" min="240" max="2000" step="10" value="420"><span id="terminalHeightValue">420px</span></div>
+        <div id="terminalOutput" class="terminal-screen"><div class="empty">连接设备后启动终端</div></div>
+      </section>
+      <section id="screenView" class="view" hidden>
+        <div class="screen-toolbar"><button id="screenButton" type="button" disabled>开始投屏</button><span id="screenStatus" class="status">连接设备后开始投屏</span></div>
+        <div id="screenOutput" class="screen-output">投屏画面会显示在这里</div>
       </section>
       <section class="view debug">
         <div class="debug-head"><span>调试日志</span><button id="clearLogButton" type="button">清空</button></div>
@@ -95,10 +107,12 @@
       if (status && event.reason) { status.textContent = `页面模块加载失败：${event.reason.message || event.reason}`; status.classList.add('error'); }
     });
   </script>
+  <script src="./vendor/xterm.js"></script>
+  <script src="./vendor/xterm-addon-fit.js"></script>
   <script type="module">
-    import { Adb, AdbDaemonTransport } from 'https://esm.sh/@yume-chan/adb@2.6.4?bundle';
-    import AdbWebCredentialStore from 'https://esm.sh/@yume-chan/adb-credential-web@2.1.0?bundle';
-    import { AdbDaemonWebUsbDeviceManager } from 'https://esm.sh/@yume-chan/adb-daemon-webusb@2.3.2?bundle';
+    import { Adb, AdbDaemonTransport } from './vendor/adb.js';
+    import AdbWebCredentialStore from './vendor/adb-credential-web.js';
+    import { AdbDaemonWebUsbDeviceManager } from './vendor/adb-daemon-webusb.js';
 
     const connectButton = document.querySelector('#connectButton');
     const disconnectButton = document.querySelector('#disconnectButton');
@@ -108,29 +122,45 @@
     const fileOutput = document.querySelector('#fileOutput');
     const upButton = document.querySelector('#upButton');
     const currentPath = document.querySelector('#currentPath');
-    const commandInput = document.querySelector('#commandInput');
-    const runButton = document.querySelector('#runButton');
     const terminalOutput = document.querySelector('#terminalOutput');
+    const terminalHeight = document.querySelector('#terminalHeight');
+    const terminalHeightValue = document.querySelector('#terminalHeightValue');
     const debugLog = document.querySelector('#debugLog');
     const clearLogButton = document.querySelector('#clearLogButton');
+    const screenButton = document.querySelector('#screenButton');
+    const screenStatus = document.querySelector('#screenStatus');
+    const screenOutput = document.querySelector('#screenOutput');
     const tabs = document.querySelectorAll('.tab');
     let adb;
     let backend;
     let previewUrl;
+    let terminal;
+    let terminalProcess;
+    let terminalWriter;
+    let fitAddon;
+    let scrcpyClient;
+    let screenDecoder;
 
-    tabs.forEach(tab => tab.addEventListener('click', () => {
-      const terminal = tab.dataset.view === 'terminal';
+    tabs.forEach(tab => tab.addEventListener('click', async () => {
+      const view = tab.dataset.view;
+      const terminal = view === 'terminal';
       tabs.forEach(item => { const active = item === tab; item.classList.toggle('active', active); item.setAttribute('aria-selected', active); });
-      document.querySelector('#filesView').hidden = terminal;
+      document.querySelector('#filesView').hidden = view !== 'files';
       document.querySelector('#terminalView').hidden = !terminal;
+      document.querySelector('#screenView').hidden = view !== 'screen';
+      if (terminal && adb) { try { await ensureTerminal(); } catch (error) { logError(error); } }
     }));
     connectButton.addEventListener('click', connect);
     disconnectButton.addEventListener('click', disconnect);
     listButton.addEventListener('click', listFiles);
     upButton.addEventListener('click', goUp);
-    runButton.addEventListener('click', runCommand);
-    commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') runCommand(); });
     clearLogButton.addEventListener('click', () => { debugLog.textContent = '日志已清空'; });
+    screenButton.onclick = startScreen;
+    terminalHeight.addEventListener('input', () => {
+      terminalHeightValue.textContent = `${terminalHeight.value}px`;
+      terminalOutput.style.height = `${terminalHeight.value}px`;
+      resizeTerminal();
+    });
 
     async function connect() {
       if (!AdbDaemonWebUsbDeviceManager.BROWSER) return showStatus('当前浏览器不支持 WebUSB，请使用 Chrome / Edge。', true);
@@ -151,7 +181,8 @@
         const transport = await withTimeout(AdbDaemonTransport.authenticate({ serial: backend.serial, connection, credentialStore }), 30000, 'ADB 握手超时，请确认 adb server 已停止，并重新插拔 USB 后重试');
         log('ADB authenticate 成功');
         adb = new Adb(transport);
-        setConnected(true);
+      setConnected(true);
+      screenButton.disabled = false;
         connectButton.textContent = '已连接';
         showStatus(`已连接：${backend.serial || 'Android 设备'}`);
         log('ADB 设备对象已创建，开始列出 /sdcard');
@@ -160,6 +191,10 @@
     }
 
     async function disconnect() {
+      await stopScreen();
+      try { await terminalWriter?.close?.(); } catch {}
+      try { await terminalProcess?.kill?.(); } catch {}
+      terminal = undefined; terminalProcess = undefined; terminalWriter = undefined;
       try { await adb?.transport?.close?.(); } catch {}
       log('已请求断开 ADB 连接');
       adb = undefined; backend = undefined; setConnected(false); connectButton.textContent = '连接 Android 设备'; showStatus('已断开');
@@ -284,26 +319,82 @@
     function getMimeType(extension) { const types = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', pdf:'application/pdf', mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime' }; return types[extension] || 'application/octet-stream'; }
     function revokePreviewUrl() { if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = undefined; } }
 
-    async function runCommand() {
-      if (!adb) return;
-      runButton.disabled = true;
+    async function ensureTerminal() {
+      if (terminalWriter) return;
+      if (!adb) throw new Error('请先连接设备');
+      if (!window.Terminal) throw new Error('终端组件加载失败，请检查网络后刷新页面');
+      terminalOutput.replaceChildren();
+      terminal = new Terminal({ convertEol: true, cursorBlink: true, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', theme: { background: '#111827', foreground: '#d1fae5' } });
+      if (!window.FitAddon?.FitAddon) throw new Error('终端尺寸组件加载失败，请检查网络后刷新页面');
+      fitAddon = new FitAddon.FitAddon();
+      terminal.loadAddon(fitAddon);
+      terminal.open(terminalOutput);
+      terminalOutput.style.height = `${terminalHeight.value}px`;
+      fitAddon.fit();
+      const service = adb.subprocess.shellProtocol;
+      terminalProcess = service ? await service.pty({ terminalType: 'xterm-256color' }) : await adb.subprocess.noneProtocol.pty();
+      terminalWriter = terminalProcess.input.getWriter();
+      log(`持久化终端已启动：${service ? 'shell protocol PTY' : 'none protocol PTY'}`);
+      terminal.onData(data => { if (terminalWriter) terminalWriter.write(new TextEncoder().encode(data)).catch(logError); });
+      readTerminalOutput(terminalProcess.output);
+    }
+
+    function resizeTerminal() {
+      if (!terminal || !fitAddon) return;
+      fitAddon.fit();
+      terminalProcess?.resize?.(terminal.rows, terminal.cols);
+    }
+
+    async function readTerminalOutput(stream) {
+      const reader = stream.getReader(); const decoder = new TextDecoder();
+      try { while (true) { const part = await reader.read(); if (part.done) break; terminal?.write(decoder.decode(part.value, { stream: true })); } }
+      catch (error) { logError(error); }
+    }
+
+    async function startScreen() {
+      if (!adb || scrcpyClient) return;
+      if (location.protocol === 'file:') { screenStatus.textContent = '投屏需要通过 localhost 或 HTTPS 打开'; log('投屏停止：当前是 file://，无法读取同目录 scrcpy server'); return; }
+      if (!window.VideoDecoder) { screenStatus.textContent = '当前浏览器不支持 WebCodecs'; return; }
+      screenButton.disabled = true;
+      screenStatus.textContent = '正在加载投屏组件…';
+      log('开始初始化 scrcpy 投屏');
       try {
-        const command = commandInput.value.trim();
-        if (!command) return;
-        log(`执行终端命令：${command}`);
-        const result = await runShell(command);
-        terminalOutput.className = '';
-        terminalOutput.textContent = `${result.stdout}${result.stderr ? `\n${result.stderr}` : ''}\n[exit ${result.exitCode}]`;
-      } catch (error) { logError(error); terminalOutput.className = 'error'; terminalOutput.textContent = error.message; }
-      finally { runButton.disabled = false; }
+        const [{ AdbScrcpyClient, AdbScrcpyOptions2_1 }, { WebCodecsVideoDecoder }] = await Promise.all([
+          import('./vendor/adb-scrcpy.js'),
+          import('./vendor/scrcpy-decoder-webcodecs.js'),
+        ]);
+        if (!AdbScrcpyOptions2_1) throw new Error('当前 scrcpy 库未提供 2.1 选项');
+        const serverPath = '/data/local/tmp/scrcpy-server.jar';
+        screenStatus.textContent = '正在下载并推送 scrcpy server…';
+        const response = await fetch('./scrcpy-server-v2.1');
+        if (!response.ok || !response.body) throw new Error(`scrcpy server 下载失败：HTTP ${response.status}`);
+        await AdbScrcpyClient.pushServer(adb, response.body, serverPath);
+        screenStatus.textContent = '正在启动设备投屏…';
+        scrcpyClient = await AdbScrcpyClient.start(adb, serverPath, new AdbScrcpyOptions2_1({ audio: false, control: false }));
+        const video = await scrcpyClient.videoStream;
+        screenDecoder = new WebCodecsVideoDecoder({ codec: video.metadata.codec });
+        screenOutput.replaceChildren(screenDecoder.renderer.canvas);
+        screenStatus.textContent = `投屏中 · ${video.metadata.width || '?'}×${video.metadata.height || '?'}`;
+        log(`投屏已启动：${video.metadata.codec}`);
+        void video.stream.pipeTo(screenDecoder.writable).catch(error => { logError(error); screenStatus.textContent = `投屏中断：${error.message}`; });
+        screenButton.textContent = '停止投屏'; screenButton.disabled = false; screenButton.onclick = stopScreen;
+      } catch (error) { scrcpyClient = undefined; logError(error); screenStatus.textContent = `投屏失败：${error.message}`; screenButton.disabled = false; }
+    }
+
+    async function stopScreen() {
+      try { await scrcpyClient?.close?.(); } catch (error) { logError(error); }
+      try { screenDecoder?.dispose?.(); } catch {}
+      scrcpyClient = undefined; screenDecoder = undefined;
+      screenOutput.textContent = '投屏画面会显示在这里'; screenStatus.textContent = adb ? '已停止投屏' : '连接设备后开始投屏';
+      screenButton.textContent = '开始投屏'; screenButton.onclick = startScreen; screenButton.disabled = !adb;
     }
 
     function setConnected(connected) {
       connectButton.disabled = connected;
       disconnectButton.disabled = !connected;
       listButton.disabled = !connected;
-      runButton.disabled = !connected;
       upButton.disabled = !connected;
+      screenButton.disabled = !connected;
     }
     function showStatus(message, error = false) { status.textContent = message; status.classList.toggle('error', error); }
     function log(message) {
