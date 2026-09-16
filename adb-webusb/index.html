@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Android ADB WebUSB</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#6f7b91; --line:#e6eaf0; --brand:#16a34a; --soft:#effcf3; --danger:#b42318; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:#f6f8fc; color:var(--ink); font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(1180px, calc(100% - 32px)); margin:0 auto; padding:52px 0 72px; }
+    .back { color:var(--brand); text-decoration:none; font-weight:700; }
+    h1 { margin:18px 0 8px; font-size:clamp(28px, 5vw, 44px); line-height:1.1; letter-spacing:-.04em; }
+    .intro { max-width:760px; margin:0; color:var(--muted); font-size:16px; }
+    .panel { overflow:hidden; border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 12px 40px rgba(25,42,80,.07); }
+    .connection { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:22px; border-bottom:1px solid var(--line); }
+    button { border:0; border-radius:10px; padding:10px 16px; color:#fff; background:var(--brand); cursor:pointer; font:inherit; font-weight:700; }
+    button.secondary { color:var(--ink); background:#eef1f5; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .status { color:var(--muted); }
+    .notice { padding:14px 22px; color:var(--muted); background:var(--soft); font-size:13px; }
+    .tabs { display:flex; gap:8px; padding:18px 22px 0; border-bottom:1px solid var(--line); }
+    .tab { margin-bottom:-1px; color:var(--muted); background:transparent; border:1px solid transparent; border-bottom:2px solid transparent; border-radius:0; }
+    .tab.active { color:var(--brand); background:#fff; border-color:var(--line); border-bottom-color:var(--brand); }
+    .view { padding:22px; }
+    .toolbar { display:flex; gap:10px; margin-bottom:14px; }
+    input { min-width:0; flex:1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); font:inherit; }
+    pre { min-height:320px; margin:0; padding:16px; overflow:auto; border-radius:10px; color:#d1fae5; background:#172033; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; }
+    .terminal-input { display:flex; gap:10px; margin-top:12px; }
+    .empty { min-height:320px; display:grid; place-items:center; color:var(--muted); text-align:center; }
+    .error { color:var(--danger); }
+    [hidden] { display:none !important; }
+    @media (max-width:600px) { main { width:min(100% - 20px, 1180px); padding-top:30px; } .toolbar, .terminal-input { flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="../index.html">← 返回工具首页</a>
+    <h1>Android ADB WebUSB</h1>
+    <p class="intro">使用 Chrome / Edge 通过 WebUSB 连接开启 USB 调试的 Android 设备。文件浏览器和命令终端相互独立。</p>
+    <section class="panel">
+      <div class="connection">
+        <button id="connectButton" type="button">连接 Android 设备</button>
+        <button id="disconnectButton" class="secondary" type="button" disabled>断开</button>
+        <span id="status" class="status">未连接</span>
+      </div>
+      <div class="notice">要求 HTTPS 或 localhost、Chrome / Edge、开启 USB 调试，并在手机上确认 USB 调试授权。连接前请关闭电脑上的 adb server、Android Studio 或 scrcpy。</div>
+      <div class="tabs" role="tablist" aria-label="ADB 工具">
+        <button class="tab active" data-view="files" role="tab" aria-selected="true">文件浏览器</button>
+        <button class="tab" data-view="terminal" role="tab" aria-selected="false">命令终端</button>
+      </div>
+      <section id="filesView" class="view">
+        <div class="toolbar"><input id="pathInput" value="/sdcard" placeholder="设备路径，例如 /sdcard"><button id="listButton" type="button" disabled>列出文件</button></div>
+        <pre id="fileOutput" class="empty">连接设备后列出目录</pre>
+      </section>
+      <section id="terminalView" class="view" hidden>
+        <pre id="terminalOutput" class="empty">连接设备后执行命令</pre>
+        <div class="terminal-input"><input id="commandInput" value="getprop ro.product.model" placeholder="输入 Android shell 命令"><button id="runButton" type="button" disabled>执行</button></div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module">
+    import { Adb, AdbDaemonTransport } from 'https://esm.sh/@yume-chan/adb@2.6.4';
+    import AdbWebCredentialStore from 'https://esm.sh/@yume-chan/adb-credential-web@2.1.0';
+    import { AdbDaemonWebUsbDeviceManager } from 'https://esm.sh/@yume-chan/adb-daemon-webusb@2.3.2';
+
+    const connectButton = document.querySelector('#connectButton');
+    const disconnectButton = document.querySelector('#disconnectButton');
+    const status = document.querySelector('#status');
+    const pathInput = document.querySelector('#pathInput');
+    const listButton = document.querySelector('#listButton');
+    const fileOutput = document.querySelector('#fileOutput');
+    const commandInput = document.querySelector('#commandInput');
+    const runButton = document.querySelector('#runButton');
+    const terminalOutput = document.querySelector('#terminalOutput');
+    const tabs = document.querySelectorAll('.tab');
+    let adb;
+    let backend;
+
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      const terminal = tab.dataset.view === 'terminal';
+      tabs.forEach(item => { const active = item === tab; item.classList.toggle('active', active); item.setAttribute('aria-selected', active); });
+      document.querySelector('#filesView').hidden = terminal;
+      document.querySelector('#terminalView').hidden = !terminal;
+    }));
+    connectButton.addEventListener('click', connect);
+    disconnectButton.addEventListener('click', disconnect);
+    listButton.addEventListener('click', listFiles);
+    runButton.addEventListener('click', runCommand);
+    commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') runCommand(); });
+
+    async function connect() {
+      if (!AdbDaemonWebUsbDeviceManager.BROWSER) return showStatus('当前浏览器不支持 WebUSB，请使用 Chrome / Edge。', true);
+      connectButton.disabled = true;
+      try {
+        backend = await AdbDaemonWebUsbDeviceManager.BROWSER.requestDevice();
+        if (!backend) throw new Error('未选择设备');
+        const connection = await backend.connect();
+        const credentialStore = new AdbWebCredentialStore();
+        const transport = await AdbDaemonTransport.authenticate({ serial: backend.serial, connection, credentialStore });
+        adb = new Adb(transport);
+        setConnected(true);
+        showStatus(`已连接：${backend.serial || 'Android 设备'}`);
+        await listFiles();
+      } catch (error) { showStatus(`连接失败：${error.message}`, true); connectButton.disabled = false; }
+    }
+
+    async function disconnect() {
+      try { await adb?.transport?.close?.(); } catch {}
+      adb = undefined; backend = undefined; setConnected(false); showStatus('已断开');
+    }
+
+    async function runShell(command) {
+      if (!adb) throw new Error('请先连接设备');
+      if (adb.subprocess.shellProtocol) return adb.subprocess.shellProtocol.spawnWaitText(command);
+      return { stdout: await adb.subprocess.noneProtocol.spawnWaitText(command), stderr: '', exitCode: 0 };
+    }
+
+    async function listFiles() {
+      if (!adb) return;
+      listButton.disabled = true;
+      try {
+        const path = pathInput.value.trim() || '/sdcard';
+        const result = await runShell(`ls -la -- ${shellQuote(path)}`);
+        fileOutput.className = '';
+        fileOutput.textContent = `${result.stdout}${result.stderr ? `\n${result.stderr}` : ''}`;
+      } catch (error) { fileOutput.className = 'error'; fileOutput.textContent = error.message; }
+      finally { listButton.disabled = false; }
+    }
+
+    async function runCommand() {
+      if (!adb) return;
+      runButton.disabled = true;
+      try {
+        const command = commandInput.value.trim();
+        if (!command) return;
+        const result = await runShell(command);
+        terminalOutput.className = '';
+        terminalOutput.textContent = `${result.stdout}${result.stderr ? `\n${result.stderr}` : ''}\n[exit ${result.exitCode}]`;
+      } catch (error) { terminalOutput.className = 'error'; terminalOutput.textContent = error.message; }
+      finally { runButton.disabled = false; }
+    }
+
+    function setConnected(connected) {
+      connectButton.disabled = connected;
+      disconnectButton.disabled = !connected;
+      listButton.disabled = !connected;
+      runButton.disabled = !connected;
+    }
+    function showStatus(message, error = false) { status.textContent = message; status.classList.toggle('error', error); }
+    function shellQuote(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
+  </script>
+</body>
+</html>
