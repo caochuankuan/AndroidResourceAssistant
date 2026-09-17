@@ -67,6 +67,22 @@
     pre { min-height:320px; margin:0; padding:16px; overflow:auto; border-radius:10px; color:#d1fae5; background:#172033; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; }
     .terminal-input { display:flex; gap:10px; margin-top:12px; }
     .terminal-screen { min-height:420px; padding:12px; overflow:hidden; border-radius:10px; background:#111827; }
+    .logcat-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+    .logcat-toolbar input { min-width:220px; }
+    .logcat-height { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+    .logcat-height input { width:180px; padding:0; accent-color:var(--brand); }
+    .logcat-pause { padding:8px 12px; color:#fff; background:#5b3a1d; }
+    .logcat-notice { margin:0 -22px 10px; padding:8px 22px; color:#fef3c7; background:#4b321b; font-size:13px; font-weight:700; }
+    .logcat-output { height:620px; overflow-x:auto; overflow-y:auto; border:1px solid #202938; border-radius:8px; color:#cbd5e1; background:#111827; font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .logcat-row { display:grid; grid-template-columns:max-content max-content max-content max-content max-content; width:max-content; min-width:100%; border-bottom:1px solid rgba(148,163,184,.08); }
+    .logcat-row > span { padding:2px 8px; overflow:visible; white-space:nowrap; }
+    .logcat-row.header { position:sticky; top:0; z-index:1; color:#94a3b8; background:#1e293b; font-weight:700; }
+    .logcat-row.level-v { color:#a7f3d0; }
+    .logcat-row.level-d { color:#67e8f9; }
+    .logcat-row.level-i { color:#bef264; }
+    .logcat-row.level-w { color:#fde047; }
+    .logcat-row.level-e, .logcat-row.level-f { color:#fca5a5; }
+    .logcat-level { font-weight:800; }
     .screen-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
     .screen-output { min-height:420px; display:grid; place-items:center; overflow:hidden; border-radius:10px; background:#111827; color:#94a3b8; touch-action:none; }
     .screen-output canvas { display:block; max-width:100%; max-height:760px; }
@@ -112,6 +128,7 @@
         <button class="tab active" data-view="files" role="tab" aria-selected="true">文件浏览器</button>
         <button class="tab" data-view="apps" role="tab" aria-selected="false">应用管理</button>
         <button class="tab" data-view="terminal" role="tab" aria-selected="false">命令终端</button>
+        <button class="tab" data-view="logcat" role="tab" aria-selected="false">Logcat</button>
         <button class="tab" data-view="screen" role="tab" aria-selected="false">投屏</button>
       </div>
       <section id="filesView" class="view">
@@ -126,6 +143,11 @@
       <section id="terminalView" class="view" hidden>
         <div class="terminal-size"><span>终端高度</span><input id="terminalHeight" type="range" min="240" max="2000" step="10" value="420"><span id="terminalHeightValue">420px</span></div>
         <div id="terminalOutput" class="terminal-screen"><div class="empty">连接设备后启动终端</div></div>
+      </section>
+      <section id="logcatView" class="view" hidden>
+        <div class="logcat-toolbar"><input id="logcatFilter" placeholder="过滤日志（Tag、进程或内容）"><div class="logcat-height"><span>日志高度</span><input id="logcatHeight" type="range" min="240" max="2000" step="10" value="620"><span id="logcatHeightValue">620px</span></div><button id="logcatPauseButton" class="logcat-pause" type="button" disabled>暂停</button><button id="logcatClearButton" class="secondary" type="button">清空</button></div>
+        <div id="logcatNotice" class="logcat-notice" hidden>⚠ Logcat is paused</div>
+        <div id="logcatOutput" class="logcat-output"><div class="empty">连接设备后打开 Logcat</div></div>
       </section>
       <section id="screenView" class="view" hidden>
         <div class="screen-toolbar"><button id="screenButton" type="button" disabled>开始投屏</button><span id="screenStatus" class="status">连接设备后开始投屏</span></div>
@@ -205,6 +227,13 @@
     const upButton = document.querySelector('#upButton');
     const currentPath = document.querySelector('#currentPath');
     const terminalOutput = document.querySelector('#terminalOutput');
+    const logcatFilter = document.querySelector('#logcatFilter');
+    const logcatHeight = document.querySelector('#logcatHeight');
+    const logcatHeightValue = document.querySelector('#logcatHeightValue');
+    const logcatPauseButton = document.querySelector('#logcatPauseButton');
+    const logcatClearButton = document.querySelector('#logcatClearButton');
+    const logcatNotice = document.querySelector('#logcatNotice');
+    const logcatOutput = document.querySelector('#logcatOutput');
     const terminalHeight = document.querySelector('#terminalHeight');
     const terminalHeightValue = document.querySelector('#terminalHeightValue');
     const debugLog = document.querySelector('#debugLog');
@@ -228,6 +257,12 @@
     let terminal;
     let terminalProcess;
     let terminalWriter;
+    let logcatProcess;
+    let logcatText = '';
+    let logcatPaused = false;
+    let logcatEntries = [];
+    let logcatProcesses = new Map();
+    let logcatProcessTimer;
     let fitAddon;
     let scrcpyClient;
     let screenDecoder;
@@ -247,8 +282,10 @@
       document.querySelector('#filesView').hidden = view !== 'files';
       document.querySelector('#appsView').hidden = view !== 'apps';
       document.querySelector('#terminalView').hidden = !terminal;
+      document.querySelector('#logcatView').hidden = view !== 'logcat';
       document.querySelector('#screenView').hidden = view !== 'screen';
       if (terminal && adb) { try { await ensureTerminal(); } catch (error) { logError(error); } }
+      if (view === 'logcat' && adb) { try { await startLogcat(); } catch (error) { logError(error); } }
       if (view === 'apps' && adb && !installedApps.length) { await listApps(); }
     }));
     connectButton.addEventListener('click', connect);
@@ -266,6 +303,13 @@
     newFolderButton.addEventListener('click', createFolder);
     newFileButton.addEventListener('click', createFile);
     clearLogButton.addEventListener('click', () => { debugLog.textContent = '日志已清空'; });
+    logcatFilter.addEventListener('input', renderLogcat);
+    logcatHeight.addEventListener('input', () => {
+      logcatHeightValue.textContent = `${logcatHeight.value}px`;
+      logcatOutput.style.height = `${logcatHeight.value}px`;
+    });
+    logcatPauseButton.addEventListener('click', toggleLogcatPause);
+    logcatClearButton.addEventListener('click', () => { logcatEntries = []; renderLogcat(); });
     screenButton.onclick = startScreen;
     screenShortcutButtons.forEach(button => button.addEventListener('click', () => {
       void runScreenShortcut(button.dataset.screenCommand, button.textContent.trim());
@@ -312,6 +356,7 @@
 
     async function disconnect() {
       await stopScreen();
+      await stopLogcat();
       try { await terminalWriter?.close?.(); } catch {}
       try { await terminalProcess?.kill?.(); } catch {}
       terminal = undefined; terminalProcess = undefined; terminalWriter = undefined;
@@ -871,6 +916,111 @@
     function getMimeType(extension) { const types = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml', pdf:'application/pdf', mp3:'audio/mpeg', wav:'audio/wav', ogg:'audio/ogg', mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime' }; return types[extension] || 'application/octet-stream'; }
     function revokePreviewUrl() { if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = undefined; } }
 
+    async function startLogcat() {
+      if (logcatProcess || !adb) return;
+      logcatPaused = false;
+      logcatPauseButton.disabled = false;
+      logcatPauseButton.textContent = '暂停';
+      logcatNotice.hidden = true;
+      logcatOutput.replaceChildren();
+      logcatEntries = [];
+      logcatText = '';
+      renderLogcatHeader();
+      await refreshLogcatProcesses();
+      logcatProcessTimer = setInterval(() => { void refreshLogcatProcesses(); }, 5000);
+      const service = adb.subprocess.shellProtocol || adb.subprocess.noneProtocol;
+      logcatProcess = await service.spawn('logcat -v threadtime');
+      const output = logcatProcess.stdout || logcatProcess.output;
+      if (!output?.getReader) throw new Error('当前 ADB 传输不支持 Logcat 输出流');
+      void readLogcatOutput(output, logcatProcess);
+      showStatus('Logcat 已启动');
+    }
+
+    async function stopLogcat() {
+      if (logcatProcessTimer) clearInterval(logcatProcessTimer);
+      logcatProcessTimer = undefined;
+      try { await logcatProcess?.kill?.(); } catch {}
+      logcatProcess = undefined;
+      logcatPauseButton.disabled = true;
+      logcatNotice.hidden = true;
+    }
+
+    async function readLogcatOutput(stream, process) {
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const part = await reader.read();
+          if (part.done) break;
+          if (!logcatPaused) appendLogcatText(decoder.decode(part.value, { stream: true }));
+        }
+      } catch (error) {
+        if (process === logcatProcess && adb) logError(error);
+      } finally {
+        if (process === logcatProcess) logcatProcess = undefined;
+        reader.releaseLock();
+      }
+    }
+
+    function appendLogcatText(text) {
+      logcatText += text;
+      const lines = logcatText.split(/\r?\n/);
+      logcatText = lines.pop() || '';
+      for (const line of lines) {
+        const entry = parseLogcatLine(line);
+        if (entry) logcatEntries.push(entry);
+      }
+      if (logcatEntries.length > 2000) logcatEntries.splice(0, logcatEntries.length - 2000);
+      renderLogcat();
+    }
+
+    function parseLogcatLine(line) {
+      const match = line.match(/^(\d{2,4}-\d{2}-\d{2}\s+)?(\d{2}-\d{2}\s+)?(\d{2}:\d{2}:\d{2}\.\d{3})\s+(\d+)(?:[-\s]+(\d+))?\s+([VDIWEF])\s+([^:]+):\s?(.*)$/);
+      if (!match) return line.trim() ? { time: '', pid: '', tid: '', level: 'I', tag: '', process: '', message: line } : undefined;
+      const pid = match[4];
+      return { time: `${match[1] || ''}${match[2] || ''}${match[3]}`.trim(), pid, tid: match[5] || '', level: match[6], tag: match[7].trim(), process: logcatProcesses.get(pid) || '—', message: match[8] };
+    }
+
+    async function refreshLogcatProcesses() {
+      if (!adb) return;
+      try {
+        const result = await runShell('ps -A -o PID,NAME');
+        const processes = new Map();
+        for (const line of String(result.stdout || '').split(/\r?\n/)) {
+          const match = line.trim().match(/^(\d+)\s+(.+)$/);
+          if (match) processes.set(match[1], match[2].trim());
+        }
+        logcatProcesses = processes;
+      } catch {}
+    }
+
+    function renderLogcatHeader() {
+      const header = document.createElement('div');
+      header.className = 'logcat-row header';
+      ['时间', 'PID-TID', 'Tag', '进程', '级别 / 内容'].forEach(text => { const cell = document.createElement('span'); cell.textContent = text; header.append(cell); });
+      logcatOutput.replaceChildren(header);
+    }
+
+    function renderLogcat() {
+      const filter = logcatFilter.value.trim().toLowerCase();
+      const visible = logcatEntries.filter(entry => !filter || `${entry.tag} ${entry.process} ${entry.message}`.toLowerCase().includes(filter));
+      renderLogcatHeader();
+      for (const entry of visible) {
+        const row = document.createElement('div'); row.className = `logcat-row level-${entry.level.toLowerCase()}`;
+        const values = [entry.time, entry.tid ? `${entry.pid}-${entry.tid}` : entry.pid, entry.tag, entry.process, `${entry.level}  ${entry.message}`];
+        values.forEach((text, index) => { const cell = document.createElement('span'); cell.textContent = text; if (index === 4) cell.className = 'logcat-level'; row.append(cell); });
+        logcatOutput.append(row);
+      }
+      logcatOutput.scrollTop = logcatOutput.scrollHeight;
+    }
+
+    function toggleLogcatPause() {
+      logcatPaused = !logcatPaused;
+      logcatPauseButton.textContent = logcatPaused ? '继续' : '暂停';
+      logcatNotice.hidden = !logcatPaused;
+      if (!logcatPaused) renderLogcat();
+    }
+
     async function ensureTerminal() {
       if (terminalWriter) return;
       if (!adb) throw new Error('请先连接设备');
@@ -1142,6 +1292,7 @@
       newFileButton.disabled = !connected;
       refreshAppsButton.disabled = !connected;
       installApkButton.disabled = !connected;
+      logcatPauseButton.disabled = !connected;
       screenButton.disabled = !connected;
       screenShortcutButtons.forEach(button => { button.disabled = !connected; });
       screenScreenshotButton.disabled = !connected;
