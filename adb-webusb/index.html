@@ -41,6 +41,15 @@
     .file-preview img { max-height:620px; object-fit:contain; }
     .file-preview iframe { width:100%; height:680px; }
     .file-preview audio, .file-preview video { max-width:100%; }
+    .preview-modal { position:fixed; inset:0; z-index:20; display:grid; place-items:center; padding:24px; background:rgba(15,23,42,.68); }
+    .preview-dialog { display:flex; flex-direction:column; width:min(960px,100%); max-height:min(90vh,900px); overflow:hidden; border:1px solid var(--line); border-radius:16px; background:#fff; box-shadow:0 24px 70px rgba(15,23,42,.32); }
+    .preview-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line); }
+    .preview-head-actions { display:flex; gap:8px; flex-shrink:0; }
+    .preview-title { min-width:0; overflow:hidden; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+    .preview-body { min-height:180px; overflow:auto; padding:18px; }
+    .preview-body .file-preview { padding:0; }
+    .preview-body .file-list { border:0; }
+    .preview-editor { display:block; width:100%; min-height:58vh; resize:vertical; padding:14px; border:1px solid #334155; border-radius:10px; color:#d1fae5; background:#172033; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; tab-size:2; }
     .app-toolbar { display:flex; gap:10px; margin-bottom:14px; }
     .app-toolbar select { border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); background:#fff; font:inherit; }
     .app-list { overflow:auto; border:1px solid var(--line); border-radius:10px; }
@@ -106,8 +115,8 @@
         <button class="tab" data-view="screen" role="tab" aria-selected="false">投屏</button>
       </div>
       <section id="filesView" class="view">
-        <div class="toolbar"><input id="pathInput" value="/sdcard" placeholder="设备路径，例如 /sdcard"><button id="listButton" type="button" disabled>列出文件</button></div>
-        <div class="pathbar"><button id="upButton" class="secondary" type="button" disabled>↑ 返回上级</button><span id="currentPath">/sdcard</span></div>
+        <div class="toolbar"><input id="pathInput" value="/sdcard" placeholder="设备路径，例如 /sdcard"><input id="uploadInput" type="file" hidden><button id="uploadButton" type="button" disabled>上传文件</button><button id="listButton" type="button" disabled>列出文件</button><button id="refreshFilesButton" class="secondary" type="button" disabled>刷新</button></div>
+        <div class="pathbar"><button id="upButton" class="secondary" type="button" disabled>↑ 返回上级</button><button id="newFolderButton" class="secondary" type="button" disabled>新建文件夹</button><button id="newFileButton" class="secondary" type="button" disabled>新建文件</button><span id="currentPath">/sdcard</span></div>
         <div id="fileOutput" class="empty">连接设备后列出目录</div>
       </section>
       <section id="appsView" class="view" hidden>
@@ -151,6 +160,13 @@
     </section>
   </main>
 
+  <div id="previewModal" class="preview-modal" hidden>
+    <div class="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <div class="preview-head"><span id="previewTitle" class="preview-title">文件预览</span><div class="preview-head-actions"><button id="savePreviewButton" type="button" hidden>保存</button><button id="closePreviewButton" class="secondary" type="button">关闭</button></div></div>
+      <div id="previewBody" class="preview-body"></div>
+    </div>
+  </div>
+
   <script>
     window.addEventListener('error', event => {
       const status = document.querySelector('#status');
@@ -172,7 +188,12 @@
     const disconnectButton = document.querySelector('#disconnectButton');
     const status = document.querySelector('#status');
     const pathInput = document.querySelector('#pathInput');
+    const uploadInput = document.querySelector('#uploadInput');
+    const uploadButton = document.querySelector('#uploadButton');
+    const newFolderButton = document.querySelector('#newFolderButton');
+    const newFileButton = document.querySelector('#newFileButton');
     const listButton = document.querySelector('#listButton');
+    const refreshFilesButton = document.querySelector('#refreshFilesButton');
     const fileOutput = document.querySelector('#fileOutput');
     const appSearch = document.querySelector('#appSearch');
     const appTypeFilter = document.querySelector('#appTypeFilter');
@@ -193,10 +214,17 @@
     const screenOutput = document.querySelector('#screenOutput');
     const screenShortcutButtons = document.querySelectorAll('[data-screen-command]');
     const screenScreenshotButton = document.querySelector('[data-screen-screenshot]');
+    const previewModal = document.querySelector('#previewModal');
+    const previewTitle = document.querySelector('#previewTitle');
+    const previewBody = document.querySelector('#previewBody');
+    const savePreviewButton = document.querySelector('#savePreviewButton');
+    const closePreviewButton = document.querySelector('#closePreviewButton');
     const tabs = document.querySelectorAll('.tab');
     let adb;
     let backend;
     let previewUrl;
+    let previewFilePath;
+    let previewFileName;
     let terminal;
     let terminalProcess;
     let terminalWriter;
@@ -225,19 +253,28 @@
     }));
     connectButton.addEventListener('click', connect);
     disconnectButton.addEventListener('click', disconnect);
+    uploadButton.addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', () => { void uploadFile(uploadInput.files?.[0]); });
     listButton.addEventListener('click', listFiles);
+    refreshFilesButton.addEventListener('click', listFiles);
     refreshAppsButton.addEventListener('click', listApps);
     appSearch.addEventListener('input', renderApps);
     appTypeFilter.addEventListener('change', renderApps);
     installApkButton.addEventListener('click', () => apkInput.click());
     apkInput.addEventListener('change', () => { void installApk(apkInput.files?.[0]); });
     upButton.addEventListener('click', goUp);
+    newFolderButton.addEventListener('click', createFolder);
+    newFileButton.addEventListener('click', createFile);
     clearLogButton.addEventListener('click', () => { debugLog.textContent = '日志已清空'; });
     screenButton.onclick = startScreen;
     screenShortcutButtons.forEach(button => button.addEventListener('click', () => {
       void runScreenShortcut(button.dataset.screenCommand, button.textContent.trim());
     }));
     document.querySelector('[data-screen-screenshot]').addEventListener('click', captureScreenShot);
+    closePreviewButton.addEventListener('click', closePreview);
+    savePreviewButton.addEventListener('click', saveTextPreview);
+    previewModal.addEventListener('click', event => { if (event.target === previewModal) closePreview(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !previewModal.hidden) closePreview(); });
     setConnected(false);
     terminalHeight.addEventListener('input', () => {
       terminalHeightValue.textContent = `${terminalHeight.value}px`;
@@ -327,6 +364,69 @@
       } catch (error) { logError(error); fileOutput.className = 'error'; fileOutput.textContent = error.message; }
       finally { listButton.disabled = false; }
     }
+
+    async function uploadFile(file) {
+      if (!file || !adb) return;
+      const name = file.name.replace(/[\\/]/g, '_');
+      const directory = normalizePath(pathInput.value);
+      const remotePath = joinPath(directory, name);
+      if (!window.confirm(`确定上传到当前目录吗？\n${remotePath}`)) { uploadInput.value = ''; return; }
+      uploadButton.disabled = true;
+      try {
+        log(`上传文件：${remotePath}`);
+        const sync = await adb.sync();
+        try {
+          let offset = 0;
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const stream = new ReadableStream({
+            pull(controller) {
+              if (offset >= bytes.length) { controller.close(); return; }
+              const end = Math.min(bytes.length, offset + 256 * 1024);
+              controller.enqueue(bytes.subarray(offset, end));
+              offset = end;
+            },
+          });
+          await sync.write({ filename: remotePath, file: stream });
+        } finally { await sync.dispose(); }
+        log(`上传完成：${remotePath}`);
+        await listFiles();
+      } catch (error) { logError(error); showStatus(`上传失败：${error.message}`, true); }
+      finally { uploadInput.value = ''; uploadButton.disabled = !adb; }
+    }
+
+    async function createFolder() {
+      const name = window.prompt('请输入文件夹名称：', '新建文件夹')?.trim();
+      if (!name) return;
+      if (name === '.' || name === '..' || /[\\/\0]/.test(name)) {
+        showStatus('文件夹名称不能包含路径分隔符', true);
+        return;
+      }
+      const remotePath = joinPath(normalizePath(pathInput.value), name);
+      try {
+        const result = await runShell(`mkdir ${shellQuote(remotePath)}`);
+        if (result.exitCode !== 0) throw new Error(`${result.stderr || result.stdout || '创建文件夹失败'}`.trim());
+        log(`已创建文件夹：${remotePath}`);
+        await listFiles();
+      } catch (error) { logError(error); showStatus(`创建文件夹失败：${error.message}`, true); }
+    }
+
+    async function createFile() {
+      const name = window.prompt('请输入文件名：', '新建文件.txt')?.trim();
+      if (!name) return;
+      if (name === '.' || name === '..' || /[\\/\0]/.test(name)) {
+        showStatus('文件名不能包含路径分隔符', true);
+        return;
+      }
+      const remotePath = joinPath(normalizePath(pathInput.value), name);
+      try {
+        const result = await runShell(`touch ${shellQuote(remotePath)}`);
+        if (result.exitCode !== 0) throw new Error(`${result.stderr || result.stdout || '创建文件失败'}`.trim());
+        log(`已创建文件：${remotePath}`);
+        await listFiles();
+      } catch (error) { logError(error); showStatus(`创建文件失败：${error.message}`, true); }
+    }
+
+    function shellQuote(value) { return `'${String(value).replace(/'/g, "'\\''")}'`; }
 
     async function listApps() {
       if (!adb) return;
@@ -650,10 +750,8 @@
         row.append(name, type, mtime, size);
         if (!directory) {
           const actions = document.createElement('div'); actions.className = 'file-actions';
-          if (Number(entry.size) <= 1024 * 1024) {
-            const view = document.createElement('button'); view.className = 'file-action'; view.textContent = '查看';
-            view.addEventListener('click', () => previewFile(joinPath(path, entry.name), entry.name)); actions.append(view);
-          }
+          const view = document.createElement('button'); view.className = 'file-action'; view.textContent = '查看';
+          view.addEventListener('click', () => previewFile(joinPath(path, entry.name), entry.name)); actions.append(view);
           const download = document.createElement('button'); download.className = 'file-action'; download.textContent = '下载';
           download.addEventListener('click', () => downloadFile(joinPath(path, entry.name), entry.name, download)); actions.append(download); row.append(actions);
         }
@@ -674,23 +772,71 @@
         const extension = name.split('.').pop()?.toLowerCase() || '';
         const mime = getMimeType(extension);
         const binaryPreview = mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('audio/') || mime.startsWith('video/');
-        fileOutput.className = binaryPreview ? 'file-preview' : 'file-list';
-        fileOutput.replaceChildren();
-        const pathbar = document.createElement('div'); pathbar.className = 'pathbar';
-        const back = document.createElement('button'); back.className = 'secondary'; back.textContent = '← 返回目录'; back.addEventListener('click', listFiles);
-        const title = document.createElement('span'); title.textContent = name; pathbar.append(back, title); fileOutput.append(pathbar);
+        revokePreviewUrl();
+        previewFilePath = path;
+        previewFileName = name;
+        previewTitle.textContent = name;
+        previewBody.replaceChildren();
+        previewBody.className = `preview-body ${binaryPreview ? 'file-preview' : 'file-list'}`;
+        savePreviewButton.hidden = !isTextFile(extension);
+        previewModal.hidden = false;
         if (mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('audio/') || mime.startsWith('video/')) {
           previewUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
           const element = mime.startsWith('image/') ? document.createElement('img') : mime === 'application/pdf' ? document.createElement('iframe') : mime.startsWith('audio/') ? document.createElement('audio') : document.createElement('video');
-          element.src = previewUrl; element.controls = true; element.alt = name; fileOutput.append(element);
+          element.src = previewUrl; element.controls = true; element.alt = name; previewBody.append(element);
         } else if (isTextFile(extension)) {
-          const pre = document.createElement('pre'); let content = new TextDecoder().decode(bytes);
+          const editor = document.createElement('textarea'); editor.className = 'preview-editor';
+          let content = new TextDecoder().decode(bytes);
           if (extension === 'json') { try { content = JSON.stringify(JSON.parse(content), null, 2); } catch {} }
-          pre.textContent = content; fileOutput.append(pre);
+          editor.value = content; previewBody.append(editor);
         } else {
-          const message = document.createElement('div'); message.className = 'empty'; message.textContent = '该格式不适合直接预览，请使用“下载”保存到电脑后打开。'; fileOutput.append(message);
+          const message = document.createElement('div'); message.className = 'empty';
+          const text = document.createElement('div'); text.textContent = '该格式不适合直接预览，请使用“下载”保存到电脑后打开。';
+          const attempt = document.createElement('button'); attempt.className = 'secondary'; attempt.textContent = '尝试按文本查看';
+          attempt.addEventListener('click', () => {
+            const editor = document.createElement('textarea'); editor.className = 'preview-editor';
+            editor.value = new TextDecoder().decode(bytes);
+            previewBody.replaceChildren(editor);
+            savePreviewButton.hidden = false;
+          });
+          message.append(text, attempt); previewBody.append(message);
         }
-      } catch (error) { logError(error); fileOutput.className = 'empty error'; fileOutput.textContent = `无法读取文件：${error.message}`; }
+      } catch (error) { logError(error); closePreview(); showStatus(`无法读取文件：${error.message}`, true); }
+    }
+
+    function closePreview() {
+      previewModal.hidden = true;
+      revokePreviewUrl();
+      previewBody.replaceChildren();
+      savePreviewButton.hidden = true;
+      previewFilePath = undefined;
+      previewFileName = undefined;
+    }
+
+    async function saveTextPreview() {
+      const editor = previewBody.querySelector('.preview-editor');
+      if (!editor || !previewFilePath || !previewFileName || !adb) return;
+      if (!window.confirm(`确定覆盖设备上的文件吗？\n${previewFilePath}`)) return;
+      savePreviewButton.disabled = true;
+      try {
+        const bytes = new TextEncoder().encode(editor.value);
+        const sync = await adb.sync();
+        try {
+          let offset = 0;
+          const stream = new ReadableStream({
+            pull(controller) {
+              if (offset >= bytes.length) { controller.close(); return; }
+              const end = Math.min(bytes.length, offset + 256 * 1024);
+              controller.enqueue(bytes.subarray(offset, end));
+              offset = end;
+            },
+          });
+          await sync.write({ filename: previewFilePath, file: stream });
+        } finally { await sync.dispose(); }
+        log(`已保存文件：${previewFilePath}`);
+        showStatus(`已保存：${previewFileName}`);
+      } catch (error) { logError(error); showStatus(`保存失败：${error.message}`, true); }
+      finally { savePreviewButton.disabled = false; }
     }
 
     async function downloadFile(path, name, button) {
@@ -989,7 +1135,11 @@
       connectButton.disabled = connected;
       disconnectButton.disabled = !connected;
       listButton.disabled = !connected;
+      refreshFilesButton.disabled = !connected;
+      uploadButton.disabled = !connected;
       upButton.disabled = !connected;
+      newFolderButton.disabled = !connected;
+      newFileButton.disabled = !connected;
       refreshAppsButton.disabled = !connected;
       installApkButton.disabled = !connected;
       screenButton.disabled = !connected;
@@ -1010,7 +1160,6 @@
       const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), milliseconds); });
       return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
     }
-    function shellQuote(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
   </script>
 </body>
 </html>
