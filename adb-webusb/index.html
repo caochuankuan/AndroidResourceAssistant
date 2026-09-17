@@ -41,6 +41,19 @@
     .file-preview img { max-height:620px; object-fit:contain; }
     .file-preview iframe { width:100%; height:680px; }
     .file-preview audio, .file-preview video { max-width:100%; }
+    .app-toolbar { display:flex; gap:10px; margin-bottom:14px; }
+    .app-toolbar select { border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); background:#fff; font:inherit; }
+    .app-list { overflow:auto; border:1px solid var(--line); border-radius:10px; }
+    .app-row { display:grid; grid-template-columns:42px minmax(150px,1fr) minmax(0,1.3fr) minmax(110px,1fr) auto; gap:14px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); }
+    .app-row:last-child { border-bottom:0; }
+    .app-icon { width:38px; height:38px; border-radius:10px; object-fit:contain; background:#f1f5f9; }
+    .app-name { min-width:0; overflow:hidden; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+    .app-name small { display:block; overflow:hidden; color:var(--muted); font:12px ui-monospace,SFMono-Regular,Menlo,monospace; text-overflow:ellipsis; white-space:nowrap; }
+    .app-package, .app-path { min-width:0; overflow:hidden; color:var(--muted); font:12px ui-monospace,SFMono-Regular,Menlo,monospace; text-overflow:ellipsis; white-space:nowrap; }
+    .app-actions { display:flex; gap:5px; }
+    .app-actions button { padding:6px 9px; font-size:12px; white-space:nowrap; }
+    .app-actions .danger { color:#fff; background:#dc2626; }
+    .install-status { align-self:center; color:var(--muted); font-size:12px; }
     input { min-width:0; flex:1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); font:inherit; }
     pre { min-height:320px; margin:0; padding:16px; overflow:auto; border-radius:10px; color:#d1fae5; background:#172033; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; }
     .terminal-input { display:flex; gap:10px; margin-top:12px; }
@@ -50,6 +63,19 @@
     .screen-output canvas { display:block; max-width:100%; max-height:760px; }
     .terminal-size { display:flex; align-items:center; gap:10px; margin-bottom:10px; color:var(--muted); font-size:13px; }
     .terminal-size input { flex:0 1 220px; padding:0; accent-color:var(--brand); }
+    .screen-layout { display:grid; grid-template-columns:minmax(130px, 160px) minmax(300px, 1fr) minmax(130px, 160px); gap:22px; align-items:center; min-height:560px; padding:20px; border-radius:16px; background:#0b1220; }
+    .screen-shortcuts { display:grid; gap:10px; align-content:center; }
+    .screen-shortcuts button { display:flex; align-items:center; justify-content:center; gap:7px; min-height:44px; padding:9px 10px; color:#dbeafe; background:#1e293b; border:1px solid #334155; font-size:13px; }
+    .screen-shortcuts button:hover { background:#334155; }
+    .screen-device { position:relative; display:flex; justify-content:center; min-width:0; padding:18px; border:2px solid #52627a; border-radius:42px; background:linear-gradient(145deg,#34445d 0%,#1d2b41 45%,#0f172a 100%); box-shadow:inset 0 0 0 2px rgba(255,255,255,.08),0 22px 45px rgba(0,0,0,.42); }
+    .screen-device::before { content:""; position:absolute; top:82px; left:-5px; width:4px; height:82px; border-radius:4px 0 0 4px; background:#71829b; box-shadow:0 96px #71829b,0 112px #71829b; }
+    .screen-device::after { content:""; position:absolute; top:116px; right:-5px; width:4px; height:108px; border-radius:0 4px 4px 0; background:#71829b; }
+    .screen-bezel { position:relative; width:min(100%, 440px); padding:14px; border:1px solid #0f172a; border-radius:30px; background:#020617; box-shadow:inset 0 0 0 1px #334155, inset 0 0 22px rgba(0,0,0,.7); }
+    .screen-bezel::before { content:""; position:absolute; z-index:2; top:14px; left:50%; width:82px; height:18px; border-radius:0 0 14px 14px; background:#020617; transform:translateX(-50%); pointer-events:none; }
+    .screen-bezel::after { content:""; position:absolute; z-index:3; top:20px; left:50%; width:28px; height:3px; border-radius:3px; background:#334155; transform:translateX(-50%); pointer-events:none; }
+    .screen-layout .screen-output { min-height:0; aspect-ratio:9 / 19.5; border-radius:16px; }
+    .screen-layout .screen-output canvas { width:100%; height:100%; max-width:none; max-height:none; object-fit:contain; }
+    .shortcut-title { margin-bottom:2px; color:#94a3b8; text-align:center; font-size:12px; }
     .debug { margin-top:18px; border-top:1px solid var(--line); padding-top:16px; }
     .debug-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; color:var(--muted); font-size:13px; font-weight:700; }
     .debug-head button { padding:5px 10px; color:var(--muted); background:#eef1f5; font-size:12px; }
@@ -57,7 +83,8 @@
     .empty { min-height:320px; display:grid; place-items:center; color:var(--muted); text-align:center; }
     .error { color:var(--danger); }
     [hidden] { display:none !important; }
-    @media (max-width:600px) { main { width:min(100% - 20px, 1180px); padding-top:30px; } .toolbar, .terminal-input { flex-direction:column; } }
+    @media (max-width:760px) { .screen-layout { grid-template-columns:1fr 1fr; } .screen-device { grid-column:1 / -1; grid-row:1; } .screen-shortcuts { grid-row:2; } }
+    @media (max-width:600px) { main { width:min(100% - 20px, 1180px); padding-top:30px; } .toolbar, .terminal-input, .app-toolbar { flex-direction:column; } .app-row { grid-template-columns:1fr auto; } .app-path { grid-column:1 / -1; } .screen-layout { grid-template-columns:1fr; padding:12px; } .screen-device { grid-column:auto; grid-row:auto; } .screen-shortcuts { grid-row:auto; grid-template-columns:repeat(3, 1fr); } .shortcut-title { grid-column:1 / -1; } }
   </style>
 </head>
 <body>
@@ -74,6 +101,7 @@
       <div class="notice">要求 HTTPS 或 localhost、Chrome / Edge，并开启 USB 调试。首次连接时手机可能弹出授权提示；已经授权的设备不会重复弹窗。连接前请关闭电脑上的 adb server、Android Studio 或 scrcpy。</div>
       <div class="tabs" role="tablist" aria-label="ADB 工具">
         <button class="tab active" data-view="files" role="tab" aria-selected="true">文件浏览器</button>
+        <button class="tab" data-view="apps" role="tab" aria-selected="false">应用管理</button>
         <button class="tab" data-view="terminal" role="tab" aria-selected="false">命令终端</button>
         <button class="tab" data-view="screen" role="tab" aria-selected="false">投屏</button>
       </div>
@@ -82,13 +110,39 @@
         <div class="pathbar"><button id="upButton" class="secondary" type="button" disabled>↑ 返回上级</button><span id="currentPath">/sdcard</span></div>
         <div id="fileOutput" class="empty">连接设备后列出目录</div>
       </section>
+      <section id="appsView" class="view" hidden>
+        <div class="app-toolbar"><input id="appSearch" placeholder="搜索应用名或包名"><select id="appTypeFilter"><option value="all">全部应用</option><option value="user">用户应用</option><option value="system">系统应用</option></select><input id="apkInput" type="file" accept=".apk,.apks,application/vnd.android.package-archive,application/octet-stream" hidden><button id="installApkButton" type="button" disabled>安装 APK / APKS</button><button id="refreshAppsButton" type="button" disabled>刷新应用</button><span id="installStatus" class="install-status"></span></div>
+        <div id="appOutput" class="empty">连接设备后读取已安装应用</div>
+      </section>
       <section id="terminalView" class="view" hidden>
         <div class="terminal-size"><span>终端高度</span><input id="terminalHeight" type="range" min="240" max="2000" step="10" value="420"><span id="terminalHeightValue">420px</span></div>
         <div id="terminalOutput" class="terminal-screen"><div class="empty">连接设备后启动终端</div></div>
       </section>
       <section id="screenView" class="view" hidden>
         <div class="screen-toolbar"><button id="screenButton" type="button" disabled>开始投屏</button><span id="screenStatus" class="status">连接设备后开始投屏</span></div>
-        <div id="screenOutput" class="screen-output">投屏画面会显示在这里</div>
+        <div class="screen-layout">
+          <div class="screen-shortcuts">
+            <div class="shortcut-title">系统操作</div>
+            <button type="button" data-screen-command="input keyevent 4">↩ 返回</button>
+            <button type="button" data-screen-command="input keyevent 3">⌂ 主页</button>
+            <button type="button" data-screen-command="input keyevent 187">▣ 最近任务</button>
+            <button type="button" data-screen-command="input swipe 540 0 540 900 300">⌄ 通知栏</button>
+            <button type="button" data-screen-command="input swipe 540 0 540 1500 350">☷ 快捷设置</button>
+            <button type="button" data-screen-screenshot>▣ 截图</button>
+          </div>
+          <div class="screen-device">
+            <div class="screen-bezel"><div id="screenOutput" class="screen-output">投屏画面会显示在这里</div></div>
+          </div>
+          <div class="screen-shortcuts">
+            <div class="shortcut-title">设备操作</div>
+            <button type="button" data-screen-command="input keyevent 24">🔊 音量+</button>
+            <button type="button" data-screen-command="input keyevent 25">🔉 音量−</button>
+            <button type="button" data-screen-command="input keyevent 26">⏻ 电源</button>
+            <button type="button" data-screen-command="input keyevent 224">☀ 唤醒</button>
+            <button type="button" data-screen-command="input keyevent 164">🔇 静音</button>
+            <button type="button" data-screen-command="input keyevent 82">⋮ 菜单</button>
+          </div>
+        </div>
       </section>
       <section class="view debug">
         <div class="debug-head"><span>调试日志</span><button id="clearLogButton" type="button">清空</button></div>
@@ -120,6 +174,13 @@
     const pathInput = document.querySelector('#pathInput');
     const listButton = document.querySelector('#listButton');
     const fileOutput = document.querySelector('#fileOutput');
+    const appSearch = document.querySelector('#appSearch');
+    const appTypeFilter = document.querySelector('#appTypeFilter');
+    const apkInput = document.querySelector('#apkInput');
+    const installApkButton = document.querySelector('#installApkButton');
+    const installStatus = document.querySelector('#installStatus');
+    const refreshAppsButton = document.querySelector('#refreshAppsButton');
+    const appOutput = document.querySelector('#appOutput');
     const upButton = document.querySelector('#upButton');
     const currentPath = document.querySelector('#currentPath');
     const terminalOutput = document.querySelector('#terminalOutput');
@@ -130,6 +191,8 @@
     const screenButton = document.querySelector('#screenButton');
     const screenStatus = document.querySelector('#screenStatus');
     const screenOutput = document.querySelector('#screenOutput');
+    const screenShortcutButtons = document.querySelectorAll('[data-screen-command]');
+    const screenScreenshotButton = document.querySelector('[data-screen-screenshot]');
     const tabs = document.querySelectorAll('.tab');
     let adb;
     let backend;
@@ -146,22 +209,36 @@
     let screenControlBroken = false;
     let screenControlWritePending = false;
     let screenTouchStart;
+    let installedApps = [];
+    let disabledPackages = new Set();
 
     tabs.forEach(tab => tab.addEventListener('click', async () => {
       const view = tab.dataset.view;
       const terminal = view === 'terminal';
       tabs.forEach(item => { const active = item === tab; item.classList.toggle('active', active); item.setAttribute('aria-selected', active); });
       document.querySelector('#filesView').hidden = view !== 'files';
+      document.querySelector('#appsView').hidden = view !== 'apps';
       document.querySelector('#terminalView').hidden = !terminal;
       document.querySelector('#screenView').hidden = view !== 'screen';
       if (terminal && adb) { try { await ensureTerminal(); } catch (error) { logError(error); } }
+      if (view === 'apps' && adb && !installedApps.length) { await listApps(); }
     }));
     connectButton.addEventListener('click', connect);
     disconnectButton.addEventListener('click', disconnect);
     listButton.addEventListener('click', listFiles);
+    refreshAppsButton.addEventListener('click', listApps);
+    appSearch.addEventListener('input', renderApps);
+    appTypeFilter.addEventListener('change', renderApps);
+    installApkButton.addEventListener('click', () => apkInput.click());
+    apkInput.addEventListener('change', () => { void installApk(apkInput.files?.[0]); });
     upButton.addEventListener('click', goUp);
     clearLogButton.addEventListener('click', () => { debugLog.textContent = '日志已清空'; });
     screenButton.onclick = startScreen;
+    screenShortcutButtons.forEach(button => button.addEventListener('click', () => {
+      void runScreenShortcut(button.dataset.screenCommand, button.textContent.trim());
+    }));
+    document.querySelector('[data-screen-screenshot]').addEventListener('click', captureScreenShot);
+    setConnected(false);
     terminalHeight.addEventListener('input', () => {
       terminalHeightValue.textContent = `${terminalHeight.value}px`;
       terminalOutput.style.height = `${terminalHeight.value}px`;
@@ -212,6 +289,27 @@
       return { stdout: await adb.subprocess.noneProtocol.spawnWaitText(command), stderr: '', exitCode: 0 };
     }
 
+    async function runScreenShortcut(command, label) {
+      try {
+        await runShell(command);
+        log(`快捷操作已执行：${label}`);
+      } catch (error) { logError(error); }
+    }
+
+    function captureScreenShot() {
+      const canvas = screenOutput.querySelector('canvas');
+      if (!canvas) { log('截图失败：当前没有投屏画面'); return; }
+      canvas.toBlob(blob => {
+        if (!blob) { log('截图失败：无法生成 PNG'); return; }
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `android-screen-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        log(`截图已下载：${canvas.width}×${canvas.height}`);
+      }, 'image/png');
+    }
+
     async function listFiles() {
       if (!adb) return;
       revokePreviewUrl();
@@ -228,6 +326,308 @@
         } finally { await sync.dispose(); }
       } catch (error) { logError(error); fileOutput.className = 'error'; fileOutput.textContent = error.message; }
       finally { listButton.disabled = false; }
+    }
+
+    async function listApps() {
+      if (!adb) return;
+      refreshAppsButton.disabled = true;
+      appOutput.className = 'empty';
+      appOutput.textContent = '正在读取应用列表…';
+      try {
+        const [all, user, disabled] = await Promise.all([runShell('pm list packages -f'), runShell('pm list packages -3'), runShell('pm list packages -d')]);
+        const userPackages = new Set(String(user.stdout || '').split(/\r?\n/).map(line => line.replace(/^package:/, '').trim()).filter(Boolean));
+        disabledPackages = new Set(String(disabled.stdout || '').split(/\r?\n/).map(line => line.replace(/^package:/, '').trim()).filter(Boolean));
+        installedApps = String(all.stdout || '').split(/\r?\n/).map(line => {
+          const match = line.match(/^package:(.+)=(.+)$/);
+          return match ? { path: match[1], packageName: match[2], label: match[2], type: userPackages.has(match[2]) ? 'user' : 'system', icon: '', disabled: disabledPackages.has(match[2]) } : null;
+        }).filter(Boolean).sort((a, b) => a.packageName.localeCompare(b.packageName));
+        log(`已读取应用：${installedApps.length} 个`);
+        renderApps();
+      } catch (error) {
+        appOutput.className = 'empty error';
+        appOutput.textContent = `读取应用失败：${error.message}`;
+        logError(error);
+      } finally { refreshAppsButton.disabled = !adb; }
+    }
+
+    function renderApps() {
+      const keyword = appSearch.value.trim().toLowerCase();
+      const type = appTypeFilter.value;
+      const apps = installedApps.filter(app => (type === 'all' || app.type === type) && `${app.label} ${app.packageName} ${app.path}`.toLowerCase().includes(keyword));
+      if (!apps.length) {
+        appOutput.className = 'empty';
+        appOutput.textContent = installedApps.length ? '没有匹配的应用' : '暂无应用数据';
+        return;
+      }
+      appOutput.className = 'app-list';
+      appOutput.replaceChildren();
+      for (const app of apps) {
+        const row = document.createElement('div');
+        row.className = 'app-row';
+        const icon = document.createElement('img');
+        icon.className = 'app-icon';
+        icon.alt = '';
+        icon.src = app.icon || `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="${app.type === 'system' ? '#64748b' : '#22c55e'}"/><text x="48" y="61" text-anchor="middle" font-size="42">${app.type === 'system' ? '⚙' : '◆'}</text></svg>`)}`;
+        const name = document.createElement('div');
+        name.className = 'app-name';
+        name.textContent = app.label || app.packageName;
+        name.title = app.label || app.packageName;
+        const packageName = document.createElement('small');
+        packageName.textContent = app.packageName;
+        name.append(packageName);
+        const path = document.createElement('div');
+        path.className = 'app-path';
+        path.textContent = app.path;
+        path.title = app.path;
+        const typeBadge = document.createElement('div');
+        typeBadge.textContent = app.type === 'system' ? '系统应用' : '用户应用';
+        typeBadge.className = app.type === 'system' ? 'app-package' : 'app-package';
+        const actions = document.createElement('div');
+        actions.className = 'app-actions';
+        const launch = document.createElement('button');
+        launch.type = 'button';
+        launch.textContent = '启动';
+        launch.disabled = app.disabled;
+        launch.addEventListener('click', () => launchApp(app.packageName));
+        const freeze = document.createElement('button');
+        freeze.type = 'button';
+        freeze.textContent = app.disabled ? '解冻' : '冻结';
+        freeze.addEventListener('click', () => toggleAppFreeze(app));
+        const uninstall = document.createElement('button');
+        uninstall.type = 'button';
+        uninstall.className = 'danger';
+        uninstall.textContent = '卸载';
+        uninstall.addEventListener('click', () => uninstallApp(app));
+        const extract = document.createElement('button');
+        extract.type = 'button';
+        extract.textContent = '提取';
+        extract.addEventListener('click', event => extractApp(app, event.currentTarget));
+        actions.append(launch, freeze, extract, uninstall);
+        row.append(icon, name, path, typeBadge, actions);
+        appOutput.append(row);
+      }
+    }
+
+    async function launchApp(packageName) {
+      if (!/^[A-Za-z0-9._]+$/.test(packageName)) return;
+      try {
+        await runShell(`monkey -p ${packageName} -c android.intent.category.LAUNCHER 1`);
+        log(`已启动应用：${packageName}`);
+      } catch (error) { logError(error); }
+    }
+
+    async function toggleAppFreeze(app) {
+      if (!/^[A-Za-z0-9._]+$/.test(app.packageName)) return;
+      const action = app.disabled ? '解冻' : '冻结';
+      if (!window.confirm(`确定要${action}应用“${app.packageName}”吗？`)) return;
+      try {
+        await runShell(app.disabled ? `pm enable ${app.packageName}` : `pm disable-user --user 0 ${app.packageName}`);
+        log(`已${action}应用：${app.packageName}`);
+        await listApps();
+      } catch (error) { logError(error); }
+    }
+
+    async function uninstallApp(app) {
+      if (!/^[A-Za-z0-9._]+$/.test(app.packageName)) return;
+      const scope = app.type === 'system' ? '当前用户卸载/移除' : '卸载';
+      if (!window.confirm(`确定要${scope}应用“${app.packageName}”吗？此操作可能导致应用数据不可用。`)) return;
+      try {
+        await runShell(`pm uninstall --user 0 ${app.packageName}`);
+        log(`${scope}完成：${app.packageName}`);
+        await listApps();
+      } catch (error) { logError(error); }
+    }
+
+    async function extractApp(app, button) {
+      button.disabled = true;
+      try {
+        log(`提取安装包：${app.packageName}`);
+        const result = await runShell(`pm path ${app.packageName}`);
+        const paths = String(result.stdout || '').split(/\r?\n/).map(line => line.match(/^package:(.+\.apk)$/)?.[1]).filter(Boolean);
+        if (!paths.length) paths.push(app.path);
+        const entries = [];
+        for (const path of paths) entries.push({ name: path.split('/').pop(), bytes: await readRemoteFile(path) });
+        const multiple = entries.length > 1;
+        const bytes = multiple ? createZip(entries) : entries[0].bytes;
+        const url = URL.createObjectURL(new Blob([bytes], { type: multiple ? 'application/octet-stream' : 'application/vnd.android.package-archive' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${app.packageName}.${multiple ? 'apks' : 'apk'}`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        log(`安装包已下载：${app.packageName}.${multiple ? 'apks' : 'apk'}（${entries.length} 个 APK）`);
+      } catch (error) { logError(error); showStatus(`提取失败：${error.message}`, true); }
+      finally { button.disabled = false; }
+    }
+
+    function createZip(entries) {
+      const encoder = new TextEncoder();
+      const locals = [];
+      const centrals = [];
+      let offset = 0;
+      for (const entry of entries) {
+        const name = encoder.encode(entry.name);
+        const crc = crc32(entry.bytes);
+        const local = new Uint8Array(30 + name.length + entry.bytes.length);
+        const view = new DataView(local.buffer);
+        view.setUint32(0, 0x04034b50, true); view.setUint16(4, 20, true); view.setUint16(6, 0x800, true); view.setUint16(8, 0, true);
+        view.setUint32(14, crc, true); view.setUint32(18, entry.bytes.length, true); view.setUint32(22, entry.bytes.length, true); view.setUint16(26, name.length, true);
+        local.set(name, 30); local.set(entry.bytes, 30 + name.length); locals.push(local);
+        const central = new Uint8Array(46 + name.length);
+        const centralView = new DataView(central.buffer);
+        centralView.setUint32(0, 0x02014b50, true); centralView.setUint16(4, 20, true); centralView.setUint16(6, 20, true); centralView.setUint16(8, 0x800, true);
+        centralView.setUint32(16, crc, true); centralView.setUint32(20, entry.bytes.length, true); centralView.setUint32(24, entry.bytes.length, true); centralView.setUint16(28, name.length, true); centralView.setUint32(42, offset, true);
+        central.set(name, 46); centrals.push(central); offset += local.length;
+      }
+      const centralOffset = offset;
+      const centralSize = centrals.reduce((sum, item) => sum + item.length, 0);
+      const end = new Uint8Array(22); const endView = new DataView(end.buffer);
+      endView.setUint32(0, 0x06054b50, true); endView.setUint16(8, entries.length, true); endView.setUint16(10, entries.length, true); endView.setUint32(12, centralSize, true); endView.setUint32(16, centralOffset, true);
+      const result = new Uint8Array(offset + centralSize + end.length); let position = 0;
+      for (const part of locals) { result.set(part, position); position += part.length; }
+      for (const part of centrals) { result.set(part, position); position += part.length; }
+      result.set(end, position); return result;
+    }
+
+    function crc32(bytes) {
+      let crc = 0xffffffff;
+      for (const byte of bytes) {
+        crc ^= byte;
+        for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+
+    async function installApk(file) {
+      if (!file || !adb) return;
+      if (!window.confirm(`确定安装“${file.name}”吗？`)) { apkInput.value = ''; return; }
+      const isApks = file.name.toLowerCase().endsWith('.apks');
+      const remotePaths = [];
+      try {
+        installApkButton.disabled = true;
+        installStatus.textContent = '正在读取安装包…';
+        const entries = isApks ? await readApksEntries(file) : [{ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }];
+        if (!entries.length) throw new Error('安装包内没有 APK 文件');
+        let result;
+        if (isApks || entries.length > 1) {
+          const sessionResult = await runShell('pm install-create -r');
+          const sessionId = String(sessionResult.stdout || '').match(/\[(\d+)\]/)?.[1];
+          if (!sessionId) throw new Error(`${sessionResult.stdout || ''}${sessionResult.stderr || ''}`.trim() || '无法创建安装会话');
+          for (const [index, entry] of entries.entries()) {
+            installStatus.textContent = `正在推送分包 ${index + 1}/${entries.length}…`;
+            const output = await runShellInput(`pm install-write -S ${entry.bytes.length} ${sessionId} ${index}-${entry.name.replace(/[^A-Za-z0-9._-]/g, '_')} -`, entry.bytes, entry => { installStatus.textContent = `正在推送分包 ${index + 1}/${entries.length} · ${entry}%`; });
+            if (output.exitCode !== 0) throw new Error(`${output.stdout}${output.stderr}`.trim() || '分包写入失败');
+          }
+          installStatus.textContent = '正在提交安装…';
+          result = await runShell(`pm install-commit ${sessionId}`);
+        } else {
+          const entry = entries[0];
+          const remotePath = `/data/local/tmp/android-resource-assistant-${entry.name.replace(/[^A-Za-z0-9._-]/g, '_')}`;
+          remotePaths.push(remotePath);
+          installStatus.textContent = '正在推送 APK · 0%';
+          await pushInstallBytes(remotePath, entry.bytes, percent => { installStatus.textContent = `正在推送 APK · ${percent}%`; });
+          installStatus.textContent = '正在安装 APK…';
+          result = await runShell(`pm install -r ${remotePath}`);
+        }
+        const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+        if (!/success/i.test(output)) throw new Error(output || 'APK 安装失败');
+        log(`${isApks ? 'APKS' : 'APK'} 安装成功：${file.name}`);
+        installStatus.textContent = '安装完成';
+        await listApps();
+      } catch (error) { installStatus.textContent = '安装失败'; logError(error); }
+      finally {
+        apkInput.value = '';
+        installApkButton.disabled = !adb;
+        if (remotePaths.length) { try { await runShell(`rm -f ${remotePaths.join(' ')}`); } catch {} }
+      }
+    }
+
+    async function pushInstallBytes(remotePath, bytes, onProgress) {
+      const sync = await adb.sync();
+      try {
+        let offset = 0;
+        const chunkSize = 256 * 1024;
+        const stream = new ReadableStream({
+          pull(controller) {
+            if (offset >= bytes.length) { controller.close(); return; }
+            const end = Math.min(bytes.length, offset + chunkSize);
+            controller.enqueue(bytes.subarray(offset, end));
+            offset = end;
+            onProgress(Math.round(offset / bytes.length * 100));
+          },
+        });
+        await sync.write({ filename: remotePath, file: stream });
+      } finally { await sync.dispose(); }
+    }
+
+    async function runShellInput(command, bytes, onProgress) {
+      const service = adb.subprocess.shellProtocol || adb.subprocess.noneProtocol;
+      if (!service?.spawn) throw new Error('当前 ADB 传输不支持带输入的 shell 命令');
+      const process = await service.spawn(command);
+      const input = process.stdin || process.input;
+      if (!input?.getWriter) throw new Error('当前 ADB shell 进程没有可写入的 stdin');
+      const writer = input.getWriter();
+      let offset = 0;
+      const chunkSize = 256 * 1024;
+      try {
+        while (offset < bytes.length) {
+          const end = Math.min(bytes.length, offset + chunkSize);
+          await writer.write(bytes.subarray(offset, end));
+          offset = end;
+          onProgress(Math.round(offset / bytes.length * 100));
+        }
+        await writer.close();
+        const [stdout, stderr, exitCode] = await Promise.all([readBinaryText(process.stdout), readBinaryText(process.stderr), process.exited]);
+        return { stdout, stderr, exitCode };
+      } finally { try { writer.releaseLock(); } catch {} }
+    }
+
+    async function readBinaryText(stream) {
+      if (!stream) return '';
+      const reader = stream.getReader(); const decoder = new TextDecoder(); let text = '';
+      while (true) { const part = await reader.read(); if (part.done) break; text += decoder.decode(part.value, { stream: true }); }
+      return text + decoder.decode();
+    }
+
+    async function readApksEntries(file) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const view = new DataView(bytes.buffer);
+      let end = -1;
+      for (let index = bytes.length - 22; index >= 0; index--) {
+        if (view.getUint32(index, true) === 0x06054b50) { end = index; break; }
+      }
+      if (end < 0) throw new Error('APKS 不是有效的 ZIP 容器');
+      const count = view.getUint16(end + 10, true);
+      const centralOffset = view.getUint32(end + 16, true);
+      const decoder = new TextDecoder();
+      const entries = [];
+      let offset = centralOffset;
+      for (let index = 0; index < count; index++) {
+        if (view.getUint32(offset, true) !== 0x02014b50) throw new Error('APKS 中央目录损坏');
+        const method = view.getUint16(offset + 10, true);
+        const compressedSize = view.getUint32(offset + 20, true);
+        const nameLength = view.getUint16(offset + 28, true);
+        const extraLength = view.getUint16(offset + 30, true);
+        const commentLength = view.getUint16(offset + 32, true);
+        const localOffset = view.getUint32(offset + 42, true);
+        const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
+        offset += 46 + nameLength + extraLength + commentLength;
+        if (!name.toLowerCase().endsWith('.apk')) continue;
+        const localNameLength = view.getUint16(localOffset + 26, true);
+        const localExtraLength = view.getUint16(localOffset + 28, true);
+        const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+        const compressed = bytes.subarray(dataStart, dataStart + compressedSize);
+        const content = method === 0 ? compressed : method === 8 ? await inflateZipEntry(compressed) : undefined;
+        if (!content) throw new Error(`不支持 APKS 压缩方式：${method}`);
+        entries.push({ name: name.split('/').pop(), bytes: content });
+      }
+      return entries;
+    }
+
+    async function inflateZipEntry(bytes) {
+      if (!window.DecompressionStream) throw new Error('当前浏览器不支持 APKS 解压');
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
     }
 
     function renderFiles(path, entries) {
@@ -519,6 +919,8 @@
         scrcpyClient = await AdbScrcpyClient.start(adb, serverPath, new AdbScrcpyOptions3_3_3({
           audio: false,
           control: true,
+          maxSize: 0,
+          videoBitRate: 16_000_000,
         }));
         screenControlBroken = false;
         screenControlWritePending = false;
@@ -588,7 +990,11 @@
       disconnectButton.disabled = !connected;
       listButton.disabled = !connected;
       upButton.disabled = !connected;
+      refreshAppsButton.disabled = !connected;
+      installApkButton.disabled = !connected;
       screenButton.disabled = !connected;
+      screenShortcutButtons.forEach(button => { button.disabled = !connected; });
+      screenScreenshotButton.disabled = !connected;
     }
     function showStatus(message, error = false) { status.textContent = message; status.classList.toggle('error', error); }
     function log(message) {
