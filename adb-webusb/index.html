@@ -130,7 +130,7 @@
   <main>
     <a class="back" href="../index.html">← 返回工具首页</a>
     <div class="heading-row"><h1>Android ADB WebUSB</h1><div class="connection"><button id="connectButton" type="button">连接 Android 设备</button><button id="disconnectButton" class="secondary" type="button" disabled>断开</button><span id="status" class="status">未连接</span></div></div>
-    <p class="intro">Chrome / Edge 通过 WebUSB 管理 Android 设备，文件浏览器与终端独立。需 HTTPS 或 localhost、USB 调试；首次连接请在手机授权，并关闭 adb server、Android Studio、scrcpy。</p>
+    <p class="intro">Chrome / Edge 通过 WebUSB 管理 Android 设备，文件浏览器与终端独立。需 HTTPS 或 localhost、USB 调试；首次连接请在手机授权，并关闭 adb server、Android Studio、scrcpy。连接失败或使用后其他应用无法连接时，请执行 <code>adb kill-server</code>。</p>
     <section class="panel">
       <div class="tabs" role="tablist" aria-label="ADB 工具">
         <button class="tab active" data-view="files" role="tab" aria-selected="true">文件浏览器</button>
