@@ -51,6 +51,19 @@
     .preview-body .file-preview { padding:0; }
     .preview-body .file-list { border:0; }
     .preview-editor { display:block; width:100%; min-height:58vh; resize:vertical; padding:14px; border:1px solid #334155; border-radius:10px; color:#d1fae5; background:#172033; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; tab-size:2; }
+    .language-body { display:grid; gap:16px; padding:20px; }
+    .language-dialog { height:min(90vh,900px); }
+    .language-dialog .language-body { min-height:0; overflow:hidden; grid-template-rows:auto auto minmax(0,1fr) auto; }
+    .language-current { padding:12px; border-radius:10px; color:var(--muted); background:#f6f8fc; }
+    .language-current strong { display:block; margin-top:3px; color:var(--ink); font-size:17px; }
+    .language-search { width:100%; }
+    .language-list { min-height:0; max-height:none; overflow:auto; border:1px solid var(--line); border-radius:10px; }
+    .language-option { display:flex; align-items:center; justify-content:space-between; width:100%; padding:10px 12px; border-bottom:1px solid var(--line); border-radius:0; color:var(--ink); background:#fff; text-align:left; }
+    .language-option:last-child { border-bottom:0; }
+    .language-option:hover, .language-option.selected { color:var(--brand); background:var(--soft); }
+    .language-option small { color:var(--muted); font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .language-empty { padding:20px; color:var(--muted); text-align:center; }
+    .language-actions { display:flex; justify-content:flex-end; gap:8px; }
     .app-toolbar { display:flex; gap:10px; margin-bottom:14px; }
     .app-toolbar select { border:1px solid var(--line); border-radius:10px; padding:10px 12px; color:var(--ink); background:#fff; font:inherit; }
     .app-list { overflow:auto; border:1px solid var(--line); border-radius:10px; }
@@ -183,6 +196,12 @@
       <div id="previewBody" class="preview-body"></div>
     </div>
   </div>
+  <div id="languageModal" class="preview-modal" hidden>
+    <div class="preview-dialog language-dialog" role="dialog" aria-modal="true" aria-labelledby="languageTitle">
+      <div class="preview-head"><span id="languageTitle" class="preview-title">应用语言</span><div class="preview-head-actions"><button id="saveLanguageButton" type="button">确认切换</button><button id="closeLanguageButton" class="secondary" type="button">关闭</button></div></div>
+      <div class="language-body"><div class="language-current">当前选择<strong id="languageCurrent">读取中…</strong></div><input id="languageSearch" class="language-search" placeholder="搜索语言名称或代码"><div id="appLanguageList" class="language-list"></div><div class="language-actions"><button id="resetLanguageButton" class="secondary" type="button">跟随系统</button></div></div>
+    </div>
+  </div>
 
   <script>
     window.addEventListener('error', event => {
@@ -243,6 +262,14 @@
     const previewBody = document.querySelector('#previewBody');
     const savePreviewButton = document.querySelector('#savePreviewButton');
     const closePreviewButton = document.querySelector('#closePreviewButton');
+    const languageModal = document.querySelector('#languageModal');
+    const languageTitle = document.querySelector('#languageTitle');
+    const languageCurrent = document.querySelector('#languageCurrent');
+    const languageSearch = document.querySelector('#languageSearch');
+    const appLanguageList = document.querySelector('#appLanguageList');
+    const closeLanguageButton = document.querySelector('#closeLanguageButton');
+    const resetLanguageButton = document.querySelector('#resetLanguageButton');
+    const saveLanguageButton = document.querySelector('#saveLanguageButton');
     const tabs = document.querySelectorAll('.tab');
     let adb;
     let backend;
@@ -269,6 +296,20 @@
     let screenTouchStart;
     let installedApps = [];
     let disabledPackages = new Set();
+    let languageApp;
+    let languageTags = [];
+    let selectedLanguageTag = '';
+    const appLanguageOptions = [
+      ['en', '英语'], ['en-US', '英语（美国）'], ['en-GB', '英语（英国）'], ['zh', '中文'], ['zh-CN', '简体中文'], ['zh-TW', '繁体中文'], ['zh-HK', '中文（香港）'], ['ja', '日语'], ['ko', '韩语'], ['fr', '法语'],
+      ['de', '德语'], ['es', '西班牙语'], ['es-419', '西班牙语（拉丁美洲）'], ['it', '意大利语'], ['pt', '葡萄牙语'], ['pt-BR', '葡萄牙语（巴西）'], ['pt-PT', '葡萄牙语（葡萄牙）'], ['ru', '俄语'], ['ar', '阿拉伯语'],
+      ['hi', '印地语'], ['tr', '土耳其语'], ['nl', '荷兰语'], ['pl', '波兰语'], ['uk', '乌克兰语'], ['vi', '越南语'], ['th', '泰语'], ['id', '印度尼西亚语'], ['ms', '马来语'], ['he', '希伯来语'],
+      ['fa', '波斯语'], ['bn', '孟加拉语'], ['ta', '泰米尔语'], ['te', '泰卢固语'], ['mr', '马拉地语'], ['sw', '斯瓦希里语'], ['cs', '捷克语'], ['da', '丹麦语'], ['fi', '芬兰语'], ['no', '挪威语'],
+      ['sv', '瑞典语'], ['el', '希腊语'], ['ro', '罗马尼亚语'], ['hu', '匈牙利语'], ['sk', '斯洛伐克语'], ['ca', '加泰罗尼亚语'], ['hr', '克罗地亚语'], ['sr', '塞尔维亚语'], ['bg', '保加利亚语'],
+      ['sl', '斯洛文尼亚语'], ['et', '爱沙尼亚语'], ['lv', '拉脱维亚语'], ['lt', '立陶宛语'], ['is', '冰岛语'], ['ga', '爱尔兰语'], ['mt', '马耳他语'], ['fil', '菲律宾语'], ['ur', '乌尔都语'],
+      ['ne', '尼泊尔语'], ['si', '僧伽罗语'], ['km', '高棉语'], ['lo', '老挝语'], ['my', '缅甸语'], ['am', '阿姆哈拉语'], ['zu', '祖鲁语'], ['af', '南非荷兰语'], ['sq', '阿尔巴尼亚语'], ['hy', '亚美尼亚语'],
+      ['az', '阿塞拜疆语'], ['eu', '巴斯克语'], ['be', '白俄罗斯语'], ['bs', '波斯尼亚语'], ['gl', '加利西亚语'], ['ka', '格鲁吉亚语'], ['kk', '哈萨克语'], ['ky', '吉尔吉斯语'], ['mk', '马其顿语'], ['mn', '蒙古语'],
+      ['ps', '普什图语'], ['uz', '乌兹别克语'], ['tk', '土库曼语'], ['tg', '塔吉克语'], ['ug', '维吾尔语']
+    ];
 
     tabs.forEach(tab => tab.addEventListener('click', async () => {
       const view = tab.dataset.view;
@@ -311,6 +352,11 @@
     }));
     document.querySelector('[data-screen-screenshot]').addEventListener('click', captureScreenShot);
     closePreviewButton.addEventListener('click', closePreview);
+    closeLanguageButton.addEventListener('click', closeLanguageModal);
+    languageModal.addEventListener('click', event => { if (event.target === languageModal) closeLanguageModal(); });
+    languageSearch.addEventListener('input', renderLanguageList);
+    resetLanguageButton.addEventListener('click', () => { selectedLanguageTag = ''; void saveAppLanguage(); });
+    saveLanguageButton.addEventListener('click', saveAppLanguage);
     savePreviewButton.addEventListener('click', saveTextPreview);
     previewModal.addEventListener('click', event => { if (event.target === previewModal) closePreview(); });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && !previewModal.hidden) closePreview(); });
@@ -542,10 +588,107 @@
         extract.type = 'button';
         extract.textContent = '提取';
         extract.addEventListener('click', event => extractApp(app, event.currentTarget));
-        actions.append(launch, freeze, extract, uninstall);
+        const language = document.createElement('button');
+        language.type = 'button';
+        language.textContent = '语言';
+        language.addEventListener('click', () => { void openAppLanguage(app); });
+        actions.append(launch, freeze, language, extract, uninstall);
         row.append(icon, name, path, typeBadge, actions);
         appOutput.append(row);
       }
+    }
+
+    async function openAppLanguage(app) {
+      if (!adb) return;
+      languageApp = app;
+      languageTitle.textContent = `应用语言：${app.label || app.packageName}`;
+      languageCurrent.textContent = '读取中…';
+      languageModal.hidden = false;
+      try {
+        const current = await runShell(`cmd locale get-app-locales ${app.packageName} --user 0`);
+        const output = `${current.stdout || ''}${current.stderr || ''}`.trim();
+        if (current.exitCode !== 0 || /unknown command|can't find service|error:|exception/i.test(output)) throw new Error(output || '设备不支持应用语言设置');
+        const tags = parseLocaleTags(output);
+        const selected = tags[0] || '';
+        const supportedTags = await readSupportedAppLocales(app.packageName);
+        languageTags = [...new Set([...supportedTags, ...appLanguageOptions.map(option => option[0]), ...tags])];
+        selectedLanguageTag = selected;
+        languageSearch.value = '';
+        renderLanguageList();
+        languageCurrent.textContent = selected ? formatLocaleTags(tags) : '跟随系统（未设置应用语言）';
+      } catch (error) {
+        closeLanguageModal();
+        showStatus(`读取应用语言失败：${error.message}`, true);
+        logError(error);
+      }
+    }
+
+    function parseLocaleTags(output) {
+      const match = String(output).match(/are\s*\[([^\]]*)\]/i);
+      return (match ? match[1] : '').split(',').map(tag => tag.trim()).filter(Boolean);
+    }
+
+    async function readSupportedAppLocales(packageName) {
+      try {
+        const result = await runShell(`cmd locale get-app-localeconfig-ignore-override ${packageName} --user 0`);
+        const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+        if (result.exitCode !== 0 || /unknown command|can't find service|error:|exception/i.test(output)) return [];
+        return parseLocaleTags(output);
+      } catch { return []; }
+    }
+
+    function getLocaleLabel(tag) {
+      const known = appLanguageOptions.find(option => option[0].toLowerCase() === tag.toLowerCase());
+      if (known) return known[1];
+      try {
+        const language = new Intl.Locale(tag).language;
+        return new Intl.DisplayNames(['zh-CN'], { type: 'language' }).of(language) || tag;
+      } catch { return tag; }
+    }
+
+    function renderLanguageList() {
+      const keyword = languageSearch.value.trim().toLowerCase();
+      const tags = languageTags.filter(tag => `${getLocaleLabel(tag)} ${tag}`.toLowerCase().includes(keyword));
+      appLanguageList.replaceChildren();
+      if (!tags.length) {
+        const empty = document.createElement('div'); empty.className = 'language-empty'; empty.textContent = '没有匹配的语言'; appLanguageList.append(empty); return;
+      }
+      for (const tag of tags) {
+        const option = document.createElement('button'); option.type = 'button'; option.className = `language-option${tag === selectedLanguageTag ? ' selected' : ''}`;
+        const label = document.createElement('span'); label.textContent = getLocaleLabel(tag);
+        const code = document.createElement('small'); code.textContent = tag;
+        option.append(label, code);
+        option.addEventListener('click', () => { selectedLanguageTag = tag; languageCurrent.textContent = getLocaleLabel(tag); renderLanguageList(); });
+        appLanguageList.append(option);
+      }
+    }
+
+    function formatLocaleTags(tags) {
+      if (!tags.length) return '跟随系统（未设置应用语言）';
+      return tags.map(tag => getLocaleLabel(tag)).join('、');
+    }
+
+    async function saveAppLanguage() {
+      if (!languageApp || !adb) return;
+      const app = languageApp;
+      const tag = selectedLanguageTag;
+      if (!window.confirm(`确定将“${app.packageName}”切换为${tag ? `“${formatLocaleTags([tag])}”` : '跟随系统'}吗？`)) return;
+      saveLanguageButton.disabled = true;
+      resetLanguageButton.disabled = true;
+      try {
+        const result = await runShell(`cmd locale set-app-locales ${app.packageName} --user 0 --locales ${shellQuote(tag)}`);
+        const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+        if (result.exitCode !== 0 || /unknown command|error:|exception|unknown package/i.test(output)) throw new Error(output || '设备不支持应用语言设置');
+        log(`已切换应用语言：${app.packageName} → ${tag || '跟随系统'}`);
+        closeLanguageModal();
+        showStatus(`已切换：${app.label || app.packageName}`);
+      } catch (error) { showStatus(`切换应用语言失败：${error.message}`, true); logError(error); }
+      finally { saveLanguageButton.disabled = false; resetLanguageButton.disabled = false; }
+    }
+
+    function closeLanguageModal() {
+      languageModal.hidden = true;
+      languageApp = undefined;
     }
 
     async function launchApp(packageName) {
