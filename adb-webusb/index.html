@@ -9,12 +9,13 @@
     :root { color-scheme: light; --ink:#172033; --muted:#6f7b91; --line:#e6eaf0; --brand:#16a34a; --soft:#effcf3; --danger:#b42318; }
     * { box-sizing:border-box; }
     body { margin:0; min-height:100vh; background:#f6f8fc; color:var(--ink); font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
-    main { width:min(1180px, calc(100% - 32px)); margin:0 auto; padding:52px 0 72px; }
+    main { width:calc(100% - 32px); margin:0 auto; padding:30px 0 72px; }
     .back { color:var(--brand); text-decoration:none; font-weight:700; }
-    h1 { margin:18px 0 8px; font-size:clamp(28px, 5vw, 44px); line-height:1.1; letter-spacing:-.04em; }
-    .intro { max-width:760px; margin:0; color:var(--muted); font-size:16px; }
+    h1 { margin:10px 0 5px; font-size:clamp(28px, 5vw, 44px); line-height:1.1; letter-spacing:-.04em; }
+    .intro { margin:0 0 8px; color:var(--muted); font-size:16px; }
     .panel { overflow:hidden; border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 12px 40px rgba(25,42,80,.07); }
-    .connection { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:22px; border-bottom:1px solid var(--line); }
+    .heading-row { display:flex; align-items:center; justify-content:flex-start; gap:12px; }
+    .connection { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:wrap; }
     button { border:0; border-radius:10px; padding:10px 16px; color:#fff; background:var(--brand); cursor:pointer; font:inherit; font-weight:700; }
     button.secondary { color:var(--ink); background:#eef1f5; }
     button:disabled { opacity:.55; cursor:wait; }
@@ -109,21 +110,15 @@
     .error { color:var(--danger); }
     [hidden] { display:none !important; }
     @media (max-width:760px) { .screen-layout { grid-template-columns:1fr 1fr; } .screen-device { grid-column:1 / -1; grid-row:1; } .screen-shortcuts { grid-row:2; } }
-    @media (max-width:600px) { main { width:min(100% - 20px, 1180px); padding-top:30px; } .toolbar, .terminal-input, .app-toolbar { flex-direction:column; } .app-row { grid-template-columns:1fr auto; } .app-path { grid-column:1 / -1; } .screen-layout { grid-template-columns:1fr; padding:12px; } .screen-device { grid-column:auto; grid-row:auto; } .screen-shortcuts { grid-row:auto; grid-template-columns:repeat(3, 1fr); } .shortcut-title { grid-column:1 / -1; } }
+    @media (max-width:600px) { main { width:min(100% - 20px, 1180px); padding-top:30px; } .heading-row { align-items:flex-start; flex-direction:column; gap:10px; } .connection { justify-content:flex-start; } .toolbar, .terminal-input, .app-toolbar { flex-direction:column; } .app-row { grid-template-columns:1fr auto; } .app-path { grid-column:1 / -1; } .screen-layout { grid-template-columns:1fr; padding:12px; } .screen-device { grid-column:auto; grid-row:auto; } .screen-shortcuts { grid-row:auto; grid-template-columns:repeat(3, 1fr); } .shortcut-title { grid-column:1 / -1; } }
   </style>
 </head>
 <body>
   <main>
     <a class="back" href="../index.html">← 返回工具首页</a>
-    <h1>Android ADB WebUSB</h1>
-    <p class="intro">使用 Chrome / Edge 通过 WebUSB 连接开启 USB 调试的 Android 设备。文件浏览器和命令终端相互独立。</p>
+    <div class="heading-row"><h1>Android ADB WebUSB</h1><div class="connection"><button id="connectButton" type="button">连接 Android 设备</button><button id="disconnectButton" class="secondary" type="button" disabled>断开</button><span id="status" class="status">未连接</span></div></div>
+    <p class="intro">Chrome / Edge 通过 WebUSB 管理 Android 设备，文件浏览器与终端独立。需 HTTPS 或 localhost、USB 调试；首次连接请在手机授权，并关闭 adb server、Android Studio、scrcpy。</p>
     <section class="panel">
-      <div class="connection">
-        <button id="connectButton" type="button">连接 Android 设备</button>
-        <button id="disconnectButton" class="secondary" type="button" disabled>断开</button>
-        <span id="status" class="status">未连接</span>
-      </div>
-      <div class="notice">要求 HTTPS 或 localhost、Chrome / Edge，并开启 USB 调试。首次连接时手机可能弹出授权提示；已经授权的设备不会重复弹窗。连接前请关闭电脑上的 adb server、Android Studio 或 scrcpy。</div>
       <div class="tabs" role="tablist" aria-label="ADB 工具">
         <button class="tab active" data-view="files" role="tab" aria-selected="true">文件浏览器</button>
         <button class="tab" data-view="apps" role="tab" aria-selected="false">应用管理</button>
