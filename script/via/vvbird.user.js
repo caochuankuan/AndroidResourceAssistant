@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟全功能助手
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      3.1.4
+// @version      3.1.5
 // @description  小鸟游戏全功能工具，支持独立用户管理、多账户操作、天梯、种鸟、配鸟等
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
@@ -2386,11 +2386,38 @@
     return match ? Number(match[1]) : 0;
   }
 
+  async function readBreedingData(path, sso) {
+    // Pace account and pagination reads; retry only explicit rate-limit responses.
+    await wait(1000);
+
+    for (let attempt = 0; attempt <= 3; attempt++) {
+      if (globalStopRequested) {
+        throw new Error('操作已停止');
+      }
+
+      const result = await requestResult(path, 'GET', sso);
+
+      if (result.ok) {
+        return result.data?.data;
+      }
+
+      const rateLimited = result.status === 429 || Number(result.data?.code) === 429;
+
+      if (!rateLimited || attempt === 3) {
+        throw new Error(result.message);
+      }
+
+      const delaySeconds = 2 ** (attempt + 1);
+      addLog(`配鸟信息读取触发限流，${delaySeconds} 秒后重试（${attempt + 1}/3）。`);
+      await wait(delaySeconds * 1000);
+    }
+  }
+
   async function fetchBreedingBirds(receiverUid, currentSso) {
     const birds = [];
 
     for (let page = 0; page < 100; page++) {
-      const pageData = await api(`/api/birth/birthwait?uid=${encodeURIComponent(receiverUid)}&page=${page}`, 'GET', currentSso);
+      const pageData = await readBreedingData(`/api/birth/birthwait?uid=${encodeURIComponent(receiverUid)}&page=${page}`, currentSso);
       const pageBirds = Array.isArray(pageData?.records)
         ? pageData.records
         : (Array.isArray(pageData?.content) ? pageData.content : []);
@@ -2405,6 +2432,10 @@
   }
 
   async function loadBreedingBirds() {
+    if (breedingLoadButton.disabled || breedingRunning) {
+      return;
+    }
+
     globalStopRequested = false;
     const currentSso = getSso();
     const partnerSso = extractSsoValue(shadow.querySelector('.breeding-partner').value);
@@ -2416,10 +2447,12 @@
 
     breedingLoadButton.disabled = true;
     breedingLoadButton.textContent = '加载中...';
+    breedingContext = null;
+    breedingStartButton.disabled = true;
 
     try {
-      const currentInfo = await api('/api/player/info', 'GET', currentSso);
-      const partnerInfo = await api('/api/player/info', 'GET', partnerSso);
+      const currentInfo = await readBreedingData('/api/player/info', currentSso);
+      const partnerInfo = await readBreedingData('/api/player/info', partnerSso);
 
       if (String(currentInfo.uid) === String(partnerInfo.uid)) {
         throw new Error('账号 A 和账号 B 不能是同一个账户');
@@ -2466,7 +2499,7 @@
     const birds = [];
 
     for (let page = 0; page < 100; page++) {
-      const pageData = await api(`/api/birth/birthwait?birdId=${encodeURIComponent(friendBirdId)}&page=${page}`, 'GET', currentSso);
+      const pageData = await readBreedingData(`/api/birth/birthwait?birdId=${encodeURIComponent(friendBirdId)}&page=${page}`, currentSso);
       const pageBirds = Array.isArray(pageData?.records)
         ? pageData.records
         : (Array.isArray(pageData?.content) ? pageData.content : []);
