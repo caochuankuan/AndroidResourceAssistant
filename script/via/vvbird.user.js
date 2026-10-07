@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟全功能助手
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      3.1.5
+// @version      3.1.6
 // @description  小鸟游戏全功能工具，支持独立用户管理、多账户操作、天梯、种鸟、配鸟等
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
@@ -831,7 +831,7 @@
           <div class="fields">
             <div class="field-row">
               <label class="label">战斗次数
-                <input class="field ladder-count" type="number" min="1" max="100" value="15">
+                <input class="field ladder-count" type="number" min="1" max="999999" value="15">
               </label>
               <label class="label">对手位置
                 <input class="field ladder-target" type="number" min="1" placeholder="默认最后一个">
@@ -1486,27 +1486,31 @@
   async function performLadder() {
     let successCount = 0;
     let failCount = 0;
+    const total = Math.max(1, Number(shadow.querySelector('.ladder-count').value) || 15);
+    const targetIndex = Number(shadow.querySelector('.ladder-target').value) || null;
 
-    for (let index = 1; index <= 15 && !globalStopRequested; index++) {
+    for (let index = 1; index <= total && !globalStopRequested; index++) {
       try {
         const players = await api('/api/fight/surround');
 
         if (!Array.isArray(players) || players.length === 0) {
           failCount++;
-          addLog(`天梯 ${index}/15：没有可挑战的对手`, 'error');
+          addLog(`天梯 ${index}/${total}：没有可挑战的对手`, 'error');
           continue;
         }
 
-        const target = players[players.length - 1];
+        const target = targetIndex
+          ? players[Math.min(targetIndex, players.length) - 1]
+          : players[players.length - 1];
         await api(`/api/fight/fight?uid=${encodeURIComponent(target.uid)}`, 'POST');
         successCount++;
-        addLog(`天梯 ${index}/15：挑战 UID ${target.uid} 成功`, 'success');
+        addLog(`天梯 ${index}/${total}：挑战 UID ${target.uid} 成功`, 'success');
       } catch (error) {
         failCount++;
-        addLog(`天梯 ${index}/15 失败：${error.message}`, 'error');
+        addLog(`天梯 ${index}/${total} 失败：${error.message}`, 'error');
       }
 
-      if (index < 15) {
+      if (index < total) {
         await wait(200);
       }
     }
@@ -1867,7 +1871,7 @@
   }
 
   async function runAdvancedLadderForCurrent(vipMode) {
-    const count = Math.max(1, Math.min(100, Number(shadow.querySelector('.ladder-count').value) || 15));
+    const count = Math.max(1, Number(shadow.querySelector('.ladder-count').value) || 15);
     const targetIndex = Number(shadow.querySelector('.ladder-target').value) || null;
     const withdrawAmount = Math.max(0, Number(shadow.querySelector('.ladder-withdraw').value) || 0);
     const cardCount = Math.max(1, Number(shadow.querySelector('.ladder-cards').value) || 10);
