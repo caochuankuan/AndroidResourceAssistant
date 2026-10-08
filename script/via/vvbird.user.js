@@ -811,6 +811,10 @@
 
         <div class="tool-page" data-tool-page="one-click">
           <p class="tool-note">按原项目顺序为上方勾选的账户执行完整日常操作。</p>
+          <label class="label">内部操作平均间隔（秒）
+            <input class="field one-click-interval" type="number" min="0" max="60" step="0.1" value="1">
+          </label>
+          <p class="tool-note">祝福、天梯、捐款和切磋循环会在平均间隔 ±20% 内随机等待；设为 0 则不等待。各操作步骤之间仍等待 2 秒。</p>
           <button class="execute" type="button">开始一键操作</button>
         </div>
 
@@ -1002,6 +1006,7 @@
   const closeButton = shadow.querySelector('.close');
   const stopAllButton = shadow.querySelector('.stop-all');
   const executeButton = shadow.querySelector('.execute');
+  const oneClickIntervalInput = shadow.querySelector('.one-click-interval');
   const clearButton = shadow.querySelector('.clear');
   const logs = shadow.querySelector('.logs');
   const toolSelect = shadow.querySelector('.tool-select');
@@ -1033,6 +1038,7 @@
 
   let dragging = false;
   let moved = false;
+  let oneClickRunning = false;
   let startX = 0;
   let startY = 0;
   let startLeft = 0;
@@ -1309,6 +1315,21 @@
     });
   }
 
+  function getOperationInterval(baseMilliseconds) {
+    if (!oneClickRunning) {
+      return baseMilliseconds;
+    }
+
+    const seconds = Number(oneClickIntervalInput.value);
+    const averageMilliseconds = Number.isFinite(seconds) ? Math.max(0, Math.min(60, seconds)) * 1000 : 1000;
+
+    if (averageMilliseconds === 0) {
+      return 0;
+    }
+
+    return Math.round(averageMilliseconds * (0.8 + Math.random() * 0.4));
+  }
+
   function stopAllTasks() {
     globalStopRequested = true;
     plantRunning = false;
@@ -1473,7 +1494,7 @@
           addLog(`祝福 ${player.nickname || player.uid} 失败：${error.message}`, 'error');
         }
 
-        await wait(100);
+        await wait(getOperationInterval(100));
       }
 
       if (stopForLimit) {
@@ -1487,7 +1508,7 @@
         break;
       }
 
-      await wait(20);
+      await wait(getOperationInterval(20));
     }
 
     addLog(`好友祝福完成：成功 ${successCount}，失败 ${failCount}`, failCount ? 'info' : 'success');
@@ -1521,7 +1542,7 @@
       }
 
       if (index < total) {
-        await wait(200);
+        await wait(getOperationInterval(200));
       }
     }
 
@@ -1541,7 +1562,7 @@
       }
 
       if (index < 2) {
-        await wait(500);
+        await wait(getOperationInterval(500));
       }
     }
 
@@ -1590,7 +1611,7 @@
       }
 
       if (wins < 5) {
-        await wait(200);
+        await wait(getOperationInterval(200));
       }
     }
 
@@ -1765,9 +1786,11 @@
 
   async function executeAllOperations() {
     globalStopRequested = false;
+    oneClickRunning = true;
     const selectedUsers = getSelectedUsers();
 
     if (selectedUsers.length === 0) {
+      oneClickRunning = false;
       addLog('请先添加或选择账户。', 'error');
       return;
     }
@@ -1781,6 +1804,7 @@
         await withUser(user, executeAllOperationsForCurrent);
       }
     } finally {
+      oneClickRunning = false;
       executeButton.disabled = false;
       executeButton.textContent = '开始一键操作';
     }
