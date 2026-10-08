@@ -169,16 +169,26 @@
 
   function rememberVipProfile(payload) {
     const player = payload?.data;
+    const vipLevel = getDisplayedVipLevel(player);
 
-    if (!player?.nickname || !player?.vipLevel) {
+    if (!player?.nickname || !vipLevel) {
       return;
     }
 
     vipProfiles.set(String(player.uid || player.nickname), {
       nickname: String(player.nickname).trim(),
-      vipLevel: String(player.vipLevel)
+      vipLevel
     });
     renderVipProfiles();
+  }
+
+  function getDisplayedVipLevel(player) {
+    if (player?.fakeVipLevel !== undefined && player?.fakeVipLevel !== null && String(player.fakeVipLevel).trim()) {
+      const fakeVipLevel = String(player.fakeVipLevel).trim();
+      return /^VIP/i.test(fakeVipLevel) ? fakeVipLevel : `VIP${fakeVipLevel}`;
+    }
+
+    return player?.vipLevel ? String(player.vipLevel) : '';
   }
 
   function createVipBadge(vipLevel) {
@@ -1398,7 +1408,7 @@
     const level = info?.levelInfo?.currentLevel?.level ?? '-';
 
     addLog(`当前账户：${info?.nickname || '未知'}（UID: ${info?.uid || '-'}）`, 'success');
-    addLog(`等级：${level}，VIP：${info?.vipLevel ?? '-'}`);
+    addLog(`等级：${level}，VIP：${getDisplayedVipLevel(info) || '-'}`);
     return info;
   }
 
