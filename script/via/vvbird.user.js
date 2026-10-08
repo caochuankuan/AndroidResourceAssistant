@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟全功能助手
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      3.1.6
+// @version      3.1.7
 // @description  小鸟游戏全功能工具，支持独立用户管理、多账户操作、天梯、种鸟、配鸟等
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
@@ -183,8 +183,10 @@
   }
 
   function getDisplayedVipLevel(player) {
-    if (player?.fakeVipLevel !== undefined && player?.fakeVipLevel !== null && String(player.fakeVipLevel).trim()) {
-      const fakeVipLevel = String(player.fakeVipLevel).trim();
+    const fakeVipLevelValue = player?.playerConfig?.fakeVipLevel;
+
+    if (fakeVipLevelValue !== undefined && fakeVipLevelValue !== null && String(fakeVipLevelValue).trim()) {
+      const fakeVipLevel = String(fakeVipLevelValue).trim();
       return /^VIP/i.test(fakeVipLevel) ? fakeVipLevel : `VIP${fakeVipLevel}`;
     }
 
