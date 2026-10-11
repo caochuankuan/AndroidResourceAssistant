@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         小鸟全功能助手
 // @namespace    94218f24-0ac9-4b10-a428-9cee4858c3d4
-// @version      3.1.7
+// @version      3.1.8
 // @description  小鸟游戏全功能工具，支持独立用户管理、多账户操作、天梯、种鸟、配鸟等
 // @author       YiFeng Tools
 // @match        http://43.139.92.32/*
@@ -11,7 +11,10 @@
 // @grant        GM_setValue
 // @grant        GM.getValue
 // @grant        GM.setValue
+// @grant        GM_cookie
+// @grant        GM_xmlhttpRequest
 // @connect      raw.githubusercontent.com
+// @connect      43.139.92.32
 // ==/UserScript==
 
 /* global GM_getValue, GM_setValue */
@@ -26,6 +29,7 @@
   const ROOT_ID = 'yifeng-bird-one-click';
   const USERS_STORAGE_KEY = 'yifeng-bird-users-v1';
   const ACTIVE_USER_STORAGE_KEY = 'yifeng-bird-active-user-v1';
+  const SESSION_STORAGE_KEY = 'yifeng-bird-jsession-sessions-v1';
   const PUMPKIN_BAIT_ID = 66;
   const BIRD_BOOK_SOURCE_URL = 'https://raw.githubusercontent.com/caochuankuan/AndroidResourceAssistant/main/bird/js/bird-book.js';
   const vipProfiles = new Map();
@@ -766,6 +770,7 @@
             <select class="select active-user" aria-label="当前操作账户"></select>
             <button class="mini select-all-users" type="button">全选</button>
             <button class="mini clear-users" type="button">清空</button>
+            <button class="mini capture-sessions" type="button">采集会话</button>
           </div>
           <div class="account-list"></div>
         </div>
@@ -1052,6 +1057,7 @@
   let birdBookData = null;
   let birdBookLoading = null;
   let users = [];
+  let cookieSessions = new Map();
   let selectedUserIds = new Set();
   let activeUserId = '';
   let executionUser = null;
@@ -1166,6 +1172,13 @@
     users = Array.isArray(parsed)
       ? parsed.filter((user) => user && typeof user.id === 'string' && typeof user.name === 'string' && typeof user.sso === 'string')
       : [];
+    try {
+      const savedSessions = await Promise.resolve(readScriptValue(SESSION_STORAGE_KEY, '{}'));
+      const parsedSessions = JSON.parse(savedSessions || '{}');
+      cookieSessions = new Map(Object.entries(parsedSessions).filter((entry) => typeof entry[1] === 'string'));
+    } catch (error) {
+      cookieSessions.clear();
+    }
     activeUserId = users.some((user) => user.id === savedActiveId) ? savedActiveId : (users[0]?.id || '');
     selectedUserIds = new Set(users.map((user) => user.id));
     renderUsers();
@@ -1366,6 +1379,161 @@
     return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
   }
 
+  function getCookieApi() {
+    return globalThis.GM_cookie || (typeof GM_cookie !== 'undefined' ? GM_cookie : null);
+  }
+
+  function listJsessionCookies() {
+    const api = getCookieApi();
+    if (typeof api?.list !== 'function') {
+      throw new Error('当前用户脚本管理器不支持 GM_cookie.list');
+    }
+
+    return new Promise((resolve, reject) => {
+      api.list({ url: `${location.origin}/`, name: 'JSESSIONID' }, (cookies, error) => {
+        if (error) {
+          reject(new Error(error));
+          return;
+        }
+
+        resolve(cookies || []);
+      });
+    });
+  }
+
+  function deleteJsessionCookie() {
+    const api = getCookieApi();
+    if (typeof api?.delete !== 'function') {
+      throw new Error('当前用户脚本管理器不支持 GM_cookie.delete');
+    }
+
+    return new Promise((resolve, reject) => {
+      api.delete({ url: `${location.origin}/`, name: 'JSESSIONID' }, (error) => {
+        if (error) reject(new Error(error));
+        else resolve();
+      });
+    });
+  }
+
+  function setJsessionCookie(cookie) {
+    if (!cookie) return deleteJsessionCookie();
+
+    const api = getCookieApi();
+    if (typeof api?.set !== 'function') {
+      throw new Error('当前用户脚本管理器不支持 GM_cookie.set');
+    }
+
+    const details = {
+      url: `${location.origin}/`,
+      name: cookie.name || 'JSESSIONID',
+      value: cookie.value,
+      path: cookie.path || '/',
+      secure: Boolean(cookie.secure),
+      httpOnly: Boolean(cookie.httpOnly)
+    };
+    if (cookie.domain) details.domain = cookie.domain;
+    if (Number.isFinite(cookie.expirationDate)) details.expirationDate = cookie.expirationDate;
+
+    return new Promise((resolve, reject) => {
+      api.set(details, (error) => {
+        if (error) reject(new Error(error));
+        else resolve();
+      });
+    });
+  }
+
+  function requestWithSessionCookie(url, method, sso, jsessionid, signal) {
+    const request = globalThis.GM_xmlhttpRequest
+      || (typeof GM_xmlhttpRequest !== 'undefined' ? GM_xmlhttpRequest : null);
+    if (typeof request !== 'function') {
+      throw new Error('当前用户脚本管理器不支持 GM_xmlhttpRequest');
+    }
+
+    return new Promise((resolve, reject) => {
+      let handle;
+      const abort = () => {
+        handle?.abort();
+        reject(new Error('操作已停止'));
+      };
+      const details = {
+        method,
+        url,
+        headers: {
+          authorization: sso,
+          'Content-Type': 'application/json'
+        },
+        cookie: `JSESSIONID=${jsessionid}`,
+        onload(response) {
+          signal?.removeEventListener('abort', abort);
+          resolve({ status: response.status, text: response.responseText || '' });
+        },
+        onerror() {
+          signal?.removeEventListener('abort', abort);
+          reject(new Error('GM_xmlhttpRequest 网络错误'));
+        },
+        ontimeout() {
+          signal?.removeEventListener('abort', abort);
+          reject(new Error('GM_xmlhttpRequest 请求超时'));
+        },
+        onabort() {
+          signal?.removeEventListener('abort', abort);
+          reject(new Error('操作已停止'));
+        }
+      };
+
+      handle = request(details);
+      if (signal?.aborted) abort();
+      else signal?.addEventListener('abort', abort, { once: true });
+    });
+  }
+
+  async function collectAccountSessions() {
+    const api = getCookieApi();
+    if (!api?.list || !api?.set || !api?.delete) {
+      throw new Error('需要支持 GM_cookie 的 Tampermonkey 版本');
+    }
+
+    const originalCookies = await listJsessionCookies();
+    const originalCookie = originalCookies[0] || null;
+    const accounts = [...users];
+    const pageUser = getPageUser();
+    if (pageUser && !accounts.some((user) => user.sso === pageUser.sso)) {
+      accounts.push(pageUser);
+    }
+    if (accounts.length === 0) throw new Error('请先添加包含 SSO 的账号');
+
+    let collected = 0;
+    try {
+      for (const account of accounts) {
+        await deleteJsessionCookie();
+        const response = await fetch(`${location.origin}/?sso=${encodeURIComponent(account.sso)}`, {
+          credentials: 'include',
+          cache: 'no-store',
+          redirect: 'follow'
+        });
+        if (!response.ok) {
+          throw new Error(`${account.name} SSO 登录失败：HTTP ${response.status}`);
+        }
+
+        const [sessionCookie] = await listJsessionCookies();
+        if (!sessionCookie?.value) {
+          throw new Error(`${account.name} 登录后没有取得 JSESSIONID`);
+        }
+
+        cookieSessions.set(account.sso, sessionCookie.value);
+        collected += 1;
+        await Promise.resolve(writeScriptValue(
+          SESSION_STORAGE_KEY,
+          JSON.stringify(Object.fromEntries(cookieSessions))
+        ));
+      }
+    } finally {
+      await setJsessionCookie(originalCookie);
+    }
+
+    addLog(`已采集 ${collected}/${accounts.length} 个账号的 JSESSIONID；后续请求会按账号单独携带。`, 'success');
+  }
+
   async function requestResult(path, method = 'GET', sso = getSso()) {
     if (globalStopRequested) {
       throw new Error('操作已停止');
@@ -1377,16 +1545,28 @@
     let text;
 
     try {
-      response = await fetch(`${location.origin}${path}`, {
-        method,
-        headers: {
-          authorization: sso,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        signal: controller.signal
-      });
-      text = await response.text();
+      if (cookieSessions.has(sso)) {
+        const result = await requestWithSessionCookie(
+          `${location.origin}${path}`,
+          method,
+          sso,
+          cookieSessions.get(sso),
+          controller.signal
+        );
+        response = { ok: result.status >= 200 && result.status < 300, status: result.status };
+        text = result.text;
+      } else {
+        response = await fetch(`${location.origin}${path}`, {
+          method,
+          headers: {
+            authorization: sso,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          signal: controller.signal
+        });
+        text = await response.text();
+      }
     } catch (error) {
       if (controller.signal.aborted) {
         throw new Error('操作已停止');
@@ -3079,6 +3259,16 @@
   clearUsersButton.addEventListener('click', function () {
     selectedUserIds.clear();
     renderUsers();
+  });
+
+  shadow.querySelector('.capture-sessions').addEventListener('click', function (event) {
+    const button = event.currentTarget;
+    button.disabled = true;
+    collectAccountSessions()
+      .catch((error) => addLog(error.message, 'error'))
+      .finally(() => {
+        button.disabled = false;
+      });
   });
 
   shadow.querySelector('.add-user').addEventListener('click', function () {
