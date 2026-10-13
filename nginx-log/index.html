@@ -594,6 +594,14 @@
             </select>
           </div>
 
+          <!-- Date (Day) Filter -->
+          <div class="flex flex-col">
+            <select id="filter-day-select" class="glass-input px-3 py-2 rounded-xl text-xs text-slate-300">
+              <option value="all" data-i18n="filterDayAll">All Days</option>
+              <!-- Populated dynamically via app.js -->
+            </select>
+          </div>
+
           <!-- Date Sort -->
           <div class="flex flex-col">
             <select id="filter-date-sort" class="glass-input px-3 py-2 rounded-xl text-xs text-slate-300">
@@ -1886,6 +1894,7 @@ const TRANSLATIONS = {
     filterTrafficUnknown: 'Unknown Traffic Only',
     filterBotAll: 'All Bots',
     filterBotSelect: 'Specific Bot Filter',
+    filterDayAll: 'All Days',
     resetFilters: 'Reset Filters',
     exportData: 'Export Filtered (CSV)',
     
@@ -2117,6 +2126,7 @@ const TRANSLATIONS = {
     filterTrafficBots: 'Nur Bots/Scanner',
     filterBotAll: 'Alle Bots',
     filterBotSelect: 'Spezifischer Bot-Filter',
+    filterDayAll: 'Alle Tage',
     resetFilters: 'Filter zurücksetzen',
     exportData: 'Gefilterte exportieren (CSV)',
     
@@ -2348,6 +2358,7 @@ const TRANSLATIONS = {
     filterTrafficBots: 'Bots uniquement',
     filterBotAll: 'Tous les bots',
     filterBotSelect: 'Filtre par bot spécifique',
+    filterDayAll: 'Tous les jours',
     resetFilters: 'Réinitialiser les filtres',
     exportData: 'Exporter la sélection (CSV)',
 
@@ -2579,6 +2590,7 @@ const TRANSLATIONS = {
     filterTrafficBots: 'Solo bots',
     filterBotAll: 'Todos los bots',
     filterBotSelect: 'Filtro de bot específico',
+    filterDayAll: 'Todos los días',
     resetFilters: 'Restablecer filtros',
     exportData: 'Exportar filtrado (CSV)',
 
@@ -2810,6 +2822,7 @@ const TRANSLATIONS = {
     filterTrafficBots: 'Solo bot',
     filterBotAll: 'Tutti i bot',
     filterBotSelect: 'Filtro bot specifico',
+    filterDayAll: 'Tutti i giorni',
     resetFilters: 'Reimposta filtri',
     exportData: 'Esporta filtrati (CSV)',
 
@@ -3041,6 +3054,7 @@ const TRANSLATIONS = {
     filterTrafficBots: 'Тільки боти',
     filterBotAll: 'Всі боти',
     filterBotSelect: 'Фільтр конкретного бота',
+    filterDayAll: 'Усі дні',
     resetFilters: 'Скинути фільтри',
     exportData: 'Експорт відфільтрованого (CSV)',
     
@@ -3267,6 +3281,7 @@ const TRANSLATIONS = {
     filterTrafficUnknown: '仅未知流量',
     filterBotAll: '所有机器人',
     filterBotSelect: '筛选指定机器人',
+    filterDayAll: '全部日期',
     resetFilters: '重置筛选',
     exportData: '导出筛选结果（CSV）',
     colIp: '客户端 IP',
@@ -3598,6 +3613,7 @@ const filterBotContainer = document.getElementById('filter-bot-container');
 const filterBotSelect = document.getElementById('filter-bot-select');
 const filterStatusSelect = document.getElementById('filter-status-select');
 const filterMethodSelect = document.getElementById('filter-method-select');
+const filterDaySelect = document.getElementById('filter-day-select');
 const filterDateSort = document.getElementById('filter-date-sort');
 const btnResetFilters = document.getElementById('btn-reset-filters');
 const btnExport = document.getElementById('btn-export');
@@ -3744,7 +3760,8 @@ window.addEventListener('languagechanged', () => {
     
     populateMethodFilter();
     populateBotFilter();
-    
+    populateDayFilter();
+
     filterMethodSelect.value = currentMethodVal;
     filterBotSelect.value = currentBotVal;
 
@@ -3921,6 +3938,11 @@ function setupEventListeners() {
     applyFilters();
   });
 
+  filterDaySelect.addEventListener('change', () => {
+    currentPage = 1;
+    applyFilters();
+  });
+
   filterBotSelect.addEventListener('change', () => {
     currentPage = 1;
     applyFilters();
@@ -3932,6 +3954,7 @@ function setupEventListeners() {
     filterBotSelect.value = 'all';
     filterStatusSelect.value = 'all';
     filterMethodSelect.value = 'all';
+    filterDaySelect.value = 'all';
     filterDateSort.value = 'none';
     filterSessionClicks.value = '2';
     filterSessionType.value = 'browsers';
@@ -4275,6 +4298,7 @@ async function handleLogFile(file) {
     // Populate Method select filter dynamically
     populateMethodFilter();
     populateBotFilter();
+    populateDayFilter();
 
     // A new log means a new site — re-derive rather than carrying the previous
     // file's domain over into these reports.
@@ -4313,7 +4337,7 @@ function populateMethodFilter() {
 
   // Preserve 'all' option
   filterMethodSelect.innerHTML = `<option value="all">${t('filterMethodAll')}</option>`;
-  
+
   // Sort and append
   Array.from(methods).sort().forEach(method => {
     const option = document.createElement('option');
@@ -4321,6 +4345,40 @@ function populateMethodFilter() {
     option.textContent = method;
     filterMethodSelect.appendChild(option);
   });
+}
+
+/** Formats an entry's local day as "YYYY-MM-DD", or null when undated. */
+function dayKeyOf(entry) {
+  const date = entry.date;
+  if (!date || isNaN(date.getTime())) return null;
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Rebuilds the "view by day" options from logEntries, newest day first, with
+ * each day's request count. Keeps the current selection when its day still
+ * exists (e.g. after a language switch), otherwise falls back to 'all'.
+ */
+function populateDayFilter() {
+  const counts = new Map();
+  logEntries.forEach(entry => {
+    const key = dayKeyOf(entry);
+    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  });
+
+  const previous = filterDaySelect.value;
+  filterDaySelect.innerHTML = `<option value="all">${t('filterDayAll')}</option>`;
+
+  Array.from(counts.keys()).sort().reverse().forEach(key => {
+    const option = document.createElement('option');
+    option.value = key;
+    option.textContent = `${key} (${counts.get(key).toLocaleString()})`;
+    filterDaySelect.appendChild(option);
+  });
+
+  filterDaySelect.value = counts.has(previous) ? previous : 'all';
 }
 
 // Apply Filters to active entries
@@ -4383,7 +4441,13 @@ function applyFilters() {
       matchesMethod = entry.method.toLowerCase() === methodFilter;
     }
 
-    return matchesSearch && matchesTraffic && matchesBot && matchesStatus && matchesMethod;
+    // Day filter match ("view by day"); undated entries only appear in "All Days"
+    let matchesDay = true;
+    if (filterDaySelect.value !== 'all') {
+      matchesDay = dayKeyOf(entry) === filterDaySelect.value;
+    }
+
+    return matchesSearch && matchesTraffic && matchesBot && matchesStatus && matchesMethod && matchesDay;
   });
 
   // Date sort: order by log age (oldest/newest first), or leave as parsed
@@ -5787,6 +5851,7 @@ async function parseAndRenderCachedLog(cachedLog) {
 
     populateMethodFilter();
     populateBotFilter();
+    populateDayFilter();
     deriveOwnDomain();
     renderOwnDomainHint();
     dashboardContent.classList.remove('hidden');
