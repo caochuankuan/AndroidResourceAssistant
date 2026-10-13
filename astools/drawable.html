@@ -137,6 +137,7 @@
     <button class="gray" onclick="openGenerateForSelected()">生成密度</button>
     <button class="gray" onclick="batchMove('drawable')">→ drawable</button>
     <button class="gray" onclick="batchMove('mipmap')">→ res</button>
+    <button class="gray" onclick="batchExport()">导出 ZIP</button>
     <button class="red" onclick="batchDelete()">删除</button>
     <button class="gray" onclick="exitSelectionMode()">退出</button>
 </div>
@@ -324,9 +325,9 @@
         } else {
             family = mode === 'res' ? 'mipmap' : 'drawable';
         }
-        if (seg) {
+        if (seg && !/^(?:drawable|mipmap)$/i.test(seg)) {
             const m = seg.match(/^(?:drawable|mipmap)-(.*)$/i);
-            densityName = m ? m[1].toLowerCase() : seg.toLowerCase(); // 纯密度目录(如 xxxhdpi)则直接作为密度名
+            densityName = m ? m[1].toLowerCase() : seg.toLowerCase(); // 纯密度目录(如 xxxhdpi)则直接作为密度名；裸 drawable/mipmap 无密度
         }
         return densityName ? `${family}-${densityName}` : family;
     }
@@ -334,7 +335,7 @@
     function densityRankOf(path) {
         const parts = path.split('/').filter(Boolean);
         const seg = parts.slice(0, -1).find(s => s.startsWith('drawable') || s.startsWith('mipmap') || DENSITY_DIRS.includes(s.toLowerCase()));
-        if (!seg) return 7;
+        if (!seg || /^(?:drawable|mipmap)$/i.test(seg)) return 7;
         const m = seg.match(/^(?:drawable|mipmap)-(.*)$/i);
         const d = (m ? m[1] : seg).toLowerCase();
         if (d in DENSITY_RANK) return DENSITY_RANK[d];
@@ -1087,6 +1088,54 @@
         pendingAction = { type: 'delete-many', names: [...selected] };
         document.getElementById('confirm-text').innerText = `确定删除选中的 ${selected.size} 个资源吗？\n将删除共 ${fileCount} 个文件（含所有密度与 XML），此操作不可恢复。`;
         document.getElementById('confirm-modal').style.display = 'flex';
+    }
+
+    // 导出选中资源为 ZIP：保持 drawable-xxx/mipmap-xxx 目录结构，可直接被“导入 ZIP”自动模式识别
+    async function batchExport() {
+        if (selected.size === 0) { showToast('请先选中资源', 'info'); return; }
+        const names = [...selected].filter(bn => imageGroups[bn]);
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const zipName = `res_export_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.zip`;
+
+        // 先弹保存框（需在用户点击的激活窗口内调用），取消则直接返回
+        let saveHandle = null;
+        if (window.showSaveFilePicker) {
+            try {
+                saveHandle = await window.showSaveFilePicker({ suggestedName: zipName, types: [{ description: 'ZIP', accept: { 'application/zip': ['.zip'] } }] });
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+            }
+        }
+
+        document.getElementById('loading-overlay').style.display = 'flex';
+        try {
+            const zip = new JSZip();
+            let fileCount = 0;
+            for (const bn of names) {
+                for (const f of imageGroups[bn].files) {
+                    zip.file(`${f.parentHandle.name}/${f.fileName}`, await f.fileHandle.getFile());
+                    fileCount++;
+                }
+            }
+            const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+            if (saveHandle) {
+                const writable = await saveHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } else {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = zipName;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            }
+            showToast(`✅ 已导出 ${names.length} 个资源（${fileCount} 个文件，${formatSize(blob.size)}）`);
+        } catch (e) {
+            showToast('导出失败：' + e.message, 'error');
+        } finally {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
     }
 
     // --- 右键菜单 ---
