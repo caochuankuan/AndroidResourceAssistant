@@ -152,7 +152,10 @@
             </div>
             <button class="gray" id="toggle-compress-mode" onclick="toggleCompressMode()">切换至：按组压缩</button>
         </div>
-        <div class="modal-body" id="compress-list-container"></div>
+        <div class="modal-body">
+            <div id="compress-skip-hint" style="display:none; font-size:12px; color:var(--warning); margin-bottom:8px;"></div>
+            <div id="compress-list-container"></div>
+        </div>
         <div class="modal-footer">
             <div style="margin-right: auto; display: flex; gap: 15px;">
                 <label style="font-size: 13px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
@@ -341,6 +344,12 @@
         return IMAGE_EXTS.includes(name.split('.').pop().toLowerCase());
     }
 
+    // 可压缩文件判断：9-patch（.9.png）压缩会破坏拉伸边界，一律排除
+    function isCompressibleFile(name) {
+        if (/\.9\.png$/i.test(name)) return false;
+        return ['png', 'jpg', 'jpeg', 'webp'].includes(name.split('.').pop().toLowerCase());
+    }
+
     // --- Vector XML 渲染为 SVG 预览 ---
     function parseColorAttr(val) {
         if (!val) return null;
@@ -467,6 +476,7 @@
         const container = document.getElementById('compress-list-container');
         container.innerHTML = '';
         const listData = [];
+        let skipped9Patch = 0;
         // 多选“压缩选中”时仅列出选中的组
         const names = compressFilter
             ? Object.keys(imageGroups).filter(bn => compressFilter.has(bn))
@@ -477,15 +487,17 @@
             for (const bn of names) {
                 for (const f of imageGroups[bn].files) {
                     const raw = await f.fileHandle.getFile();
-                    if (['png', 'jpg', 'jpeg', 'webp'].includes(f.fileName.split('.').pop().toLowerCase())) {
-                        listData.push({
-                            title: bn,
-                            subTitle: `${f.parentHandle.name}/${f.fileName}`,
-                            size: raw.size,
-                            previewUrl: f.url,
-                            targetFiles: [f] // 目标只有一个文件
-                        });
+                    if (!isCompressibleFile(f.fileName)) {
+                        if (/\.9\.png$/i.test(f.fileName)) skipped9Patch++;
+                        continue;
                     }
+                    listData.push({
+                        title: bn,
+                        subTitle: `${f.parentHandle.name}/${f.fileName}`,
+                        size: raw.size,
+                        previewUrl: f.url,
+                        targetFiles: [f] // 目标只有一个文件
+                    });
                 }
             }
         } else {
@@ -495,10 +507,12 @@
                 let validFiles = [];
                 for (const f of imageGroups[bn].files) {
                     const raw = await f.fileHandle.getFile();
-                    if (['png', 'jpg', 'jpeg', 'webp'].includes(f.fileName.split('.').pop().toLowerCase())) {
-                        groupSize += raw.size;
-                        validFiles.push(f);
+                    if (!isCompressibleFile(f.fileName)) {
+                        if (/\.9\.png$/i.test(f.fileName)) skipped9Patch++;
+                        continue;
                     }
+                    groupSize += raw.size;
+                    validFiles.push(f);
                 }
                 if (validFiles.length > 0) {
                     listData.push({
@@ -513,6 +527,15 @@
         }
 
         listData.sort((a, b) => b.size - a.size);
+
+        // 有被跳过的 9-patch 时给出提示
+        const hint = document.getElementById('compress-skip-hint');
+        if (skipped9Patch > 0) {
+            hint.innerText = `⚠ 已跳过 ${skipped9Patch} 个 9-patch 文件（压缩会破坏拉伸边界）`;
+            hint.style.display = 'block';
+        } else {
+            hint.style.display = 'none';
+        }
 
         listData.forEach((item, idx) => {
             const div = document.createElement('div');
@@ -988,7 +1011,8 @@
         if (!newName || newName === oldName) { render(); return; }
         try {
             for (const item of imageGroups[oldName].files) {
-                const ext = item.fileName.split('.').pop();
+                // 9-patch 文件名形如 xxx.9.png，重命名时需保留 .9 标记
+                const ext = /\.9\.png$/i.test(item.fileName) ? '9.png' : item.fileName.split('.').pop();
                 const file = await item.fileHandle.getFile();
                 const newH = await item.parentHandle.getFileHandle(`${newName}.${ext}`, { create: true });
                 const w = await newH.createWritable();
