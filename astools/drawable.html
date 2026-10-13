@@ -52,6 +52,13 @@
         .ctx-item.danger { color: var(--danger); }
         .ctx-item.danger:hover { background: #fce8ec; }
         .ctx-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+
+        /* 多选模式 */
+        .sel-bar { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: rgba(32,33,36,0.95); color: #fff; border-radius: 12px; padding: 10px 16px; display: none; align-items: center; gap: 10px; z-index: 1500; box-shadow: 0 8px 24px rgba(0,0,0,0.35); font-size: 13px; }
+        .card.selectable { cursor: pointer; }
+        .card.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,0.35); }
+        .sel-mark { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.25); color: transparent; font-size: 12px; display: flex; align-items: center; justify-content: center; z-index: 2; }
+        .sel-mark.on { background: var(--primary); color: #fff; }
         .img-container { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; background-color: #eee; background-image: linear-gradient(45deg, #fff 25%, transparent 25%), linear-gradient(-45deg, #fff 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #fff 75%), linear-gradient(-45deg, transparent 75%, #fff 75%); background-size: 10px 10px; border-radius: 4px; margin-bottom: 8px; overflow: hidden; cursor: zoom-in; padding: 4px; box-sizing: border-box; }
         .card img { width: 100%; height: 100%; object-fit: contain; }
         .no-img { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; background-color: #eee; border-radius: 4px; margin-bottom: 8px; color: #999; font-size: 11px; }
@@ -115,6 +122,15 @@
 <div id="toast-container"></div>
 <div id="loading-overlay">正在执行任务...</div>
 <div id="ctx-menu"></div>
+<div id="sel-bar" class="sel-bar">
+    <span id="sel-count" style="white-space:nowrap;">已选 0 项</span>
+    <button class="gray" onclick="selectAll()">全选</button>
+    <button class="gray" onclick="openCompressForSelected()">压缩选中</button>
+    <button class="gray" onclick="batchMove('drawable')">→ drawable</button>
+    <button class="gray" onclick="batchMove('mipmap')">→ res</button>
+    <button class="red" onclick="batchDelete()">删除</button>
+    <button class="gray" onclick="exitSelectionMode()">退出</button>
+</div>
 <div id="preview-overlay" onclick="if(event.target === this || event.target.parentNode === this) closePreview()">
     <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; pointer-events: none;">
         <img id="full-preview-img" src="" style="transition: transform 0.2s ease; pointer-events: auto;">
@@ -236,6 +252,7 @@
         </div>
         <div class="btn-group">
             <button id="btn-group-view" class="gray" onclick="toggleGroupView()" disabled>分组展示</button>
+            <button id="btn-select" class="gray" onclick="toggleSelectionMode()" disabled>☑ 多选</button>
             <button id="btn-compress" class="orange" onclick="openCompressModal()" disabled>⚡ 压缩优化</button>
             <button id="btn-refresh" class="gray" onclick="manualRefresh()" disabled>↻ 同步刷新</button>
             <button onclick="pickProject()">① 选择项目目录</button>
@@ -263,6 +280,9 @@
     let importMode = 'auto'; // ZIP 导入目标: 'auto' | 'res' | 'drawable'
     let importAllSizes = true; // drawable 目标下是否导入全部尺寸
     let groupView = false; // 主网格: false=聚合展示, true=按 res/drawable 分组
+    let selectionMode = false; // 多选模式
+    let selected = new Set(); // 选中的资源名
+    let compressFilter = null; // 压缩弹窗仅显示这些组
 
     const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 
@@ -435,7 +455,8 @@
     }
 
     // --- 渲染压缩弹窗列表 ---
-    async function openCompressModal() {
+    async function openCompressModal(filter) {
+        compressFilter = filter || null;
         document.getElementById('loading-overlay').style.display = 'flex';
         await renderCompressList();
         document.getElementById('loading-overlay').style.display = 'none';
@@ -446,10 +467,14 @@
         const container = document.getElementById('compress-list-container');
         container.innerHTML = '';
         const listData = [];
+        // 多选“压缩选中”时仅列出选中的组
+        const names = compressFilter
+            ? Object.keys(imageGroups).filter(bn => compressFilter.has(bn))
+            : Object.keys(imageGroups);
 
         if (compressMode === 'file') {
             // 平铺所有文件
-            for (const bn in imageGroups) {
+            for (const bn of names) {
                 for (const f of imageGroups[bn].files) {
                     const raw = await f.fileHandle.getFile();
                     if (['png', 'jpg', 'jpeg', 'webp'].includes(f.fileName.split('.').pop().toLowerCase())) {
@@ -465,7 +490,7 @@
             }
         } else {
             // 按组聚合（XML 等非图片文件不参与压缩）
-            for (const bn in imageGroups) {
+            for (const bn of names) {
                 let groupSize = 0;
                 let validFiles = [];
                 for (const f of imageGroups[bn].files) {
@@ -595,7 +620,7 @@
             if (resHandle) {
                 document.getElementById('status').innerText = `已连接：.../${resHandle.name}`;
                 document.getElementById('empty-state').style.display = 'none';
-                ['btn-zip', 'btn-refresh', 'btn-compress', 'btn-group-view'].forEach(id => document.getElementById(id).disabled = false);
+                ['btn-zip', 'btn-refresh', 'btn-compress', 'btn-group-view', 'btn-select'].forEach(id => document.getElementById(id).disabled = false);
                 await scanDrawables();
                 showToast("连接成功");
             }
@@ -662,31 +687,46 @@
     function buildCard(bn) {
         const g = imageGroups[bn];
         const card = document.createElement('div');
-        card.className = 'card';
+        card.className = 'card' + (selectionMode ? ' selectable' : '');
         card.setAttribute('data-name', bn);
         let previewHtml;
         if (g.previewUrl) {
-            previewHtml = `<div class="img-container" onclick="showFullPreview('${g.previewUrl}')"><img src="${g.previewUrl}" loading="lazy"></div>`;
+            previewHtml = selectionMode
+                ? `<div class="img-container"><img src="${g.previewUrl}" loading="lazy"></div>`
+                : `<div class="img-container" onclick="showFullPreview('${g.previewUrl}')"><img src="${g.previewUrl}" loading="lazy"></div>`;
         } else if (g.files.some(f => f.kind === 'xml')) {
-            previewHtml = `<div class="no-img" style="cursor:pointer" onclick="showXmlSource('${bn}')" title="点击查看 XML 源码">XML 源码</div>`;
+            previewHtml = selectionMode
+                ? `<div class="no-img">XML 源码</div>`
+                : `<div class="no-img" style="cursor:pointer" onclick="showXmlSource('${bn}')" title="点击查看 XML 源码">XML 源码</div>`;
         } else {
             previewHtml = `<div class="no-img">非图片资源</div>`;
         }
         const tags = Object.keys(g.families).map(f => `<span class="fam-tag ${f}">${f === 'res' ? 'res' : 'drawable'}</span>`).join('');
+        const nameClick = selectionMode ? '' : `onclick="enterEdit('${bn}')"`;
         card.innerHTML = `${previewHtml}
             <div class="tag-row">${tags}</div>
             <div class="name-wrapper">
-                <span class="name" onclick="enterEdit('${bn}')">${bn}</span>
+                <span class="name" ${nameClick}>${bn}</span>
                 <span class="size-label">${formatSize(g.totalSize)}</span>
                 <span class="time-label">${new Date(g.lastModified).toLocaleTimeString()}</span>
             </div>
-            <div class="del-btn" title="删除该资源" onclick="requestDelete('${bn}')">✕</div>`;
-        // 接管右键：弹出自定义菜单
-        card.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            showContextMenu(e.clientX, e.clientY, bn);
-        });
+            ${selectionMode
+                ? `<div class="sel-mark${selected.has(bn) ? ' on' : ''}">✓</div>`
+                : `<div class="del-btn" title="删除该资源" onclick="requestDelete('${bn}')">✕</div>`}`;
+        if (selectionMode) {
+            // 多选模式：点击卡片切换选中
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                toggleSelect(bn);
+            });
+        } else {
+            // 接管右键：弹出自定义菜单
+            card.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showContextMenu(e.clientX, e.clientY, bn);
+            });
+        }
         return card;
     }
 
@@ -715,6 +755,7 @@
             sorted.forEach(bn => app.appendChild(buildCard(bn)));
         }
         filterMainGrid(document.getElementById('main-search').value);
+        if (selectionMode) updateSelectionUI();
     }
 
     function toggleGroupView() {
@@ -757,8 +798,22 @@
             } else if (action.type === 'move') {
                 await moveGroupFiles(action.name, action.target);
                 showToast(`✅ 已移动到 ${action.target === 'drawable' ? 'drawable' : 'res (mipmap)'}`);
+            } else if (action.type === 'delete-many') {
+                for (const name of action.names) {
+                    for (const f of imageGroups[name].files) {
+                        await f.parentHandle.removeEntry(f.fileName);
+                    }
+                }
+                showToast(`✅ 已删除 ${action.names.length} 个资源`);
+            } else if (action.type === 'move-many') {
+                for (const name of action.names) {
+                    await moveGroupFiles(name, action.target);
+                }
+                showToast(`✅ 已移动 ${action.names.length} 个资源到 ${action.target === 'drawable' ? 'drawable' : 'res (mipmap)'}`);
             }
             await scanDrawables();
+            // 批量操作完成后退出多选模式
+            if (action.type === 'delete-many' || action.type === 'move-many') exitSelectionMode();
         } catch (e) {
             console.error(e);
             showToast(action.type === 'delete' ? "删除失败，请检查文件权限" : "移动失败，请检查文件权限", "error");
@@ -781,6 +836,76 @@
             await w.close();
             await f.parentHandle.removeEntry(f.fileName);
         }
+    }
+
+    // --- 多选批量操作 ---
+    function toggleSelectionMode() {
+        selectionMode = !selectionMode;
+        document.getElementById('btn-select').innerText = selectionMode ? '✓ 退出多选' : '☑ 多选';
+        document.getElementById('sel-bar').style.display = selectionMode ? 'flex' : 'none';
+        if (!selectionMode) selected.clear();
+        render();
+    }
+
+    function exitSelectionMode() {
+        if (!selectionMode) return;
+        toggleSelectionMode();
+    }
+
+    function toggleSelect(bn) {
+        if (selected.has(bn)) selected.delete(bn);
+        else selected.add(bn);
+        updateSelectionUI();
+    }
+
+    function updateSelectionUI() {
+        document.getElementById('sel-count').innerText = `已选 ${selected.size} 项`;
+        document.querySelectorAll('#app .card').forEach(c => {
+            const on = selected.has(c.dataset.name);
+            c.classList.toggle('selected', on);
+            const mark = c.querySelector('.sel-mark');
+            if (mark) mark.classList.toggle('on', on);
+        });
+    }
+
+    function selectAll() {
+        // 全选当前可见（未被搜索过滤隐藏）的卡片
+        document.querySelectorAll('#app .card:not(.hidden)').forEach(c => selected.add(c.dataset.name));
+        updateSelectionUI();
+    }
+
+    function openCompressForSelected() {
+        if (selected.size === 0) return;
+        openCompressModal(new Set(selected));
+    }
+
+    function batchMove(target) {
+        if (selected.size === 0) return;
+        // 纯 res 组可移动到 drawable，纯 drawable 组可移动到 res；混合组跳过
+        const names = [...selected].filter(bn => {
+            const g = imageGroups[bn];
+            if (!g) return false;
+            if (target === 'drawable') return g.families.res && !g.families.drawable;
+            return g.families.drawable && !g.families.res;
+        });
+        if (names.length === 0) {
+            showToast(target === 'drawable' ? "选中的资源没有可移动到 drawable 的（需纯 res 组）" : "选中的资源没有可移动到 res 的（需纯 drawable 组）", "info");
+            return;
+        }
+        pendingAction = { type: 'move-many', target, names };
+        document.getElementById('confirm-text').innerText = `确定将选中的 ${names.length} 个资源移动到 ${target === 'drawable' ? 'drawable' : 'res (mipmap)'} 吗？\n将复制全部文件到对应 ${target}-* 目录，并删除原目录中的文件。`;
+        document.getElementById('confirm-modal').style.display = 'flex';
+    }
+
+    function batchDelete() {
+        if (selected.size === 0) return;
+        let fileCount = 0;
+        for (const bn of selected) {
+            if (imageGroups[bn]) fileCount += imageGroups[bn].files.length;
+        }
+        pendingAction = { type: 'delete-many', names: [...selected] };
+        document.getElementById('confirm-text').innerText = `确定删除选中的 ${selected.size} 个资源吗？\n将删除共 ${fileCount} 个文件（含所有密度与 XML），此操作不可恢复。`;
+        document.getElementById('confirm-modal').style.display = 'flex';
     }
 
     // --- 右键菜单 ---
@@ -829,7 +954,12 @@
     document.addEventListener('contextmenu', hideContextMenu);
     document.addEventListener('scroll', hideContextMenu, true);
     window.addEventListener('resize', hideContextMenu);
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            hideContextMenu();
+            if (selectionMode) exitSelectionMode();
+        }
+    });
 
     async function copyName(name) {
         try {
