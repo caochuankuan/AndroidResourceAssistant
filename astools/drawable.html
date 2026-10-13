@@ -223,7 +223,7 @@
         <div class="modal-body" id="confirm-text" style="font-size: 14px; line-height: 1.6; color: var(--text);"></div>
         <div class="modal-footer">
             <button style="background:#666" onclick="closeModal('confirm-modal')">取消</button>
-            <button class="red" onclick="confirmDelete()">删除</button>
+            <button class="red" onclick="confirmAction()">确认</button>
         </div>
     </div>
 </div>
@@ -723,34 +723,63 @@
         render();
     }
 
-    // --- 删除资源（整组，含所有密度/目录） ---
-    let pendingDelete = null;
+    // --- 删除 / 移动资源（整组，含所有密度/目录） ---
+    let pendingAction = null;
 
     function requestDelete(name) {
-        pendingDelete = name;
+        pendingAction = { type: 'delete', name };
         const g = imageGroups[name];
         const fileCount = g ? g.files.length : 0;
         document.getElementById('confirm-text').innerText = `确定删除资源 "${name}" 吗？\n将删除该资源在 drawable / mipmap 下的全部 ${fileCount} 个文件（含所有密度与 XML），此操作不可恢复。`;
         document.getElementById('confirm-modal').style.display = 'flex';
     }
 
-    async function confirmDelete() {
-        const name = pendingDelete;
-        pendingDelete = null;
+    function requestMove(name, target) {
+        pendingAction = { type: 'move', name, target };
+        const g = imageGroups[name];
+        const targetLabel = target === 'drawable' ? 'drawable' : 'res (mipmap)';
+        document.getElementById('confirm-text').innerText = `确定将资源 "${name}" 移动到 ${targetLabel} 吗？\n将把全部 ${g ? g.files.length : 0} 个文件复制到对应的 ${target}-* 目录，并删除原目录中的文件。`;
+        document.getElementById('confirm-modal').style.display = 'flex';
+    }
+
+    async function confirmAction() {
+        const action = pendingAction;
+        pendingAction = null;
         closeModal('confirm-modal');
-        if (!name || !imageGroups[name]) return;
+        if (!action) return;
         document.getElementById('loading-overlay').style.display = 'flex';
         try {
-            for (const f of imageGroups[name].files) {
-                await f.parentHandle.removeEntry(f.fileName);
+            if (action.type === 'delete') {
+                for (const f of imageGroups[action.name].files) {
+                    await f.parentHandle.removeEntry(f.fileName);
+                }
+                showToast(`✅ 已删除 ${action.name}`);
+            } else if (action.type === 'move') {
+                await moveGroupFiles(action.name, action.target);
+                showToast(`✅ 已移动到 ${action.target === 'drawable' ? 'drawable' : 'res (mipmap)'}`);
             }
-            showToast(`✅ 已删除 ${name}`);
             await scanDrawables();
         } catch (e) {
             console.error(e);
-            showToast("删除失败，请检查文件权限", "error");
+            showToast(action.type === 'delete' ? "删除失败，请检查文件权限" : "移动失败，请检查文件权限", "error");
         } finally {
             document.getElementById('loading-overlay').style.display = 'none';
+        }
+    }
+
+    // 把整组文件移动到目标家族：替换目录前缀（mipmap ↔ drawable），保留限定符
+    async function moveGroupFiles(name, target) {
+        for (const f of imageGroups[name].files) {
+            const dirName = f.parentHandle.name;
+            const base = dirName.startsWith('mipmap') ? 'mipmap' : 'drawable';
+            const targetDirName = target + dirName.substring(base.length); // '-xxxhdpi' / '-night' / ''
+            const targetDir = await resHandle.getDirectoryHandle(targetDirName, { create: true });
+            const file = await f.fileHandle.getFile();
+            const newHandle = await targetDir.getFileHandle(f.fileName, { create: true });
+            const w = await newHandle.createWritable();
+            await w.write(file);
+            await w.close();
+            await f.parentHandle.removeEntry(f.fileName);
         }
     }
 
@@ -778,6 +807,11 @@
         if (g.files.some(f => f.kind === 'xml')) addItem('📄', '查看 XML 源码', () => showXmlSource(bn));
         addItem('📋', '复制名称', () => copyName(bn));
         addSep();
+        // 纯 res 组 → 显示移动到 drawable；纯 drawable 组 → 显示移动到 res；混合组不显示
+        const isPureRes = g.families.res && !g.families.drawable;
+        const isPureDrawable = g.families.drawable && !g.families.res;
+        if (isPureRes) addItem('📦', '移动到 drawable', () => requestMove(bn, 'drawable'));
+        else if (isPureDrawable) addItem('📦', '移动到 res (mipmap)', () => requestMove(bn, 'mipmap'));
         addItem('✏️', '重命名', () => enterEdit(bn));
         addItem('🗑', '删除', () => requestDelete(bn), true);
 
