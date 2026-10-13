@@ -81,6 +81,12 @@
         .compress-item { display: flex; align-items: center; gap: 15px; padding: 12px; border-bottom: 1px solid #f1f1f1; }
         .compress-item:hover { background: #f8f9fa; }
         .compress-item img { width: 45px; height: 45px; object-fit: contain; background: #eee; border-radius: 4px; cursor: zoom-in; }
+        .file-count { font-size: 11px; color: #999; white-space: nowrap; }
+        .import-list-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 15px; padding: 10px 12px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 6px 6px 0 0; font-size: 13px; font-weight: 600; color: #3c4043; cursor: pointer; }
+        .import-list-header input { margin: 0; }
+        .import-count { margin-left: auto; font-weight: normal; font-size: 12px; color: #999; }
+        #import-list-container .import-check { margin: 0; }
+        .exists-tag { font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px; background: #e8eaed; color: #5f6368; white-space: nowrap; }
         .compress-info { flex: 1; font-size: 13px; text-align: left; }
         .compress-info b { color: var(--primary); }
         .compress-size { color: var(--danger); font-family: monospace; text-align: right; min-width: 80px; }
@@ -217,7 +223,14 @@
                 <small style="color:#999;font-size:11px;">关闭后仅最大尺寸写入 drawable/</small>
             </label>
         </div>
-        <div class="modal-body" id="import-list-container"></div>
+        <div class="modal-body">
+            <label class="import-list-header">
+                <input type="checkbox" id="import-select-all" checked onchange="toggleImportSelectAll(this.checked)">
+                <span>全选</span>
+                <span id="import-select-count" class="import-count">已选 0/0</span>
+            </label>
+            <div id="import-list-container"></div>
+        </div>
         <div class="modal-footer">
             <button style="background:#666" onclick="closeModal('zip-modal')">取消</button>
             <button class="green" onclick="executeAutoWrite()">确认写入本地</button>
@@ -1202,9 +1215,11 @@
                 const previewHtml = zipImportGroups[bn].previewUrl
                     ? `<img src="${zipImportGroups[bn].previewUrl}" onclick="showFullPreview('${zipImportGroups[bn].previewUrl}')">`
                     : `<div style="width:45px;height:45px;background:#eee;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:10px;flex-shrink:0">XML</div>`;
-                d.innerHTML = `${previewHtml}<input type="text" data-old="${bn}" value="${bn}" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:4px">`;
+                const existsTag = imageGroups[bn] ? '<span class="exists-tag">已存在</span>' : '';
+                d.innerHTML = `<input type="checkbox" class="import-check" checked onchange="updateImportCount()">${previewHtml}<input type="text" data-old="${bn}" value="${bn}" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:4px"><span class="file-count">${zipImportGroups[bn].files.length} 个文件</span>${existsTag}`;
                 container.appendChild(d);
             });
+            updateImportCount();
             document.getElementById('zip-modal').style.display = 'flex';
         } catch (e) {}
     }
@@ -1212,11 +1227,13 @@
     async function executeAutoWrite() {
         document.getElementById('loading-overlay').style.display = 'flex';
         try {
-            const inputs = document.querySelectorAll('#import-list-container input');
+            const inputs = document.querySelectorAll('#import-list-container input[type="text"]');
             for (const input of inputs) {
                 const group = zipImportGroups[input.dataset.old];
                 const newName = input.value.trim();
                 if (!newName) continue;
+                // 未勾选的分组不导入
+                if (!input.closest('.compress-item').querySelector('.import-check').checked) continue;
                 // “全部尺寸”关闭时：drawable 目标只保留最高密度一份，统一写入 drawable 基础目录
                 let fileObjs = group.files;
                 let forceBase = false;
@@ -1255,6 +1272,19 @@
         });
     }
     function filterImportList(q) { document.querySelectorAll('#import-list-container .compress-item').forEach(i => i.classList.toggle('hidden', !i.getAttribute('data-name').toLowerCase().includes(q.toLowerCase()))); }
+
+    function toggleImportSelectAll(checked) {
+        document.querySelectorAll('#import-list-container .import-check').forEach(cb => cb.checked = checked);
+        updateImportCount();
+    }
+
+    function updateImportCount() {
+        const all = document.querySelectorAll('#import-list-container .import-check');
+        const checked = document.querySelectorAll('#import-list-container .import-check:checked').length;
+        const label = document.getElementById('import-select-all');
+        if (label) label.checked = checked > 0 && checked === all.length;
+        document.getElementById('import-select-count').innerText = `已选 ${checked}/${all.length}`;
+    }
     let currentZoom = 0.5;
 
     function showFullPreview(url) {
