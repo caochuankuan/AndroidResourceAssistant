@@ -99,6 +99,7 @@
         .fam-tag { font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
         .fam-tag.res { background: #e8f0fe; color: #1a73e8; }
         .fam-tag.drawable { background: #fce8ec; color: #d93025; }
+        .unref-badge { font-size: 10px; font-weight: 600; padding: 1px 8px; border-radius: 10px; background: #fef3c7; color: #b45309; border: 1px dashed #d97706; }
 
         /* 分组展示 */
         .section { display: contents; }
@@ -125,6 +126,7 @@
 <div id="sel-bar" class="sel-bar">
     <span id="sel-count" style="white-space:nowrap;">已选 0 项</span>
     <button class="gray" onclick="selectAll()">全选</button>
+    <button class="gray" onclick="selectUnreferenced()">选未引用</button>
     <button class="gray" onclick="openCompressForSelected()">压缩选中</button>
     <button class="gray" onclick="batchMove('drawable')">→ drawable</button>
     <button class="gray" onclick="batchMove('mipmap')">→ res</button>
@@ -256,6 +258,7 @@
         <div class="btn-group">
             <button id="btn-group-view" class="gray" onclick="toggleGroupView()" disabled>分组展示</button>
             <button id="btn-select" class="gray" onclick="toggleSelectionMode()" disabled>☑ 多选</button>
+            <button id="btn-unref" class="gray" onclick="scanUnreferenced()" disabled>🔍 未引用扫描</button>
             <button id="btn-compress" class="orange" onclick="openCompressModal()" disabled>⚡ 压缩优化</button>
             <button id="btn-refresh" class="gray" onclick="manualRefresh()" disabled>↻ 同步刷新</button>
             <button onclick="pickProject()">① 选择项目目录</button>
@@ -286,6 +289,8 @@
     let selectionMode = false; // 多选模式
     let selected = new Set(); // 选中的资源名
     let compressFilter = null; // 压缩弹窗仅显示这些组
+    let projectRootHandle = null; // 项目根目录（未引用扫描用）
+    let unreferenced = new Set(); // 未被引用的资源名
 
     const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 
@@ -639,11 +644,12 @@
     async function pickProject() {
         try {
             const root = await window.showDirectoryPicker({ mode: 'readwrite' });
+            projectRootHandle = root;
             resHandle = await findResDirectory(root);
             if (resHandle) {
                 document.getElementById('status').innerText = `已连接：.../${resHandle.name}`;
                 document.getElementById('empty-state').style.display = 'none';
-                ['btn-zip', 'btn-refresh', 'btn-compress', 'btn-group-view', 'btn-select'].forEach(id => document.getElementById(id).disabled = false);
+                ['btn-zip', 'btn-refresh', 'btn-compress', 'btn-group-view', 'btn-select', 'btn-unref'].forEach(id => document.getElementById(id).disabled = false);
                 await scanDrawables();
                 showToast("连接成功");
             }
@@ -707,6 +713,55 @@
         render();
     }
 
+    // --- 未引用资源扫描：匹配 @drawable/x、@mipmap/x、R.drawable.x、R.mipmap.x ---
+    const REF_RE = /@(?:drawable|mipmap)\/([A-Za-z0-9_]+)|R\.(?:drawable|mipmap)\.([A-Za-z0-9_]+)/g;
+    const SKIP_DIRS = new Set(['.git', '.gradle', 'build', '.idea', 'node_modules', '.kotlin', '.cxx', 'captures']);
+    const SKIP_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'ico', 'bmp', 'aab', 'apk', 'jar', 'aar', 'zip', 'so', 'ttf', 'otf', 'mp3', 'wav', 'mp4', 'bin']);
+    const MAX_SCAN_FILE = 2 * 1024 * 1024; // 超过 2MB 跳过（大概率是资源/生成物）
+
+    async function scanUnreferenced() {
+        if (!projectRootHandle) return;
+        document.getElementById('loading-overlay').style.display = 'flex';
+        try {
+            const refs = new Set();
+            await scanFilesForRefs(projectRootHandle, refs);
+            unreferenced = new Set();
+            for (const bn in imageGroups) if (!refs.has(bn)) unreferenced.add(bn);
+            render();
+            showToast(`扫描完成：${unreferenced.size} 个未引用资源`);
+        } catch (e) {
+            showToast('扫描失败：' + e.message, 'error');
+        } finally {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+    }
+
+    async function scanFilesForRefs(handle, refs) {
+        for await (const [name, child] of handle.entries()) {
+            if (child.kind === 'directory') {
+                if (name.startsWith('.') || SKIP_DIRS.has(name)) continue;
+                await scanFilesForRefs(child, refs);
+            } else {
+                const dot = name.lastIndexOf('.');
+                const ext = dot === -1 ? '' : name.slice(dot + 1).toLowerCase();
+                if (SKIP_EXTS.has(ext)) continue; // 二进制文件不读
+                const file = await child.getFile();
+                if (file.size > MAX_SCAN_FILE) continue;
+                const text = await file.text();
+                REF_RE.lastIndex = 0;
+                let m;
+                while ((m = REF_RE.exec(text))) refs.add(m[1] || m[2]);
+            }
+        }
+    }
+
+    function selectUnreferenced() {
+        if (unreferenced.size === 0) { showToast('当前没有未引用资源', 'info'); return; }
+        unreferenced.forEach(bn => selected.add(bn));
+        updateSelectionUI();
+        showToast(`已选中 ${unreferenced.size} 个未引用资源`);
+    }
+
     function buildCard(bn) {
         const g = imageGroups[bn];
         const card = document.createElement('div');
@@ -725,9 +780,10 @@
             previewHtml = `<div class="no-img">非图片资源</div>`;
         }
         const tags = Object.keys(g.families).map(f => `<span class="fam-tag ${f}">${f === 'res' ? 'res' : 'drawable'}</span>`).join('');
+        const unrefTag = unreferenced.has(bn) ? '<span class="unref-badge">未引用</span>' : '';
         const nameClick = selectionMode ? '' : `onclick="enterEdit('${bn}')"`;
         card.innerHTML = `${previewHtml}
-            <div class="tag-row">${tags}</div>
+            <div class="tag-row">${tags}${unrefTag}</div>
             <div class="name-wrapper">
                 <span class="name" ${nameClick}>${bn}</span>
                 <span class="size-label">${formatSize(g.totalSize)}</span>
@@ -1134,7 +1190,7 @@
     function closePreview() {
         document.getElementById('preview-overlay').style.display = 'none';
     }
-    function manualRefresh() { if (resHandle) scanDrawables().then(() => showToast("同步刷新成功", "info")); }
+    function manualRefresh() { if (resHandle) { unreferenced.clear(); scanDrawables().then(() => showToast("同步刷新成功", "info")); } }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 </script>
 </body>
