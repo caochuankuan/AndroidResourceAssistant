@@ -88,6 +88,11 @@
         .section-title.res { background: #e8f0fe; color: #1a73e8; }
         .section-title.drawable { background: #fce8ec; color: #d93025; }
 
+        /* 空状态（未连接项目） */
+        #empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 70px 20px; background: var(--card); border: 1px dashed var(--border); border-radius: 12px; color: #70757a; }
+        #empty-state .empty-icon { font-size: 42px; }
+        #empty-state p { margin: 0; font-size: 14px; }
+
         #preview-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 2000; cursor: zoom-out; }
         #preview-overlay img { width: 90%; height: 90%; object-fit: contain; border-radius: 4px; }
         #loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); display: none; align-items: center; justify-content: center; z-index: 1100; font-weight: bold; }
@@ -217,6 +222,12 @@
 </div>
 
 <div id="app" class="grid"></div>
+
+<div id="empty-state">
+    <div class="empty-icon">🖼️</div>
+    <p>尚未连接项目，先选择项目目录开始管理资源</p>
+    <button onclick="pickProject()">① 选择项目目录</button>
+</div>
 
 <script>
     let resHandle = null;
@@ -557,6 +568,7 @@
             resHandle = await findResDirectory(root);
             if (resHandle) {
                 document.getElementById('status').innerText = `已连接：.../${resHandle.name}`;
+                document.getElementById('empty-state').style.display = 'none';
                 ['btn-zip', 'btn-refresh', 'btn-compress', 'btn-group-view'].forEach(id => document.getElementById(id).disabled = false);
                 await scanDrawables();
                 showToast("连接成功");
