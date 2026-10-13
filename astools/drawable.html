@@ -33,13 +33,17 @@
         button.green { background: var(--secondary); }
         button.orange { background: var(--warning); color: #3c4043; }
         button.gray { background: var(--refresh); }
+        button.red { background: var(--danger); }
         button:disabled { background: #ccc; cursor: not-allowed; }
 
         /* 网格 */
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
-        .card { background: var(--card); border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; padding: 12px; height: 200px; transition: transform 0.2s; }
+        .card { background: var(--card); border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; padding: 12px; height: 200px; transition: transform 0.2s; position: relative; }
         .card.hidden { display: none; }
         .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: var(--primary); }
+        .del-btn { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.45); color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; z-index: 2; }
+        .card:hover .del-btn { opacity: 1; }
+        .del-btn:hover { background: var(--danger); }
         .img-container { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; background-color: #eee; background-image: linear-gradient(45deg, #fff 25%, transparent 25%), linear-gradient(-45deg, #fff 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #fff 75%), linear-gradient(-45deg, transparent 75%, #fff 75%); background-size: 10px 10px; border-radius: 4px; margin-bottom: 8px; overflow: hidden; cursor: zoom-in; padding: 4px; box-sizing: border-box; }
         .card img { width: 100%; height: 100%; object-fit: contain; }
         .no-img { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; background-color: #eee; border-radius: 4px; margin-bottom: 8px; color: #999; font-size: 11px; }
@@ -198,6 +202,19 @@
         </div>
         <div class="modal-body" style="margin-top: 12px;">
             <pre class="xml-source-box" id="xml-source"></pre>
+        </div>
+    </div>
+</div>
+
+<div id="confirm-modal" class="modal-overlay">
+    <div class="modal" style="max-width: 420px;">
+        <div class="modal-header">
+            <h3 style="margin:0">确认删除</h3>
+        </div>
+        <div class="modal-body" id="confirm-text" style="font-size: 14px; line-height: 1.6; color: var(--text);"></div>
+        <div class="modal-footer">
+            <button style="background:#666" onclick="closeModal('confirm-modal')">取消</button>
+            <button class="red" onclick="confirmDelete()">删除</button>
         </div>
     </div>
 </div>
@@ -653,7 +670,8 @@
                 <span class="name" onclick="enterEdit('${bn}')">${bn}</span>
                 <span class="size-label">${formatSize(g.totalSize)}</span>
                 <span class="time-label">${new Date(g.lastModified).toLocaleTimeString()}</span>
-            </div>`;
+            </div>
+            <div class="del-btn" title="删除该资源" onclick="requestDelete('${bn}')">✕</div>`;
         return card;
     }
 
@@ -688,6 +706,37 @@
         groupView = !groupView;
         document.getElementById('btn-group-view').innerText = groupView ? '聚合展示' : '分组展示';
         render();
+    }
+
+    // --- 删除资源（整组，含所有密度/目录） ---
+    let pendingDelete = null;
+
+    function requestDelete(name) {
+        pendingDelete = name;
+        const g = imageGroups[name];
+        const fileCount = g ? g.files.length : 0;
+        document.getElementById('confirm-text').innerText = `确定删除资源 "${name}" 吗？\n将删除该资源在 drawable / mipmap 下的全部 ${fileCount} 个文件（含所有密度与 XML），此操作不可恢复。`;
+        document.getElementById('confirm-modal').style.display = 'flex';
+    }
+
+    async function confirmDelete() {
+        const name = pendingDelete;
+        pendingDelete = null;
+        closeModal('confirm-modal');
+        if (!name || !imageGroups[name]) return;
+        document.getElementById('loading-overlay').style.display = 'flex';
+        try {
+            for (const f of imageGroups[name].files) {
+                await f.parentHandle.removeEntry(f.fileName);
+            }
+            showToast(`✅ 已删除 ${name}`);
+            await scanDrawables();
+        } catch (e) {
+            console.error(e);
+            showToast("删除失败，请检查文件权限", "error");
+        } finally {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
     }
 
     function enterEdit(name) {
