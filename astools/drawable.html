@@ -128,6 +128,7 @@
     <button class="gray" onclick="selectAll()">全选</button>
     <button class="gray" onclick="selectUnreferenced()">选未引用</button>
     <button class="gray" onclick="openCompressForSelected()">压缩选中</button>
+    <button class="gray" onclick="openGenerateForSelected()">生成密度</button>
     <button class="gray" onclick="batchMove('drawable')">→ drawable</button>
     <button class="gray" onclick="batchMove('mipmap')">→ res</button>
     <button class="red" onclick="batchDelete()">删除</button>
@@ -762,6 +763,94 @@
         showToast(`已选中 ${unreferenced.size} 个未引用资源`);
     }
 
+    // --- 一键生成全套密度：以最高密度文件为源，生成 ldpi~xxxhdpi 全套变体 ---
+    const DENSITIES = [
+        { name: 'ldpi', scale: 0.75 },
+        { name: 'mdpi', scale: 1 },
+        { name: 'hdpi', scale: 1.5 },
+        { name: 'xhdpi', scale: 2 },
+        { name: 'xxhdpi', scale: 3 },
+        { name: 'xxxhdpi', scale: 4 },
+    ];
+    const DENSITY_RE = /(?:ldpi|mdpi|hdpi|xhdpi|xxhdpi|xxxhdpi)/;
+
+    function densityScaleOf(folderName) {
+        const m = folderName.match(DENSITY_RE);
+        if (!m) return null;
+        return DENSITIES.find(d => d.name === m[0]).scale;
+    }
+
+    // 生成单个资源组的所有密度变体；batch 模式不刷新页面（由调用方统一处理）
+    async function generateAllDensities(bn, batch = false) {
+        const g = imageGroups[bn];
+        const src = g.files.find(f => f.kind === 'img');
+        if (!src) {
+            showToast(g.files.some(f => f.kind === 'xml') ? '矢量资源无需生成密度' : '没有位图源文件', 'info');
+            return 0;
+        }
+        const srcScale = densityScaleOf(src.parentHandle.name) ?? 4; // 无密度限定按 xxxhdpi 基准
+        const srcBlob = await src.fileHandle.getFile();
+        const noScale = /\.9\.png$/i.test(src.fileName) || /\.gif$/i.test(src.fileName); // 9-patch/动图原样复制
+        let wrote = 0;
+        for (const fam of Object.keys(g.families)) {
+            const prefix = fam === 'res' ? 'mipmap' : 'drawable';
+            for (const d of DENSITIES) {
+                if (d.scale === srcScale) continue; // 源密度不重写
+                try {
+                    const dir = await resHandle.getDirectoryHandle(`${prefix}-${d.name}`, { create: true });
+                    const fh = await dir.getFileHandle(src.fileName, { create: true });
+                    const blob = noScale ? srcBlob : await scaleImage(srcBlob, d.scale / srcScale, src.fileName);
+                    if (!blob) continue;
+                    const writable = await fh.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    wrote++;
+                } catch (e) { /* 单个目标失败不中断 */ }
+            }
+        }
+        if (wrote && !batch) {
+            await scanDrawables();
+            showToast(`✅ 已生成 ${wrote} 个密度变体（源 ${src.parentHandle.name}/${src.fileName}${noScale ? '，9-patch/动图原样复制' : ''}）`);
+        }
+        return wrote;
+    }
+
+    async function scaleImage(blob, ratio, fileName) {
+        try {
+            const bitmap = await createImageBitmap(blob);
+            const w = Math.max(1, Math.round(bitmap.width * ratio));
+            const h = Math.max(1, Math.round(bitmap.height * ratio));
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, w, h); // 保持透明背景
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(bitmap, 0, 0, w, h);
+            bitmap.close();
+            const ext = fileName.split('.').pop().toLowerCase();
+            const mime = ext === 'png' ? 'image/png' : (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+            return await new Promise(res => canvas.toBlob(res, mime, mime === 'image/png' ? undefined : 0.92));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    async function openGenerateForSelected() {
+        if (selected.size === 0) { showToast('请先选中资源', 'info'); return; }
+        document.getElementById('loading-overlay').style.display = 'flex';
+        try {
+            let wrote = 0;
+            for (const bn of selected) wrote += await generateAllDensities(bn, true);
+            await scanDrawables();
+            showToast(`✅ 生成完成：${wrote} 个密度变体`);
+        } catch (e) {
+            showToast('生成失败：' + e.message, 'error');
+        } finally {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+    }
+
     function buildCard(bn) {
         const g = imageGroups[bn];
         const card = document.createElement('div');
@@ -1010,6 +1099,7 @@
         if (g.previewUrl) addItem('🔍', '预览', () => showFullPreview(g.previewUrl));
         if (g.files.some(f => f.kind === 'xml')) addItem('📄', '查看 XML 源码', () => showXmlSource(bn));
         addItem('📋', '复制名称', () => copyName(bn));
+        if (g.files.some(f => f.kind === 'img')) addItem('🖼', '生成全套密度', () => generateAllDensities(bn));
         addSep();
         // 纯 res 组 → 显示移动到 drawable；纯 drawable 组 → 显示移动到 res；混合组不显示
         const isPureRes = g.families.res && !g.families.drawable;
