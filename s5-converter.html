@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JSON ⇄ 账号文本转换器</title>
+  <style>
+    :root { color-scheme: light; --bg:#f4f7fb; --panel:#fff; --ink:#182230; --muted:#6c7888; --line:#d9e1eb; --primary:#2563eb; --primary-dark:#1d4ed8; --danger:#b42318; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; color:var(--ink); background:var(--bg); }
+    .wrap { width:min(1180px, 100%); margin:0 auto; padding:36px 20px 48px; }
+    header { margin-bottom:24px; }
+    h1 { margin:0 0 8px; font-size:clamp(24px, 4vw, 36px); letter-spacing:-.02em; }
+    header p { margin:0; color:var(--muted); font-size:14px; }
+    .toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+    button, select { border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); padding:9px 13px; font:inherit; cursor:pointer; }
+    button:hover { border-color:#9bb5e7; }
+    button.primary { color:#fff; background:var(--primary); border-color:var(--primary); font-weight:600; }
+    button.primary:hover { background:var(--primary-dark); }
+    button.ghost { background:transparent; }
+    .mode { display:flex; background:#e8edf5; border-radius:9px; padding:3px; margin-right:auto; }
+    .mode button { border:0; border-radius:6px; background:transparent; padding:7px 12px; }
+    .mode button.active { background:#fff; box-shadow:0 1px 3px #20334a22; color:var(--primary); font-weight:600; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .panel { min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:0 3px 12px #20334a0a; overflow:hidden; }
+    .panel-head { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border-bottom:1px solid var(--line); font-weight:600; }
+    .panel-head small { color:var(--muted); font-weight:400; }
+    textarea { display:block; width:100%; min-height:450px; resize:vertical; border:0; outline:0; padding:16px; color:#273447; background:#fff; font:13px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    textarea:focus { box-shadow:inset 0 0 0 2px #2563eb33; }
+    .status { min-height:22px; margin:13px 2px 0; color:var(--muted); font-size:13px; }
+    .status.error { color:var(--danger); }
+    .hint { margin-top:14px; color:var(--muted); font-size:12px; line-height:1.6; }
+    kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:1px 4px; background:#fff; font-size:11px; }
+    @media (max-width: 760px) { .wrap { padding:24px 12px 32px; } .grid { grid-template-columns:1fr; } textarea { min-height:300px; } .mode { margin-right:0; width:100%; } .mode button { flex:1; } .toolbar { align-items:stretch; } .toolbar > button { flex:1; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>JSON ⇄ 账号文本转换器</h1>
+      <p>本地浏览器处理，不上传数据。格式：<code>账号:密码@域名:端口</code></p>
+    </header>
+    <div class="toolbar">
+      <div class="mode" role="tablist" aria-label="转换方向">
+        <button id="jsonToText" class="active" type="button">JSON → 文本</button>
+        <button id="textToJson" type="button">文本 → JSON</button>
+      </div>
+      <button id="sample" class="ghost" type="button">填入示例</button>
+      <button id="clear" class="ghost" type="button">清空</button>
+      <button id="convert" class="primary" type="button">转换</button>
+    </div>
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-head"><span id="inputTitle">输入 JSON</span><button id="copyInput" type="button">复制</button></div>
+        <textarea id="input" spellcheck="false" placeholder="粘贴 JSON 数组，或点击“填入示例”"></textarea>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span id="outputTitle">输出纯文本</span><button id="copyOutput" type="button">复制</button></div>
+        <textarea id="output" spellcheck="false" placeholder="转换结果会显示在这里"></textarea>
+      </div>
+    </section>
+    <div id="status" class="status" role="status"></div>
+    <div class="hint">支持每行一条记录；文本反向转换时会自动识别 <code>账号:密码@域名:端口</code>，并生成包含 <code>name</code>、<code>pass</code>、<code>host</code>、<code>port</code> 的 JSON。快捷键：<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd>。</div>
+  </main>
+  <script>
+    const sampleData = [{ id: 101, flag: 1, host: 'hdycus1.aaaaaaa.click', name: '111111111', pass: '2222222-US', port: 1000 }];
+    const $ = id => document.getElementById(id);
+    let direction = 'json-to-text';
+    function setStatus(message, error = false) { const el = $('status'); el.textContent = message; el.className = 'status' + (error ? ' error' : ''); }
+    function convertJsonToText(value) {
+      const rows = Array.isArray(value) ? value : [value];
+      return rows.map((item, index) => {
+        if (!item || typeof item !== 'object') throw new Error(`第 ${index + 1} 项不是对象`);
+        for (const key of ['name', 'pass', 'host', 'port']) if (item[key] === undefined || item[key] === null) throw new Error(`第 ${index + 1} 项缺少 ${key}`);
+        return `${item.name}:${item.pass}@${item.host}:${item.port}`;
+      }).join('\n');
+    }
+    function convertTextToJson(value) {
+      const lines = value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      if (!lines.length) return [];
+      return lines.map((line, index) => {
+        const match = line.match(/^([^:@]+):([^@]*)@([^:]+):(\d+)$/);
+        if (!match) throw new Error(`第 ${index + 1} 行格式不正确：${line}`);
+        return { id: 101 + index, flag: 1, host: match[3], name: match[1], pass: match[2], port: Number(match[4]) };
+      });
+    }
+    function convert() {
+      try {
+        const raw = $('input').value.trim();
+        if (!raw) throw new Error('请先输入内容');
+        const result = direction === 'json-to-text' ? convertJsonToText(JSON.parse(raw)) : JSON.stringify(convertTextToJson(raw), null, 2);
+        $('output').value = result;
+        setStatus(`转换完成，共 ${result ? result.split('\n').length : 0} 条`);
+      } catch (error) { $('output').value = ''; setStatus(error.message || '转换失败', true); }
+    }
+    function switchDirection(next) {
+      direction = next; const json = next === 'json-to-text';
+      $('jsonToText').classList.toggle('active', json); $('textToJson').classList.toggle('active', !json);
+      $('inputTitle').textContent = json ? '输入 JSON' : '输入纯文本'; $('outputTitle').textContent = json ? '输出纯文本' : '输出 JSON';
+      $('input').placeholder = json ? '粘贴 JSON 数组，或点击“填入示例”' : '每行一条：账号:密码@域名:端口'; $('output').value = ''; setStatus('');
+    }
+    $('jsonToText').onclick = () => switchDirection('json-to-text'); $('textToJson').onclick = () => switchDirection('text-to-json');
+    $('convert').onclick = convert; $('clear').onclick = () => { $('input').value = ''; $('output').value = ''; setStatus(''); };
+    $('sample').onclick = () => { $('input').value = JSON.stringify(sampleData, null, 2); if (direction === 'text-to-json') $('input').value = convertJsonToText(sampleData); setStatus('已填入示例'); };
+    async function copy(id) { const text = $(id).value; if (!text) return setStatus('没有可复制的内容', true); try { await navigator.clipboard.writeText(text); setStatus('已复制到剪贴板'); } catch { $(id).select(); document.execCommand('copy'); setStatus('已复制到剪贴板'); } }
+    $('copyInput').onclick = () => copy('input'); $('copyOutput').onclick = () => copy('output');
+    document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') convert(); });
+  </script>
+</body>
+</html>
