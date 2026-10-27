@@ -50,10 +50,11 @@
           <div class="card-head"><div><div class="title-line"><span class="section-no">01</span><h2>连接与模型</h2></div><p class="subhead">从账户实时读取视频模型和约束</p></div><span class="preview-badge" id="catalogBadge">等待连接</span></div>
           <div class="card-body">
             <div class="connect-row">
-              <div class="field"><label for="apiBase">API 地址</label><input id="apiBase" value="https://api.teamorouter.cn/v1" readonly aria-readonly="true" spellcheck="false"><span class="hint">固定连接 TeamoRouter；页面不会向其他 API 域名发送 Key。</span></div>
+              <div class="field"><label for="apiBase">API 地址</label><input id="apiBase" value="https://api.teamorouter.cn/v1" readonly aria-readonly="true" spellcheck="false"></div>
               <div class="field"><label for="apiKey">API Key</label><div class="input-wrap"><input id="apiKey" type="password" placeholder="sk-teamo-…" autocomplete="off" spellcheck="false"><button id="toggleKey" type="button">显示</button></div></div>
               <button class="btn primary" id="connectBtn" type="button">载入模型</button>
             </div>
+            <span class="hint" style="display:block;margin-top:7px">固定连接 TeamoRouter；页面不会向其他 API 域名发送 Key。</span>
             <div class="persist-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:11px">
               <label class="checkline"><input id="rememberKey" type="checkbox">在此浏览器记住 API Key</label>
               <span class="hint" id="persistStatus">Key 默认不保存；草稿和任务摘要保存在本地浏览器。</span>
