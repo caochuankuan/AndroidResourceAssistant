@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-MvgojGLwj7NPlMgc5cLhqX6xhwtPhsyABkW33nROY/0='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-oyhMPWFkLjbs+MZ0EO0fC9hg6zGzXiu5pnrvV08PaSY='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>TeamoRouter · 视频生成工作台</title>
   <style>
     :root{--ink:#17211d;--muted:#748078;--line:#e7ebe6;--paper:#f5f7f4;--card:#fff;--green:#157a53;--green2:#e9f5ee;--lime:#d8f36a;--amber:#a56a12;--amberbg:#fff6e5;--red:#bd4c43;--redbg:#fff0ee;--shadow:0 12px 34px rgba(30,50,39,.055);--radius:18px}
@@ -414,10 +414,12 @@
     const cachedTask=readJson(STORE.task);if(cachedTask?.id){state.task=cachedTask;renderTask(cachedTask)}
     const savedAttempt=readJson(STORE.attempt);if(savedAttempt?.fingerprint&&savedAttempt?.key){state.lastAttempt=savedAttempt;if(savedAttempt.quoteId)state.quote={quote_id:savedAttempt.quoteId,expiresAt:savedAttempt.expiresAt||0,quote:savedAttempt.quote,currency:savedAttempt.currency,estimated:savedAttempt.estimated};}
     renderHistory(readJson(STORE.history,[])||[]);persistStatus();
-    if($('apiKey').value.trim())$('connectionLabel').textContent='Key 已恢复 · 待验证';
+    const autoConnect=$('rememberKey').checked&&!!$('apiKey').value.trim();
+    if(autoConnect){$('connectionLabel').textContent='正在连接…';setNotice('已恢复保存的 API Key，正在验证并载入模型目录。','');}
     const startupNotes=[];if(cachedTask?.id)startupNotes.push('已恢复本地任务摘要；连接 API 后可查询最新状态或下载');if(state.needsReselect.image||state.needsReselect.end)startupNotes.push('刷新前载入的本地参考图不会保存，请重新选择');if(startupNotes.length)setNotice(startupNotes.join('；')+'。','');
     if(state.quote?.quote_id&&state.quote.quote!==undefined){$('quoteResult').hidden=false;$('quoteResult').textContent=`${state.quote.expiresAt>Date.now()?'':'报价已过期 · 重试沿用原参数 · '}${state.quote.estimated?'约 ':''}${state.quote.currency||'USD'} ${Number(state.quote.quote).toFixed(4)}`;}
     updatePreview();
+    if(autoConnect)loadCatalog();
   })();
   </script>
 </body>
