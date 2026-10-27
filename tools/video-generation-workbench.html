@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-oyhMPWFkLjbs+MZ0EO0fC9hg6zGzXiu5pnrvV08PaSY='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ilhLXAeSRBW+cIzLyJTMSZUeBY1KlL+Q+ahV3H3u/PI='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>TeamoRouter · 视频生成工作台</title>
   <style>
     :root{--ink:#17211d;--muted:#748078;--line:#e7ebe6;--paper:#f5f7f4;--card:#fff;--green:#157a53;--green2:#e9f5ee;--lime:#d8f36a;--amber:#a56a12;--amberbg:#fff6e5;--red:#bd4c43;--redbg:#fff0ee;--shadow:0 12px 34px rgba(30,50,39,.055);--radius:18px}
@@ -16,6 +16,7 @@
     .notice{display:flex;align-items:flex-start;gap:10px;padding:12px 15px;margin-bottom:20px;border:1px solid #e4ebe5;border-radius:12px;background:#fff;color:#637068;font-size:12px}.notice .icon{color:var(--green);font-weight:900}.notice.error{background:var(--redbg);border-color:#f6d9d5;color:#8f3f38}.notice.success{background:var(--green2);border-color:#d4eade;color:#246247}
     .workspace{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(340px,.82fr);gap:19px;align-items:start}.left-col,.right-col{display:grid;gap:17px}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 22px 13px}.title-line{display:flex;align-items:center;gap:10px}.section-no{display:grid;place-items:center;width:26px;height:26px;border-radius:9px;background:#eff5ef;color:var(--green);font-weight:850;font-size:11px}.card h2{margin:0;font-size:15px;letter-spacing:-.02em}.subhead{font-size:11px;color:var(--muted);margin:4px 0 0}.card-body{padding:0 22px 21px}.divider{height:1px;background:#f0f2ef;margin:16px 0}.field{display:grid;gap:6px;min-width:0}.field label{font-size:11px;font-weight:700;color:#45534a}.hint{font-size:10px;color:#929c95;line-height:1.45}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row.three{grid-template-columns:repeat(3,1fr)}input,textarea,select{width:100%;border:1px solid #dfe5df;background:#fff;border-radius:9px;padding:10px 11px;color:var(--ink);outline:none;transition:border .15s,box-shadow .15s}input,select{height:39px}textarea{resize:vertical;min-height:100px;line-height:1.5}input:focus,textarea:focus,select:focus{border-color:#65a785;box-shadow:0 0 0 3px #e9f5ee}input::placeholder,textarea::placeholder{color:#aab3ac}.input-wrap{position:relative}.input-wrap input{padding-right:76px}.input-wrap button{position:absolute;right:5px;top:5px;height:29px;border:0;background:#f2f5f2;border-radius:6px;color:#56645a;font-size:10px;padding:0 9px}.connect-row{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(190px,1.3fr) auto;align-items:end;gap:10px}.btn{height:39px;border:1px solid transparent;border-radius:9px;padding:0 14px;font-weight:750;font-size:11px;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;transition:transform .12s,background .12s}.btn:active{transform:translateY(1px)}.btn.primary{color:#fff;background:var(--green)}.btn.primary:hover{background:#0d6644}.btn.dark{background:var(--ink);color:#fff}.btn.dark:hover{background:#293a32}.btn.light{background:#fff;border-color:#e0e6e0;color:#49574d}.btn.light:hover{background:#f7faf7}.btn.danger{background:#fff;color:var(--red);border-color:#f2d6d3}.btn:disabled{opacity:.5;cursor:not-allowed}.tiny-btn{border:0;background:none;color:var(--green);font-weight:750;font-size:10px;padding:5px 0}.model-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:12px;margin-top:14px}.model-count{font-size:10px;color:var(--muted);padding-bottom:11px;white-space:nowrap}.model-note{margin-top:10px;padding:10px 11px;background:#f7f9f7;border-radius:9px;color:#6b776f;font-size:10px}.model-note strong{color:var(--ink)}details.spec{margin-top:9px}details.spec summary{font-size:10px;color:#718078;cursor:pointer;user-select:none}details.spec pre{max-height:210px;overflow:auto;padding:10px;background:#f7f9f7;border:1px solid var(--line);border-radius:8px;font-size:10px;white-space:pre-wrap;word-break:break-word}
     .form-stack{display:grid;gap:15px}.prompt-box{min-height:132px}.negative-box{min-height:74px}.mode-switch{display:flex;gap:7px;padding:4px;background:#f0f3f0;border-radius:10px;width:max-content}.mode-switch button{border:0;border-radius:7px;padding:7px 10px;background:transparent;color:#748078;font-size:10px;font-weight:700}.mode-switch button.selected{background:#fff;color:var(--ink);box-shadow:0 1px 5px #1b30200f}.file-line{display:flex;gap:8px;align-items:center}.file-line input[type=file]{height:auto;padding:8px;font-size:10px}.file-name{font-size:10px;color:#748078;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.checkline{display:flex;align-items:center;gap:8px;color:#59665e;font-size:11px}.checkline input{width:15px;height:15px;accent-color:var(--green)}.advanced textarea{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:105px}.action-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.action-row .spacer{flex:1}.price-chip{padding:7px 10px;background:#f0f6f0;border-radius:8px;color:#246247;font-size:11px;font-weight:750}.key-chip{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#88948b;font:9px ui-monospace,monospace}
+    .row.single-visible{grid-template-columns:minmax(0,1fr)}[hidden]{display:none!important}
     .sticky{position:sticky;top:15px}.preview-top{padding:19px 20px 14px;border-bottom:1px solid #eef1ed;display:flex;justify-content:space-between;align-items:center}.preview-top h2{font-size:14px;margin:0}.preview-badge{padding:5px 8px;border-radius:7px;background:#f1f4f1;color:#7e8a82;font-size:9px}.preview-body{padding:16px 20px}.endpoint{font:10px ui-monospace,SFMono-Regular,Menlo,monospace;color:#607067;word-break:break-all;padding:10px 11px;border-radius:8px;background:#f6f8f6;margin-bottom:12px}.preview-label{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#7d8980;margin-bottom:7px}.json-preview{margin:0;min-height:210px;max-height:370px;overflow:auto;white-space:pre-wrap;word-break:break-word;background:#17211d;color:#d6e2da;padding:14px;border-radius:10px;font:10px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}.preview-actions{display:flex;gap:8px;margin-top:10px}.preview-actions .btn{height:32px;font-size:10px;padding:0 10px}.run-card{padding:17px 20px}.run-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.run-head h2{margin:0;font-size:14px}.run-head p{margin:4px 0 0;color:var(--muted);font-size:10px}.status-pill{font-size:9px;font-weight:800;padding:5px 8px;background:#f0f3f0;color:#657168;border-radius:99px;white-space:nowrap}.status-pill.queued,.status-pill.in_progress{background:#fff3db;color:#986a19}.status-pill.completed{background:#e9f5ee;color:#26724e}.status-pill.failed{background:#fff0ee;color:#a5443e}.progress-track{height:6px;border-radius:9px;background:#edf1ed;margin:15px 0 8px;overflow:hidden}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#187c54,#95d68b);border-radius:9px;transition:width .3s}.progress-text{display:flex;justify-content:space-between;color:#8a958e;font-size:9px}.task-id{font:10px ui-monospace,monospace;color:#57655c;word-break:break-all;margin:11px 0}.task-error{padding:9px;background:var(--redbg);color:#8f3f38;font-size:10px;border-radius:8px;margin-top:8px}.run-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.run-actions .btn{height:32px;font-size:10px;padding:0 10px}.empty-run{color:#96a097;font-size:11px;padding:15px 0 4px}.history-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.history-head h2{font-size:14px;margin:0}.history-list{display:grid;gap:8px}.history-item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #edf0ed;border-radius:10px;cursor:pointer;transition:border .15s,background .15s}.history-item:hover{border-color:#c8d9cd;background:#fbfdfb}.history-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:#eef4ef;color:var(--green);font-size:11px}.history-copy{min-width:0;flex:1}.history-copy strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}.history-copy span{display:block;color:#8c978e;font-size:9px;margin-top:3px}.history-item .status-pill{font-size:8px}.empty-history{padding:17px 12px;text-align:center;border:1px dashed #e1e7e1;border-radius:10px;color:#96a097;font-size:10px}.footer-note{padding:13px 16px;border:1px solid #e8ede8;border-radius:12px;color:#869188;font-size:10px;line-height:1.5;background:#fafcf9}.toast{position:fixed;bottom:22px;left:50%;transform:translate(-50%,15px);padding:10px 15px;border-radius:9px;background:#17211d;color:#fff;font-size:11px;opacity:0;pointer-events:none;transition:.2s;z-index:20;box-shadow:var(--shadow)}.toast.show{opacity:1;transform:translate(-50%,0)}.loading{display:inline-block;width:12px;height:12px;border:2px solid #ffffff70;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
     @media(max-width:1000px){.shell{padding:20px}.workspace{grid-template-columns:1fr}.sticky{position:static}.right-col{grid-row:1}.json-preview{min-height:130px;max-height:230px}}
     @media(max-width:650px){.shell{padding:15px 13px 35px}.topbar{margin-bottom:25px}.docs-link{font-size:0}.docs-link:after{content:"API 文档";font-size:11px}.hero{display:block}.hero-tag{display:inline-block;margin-top:14px}.steps{grid-template-columns:repeat(2,1fr)}.step{padding:8px}.connect-row{grid-template-columns:1fr}.model-row{grid-template-columns:1fr}.model-count{padding:0}.row,.row.three{grid-template-columns:1fr 1fr}.card-head{padding:17px 16px 12px}.card-body{padding:0 16px 17px}.preview-top,.preview-body,.run-card{padding-left:15px;padding-right:15px}.key-chip{max-width:110px}}
@@ -73,31 +74,32 @@
           <div class="card-head"><div><div class="title-line"><span class="section-no">02</span><h2>描述与生成参数</h2></div><p class="subhead">常用选项直接填写，模型专属参数放在高级 JSON</p></div></div>
           <div class="card-body">
             <div class="form-stack">
-              <div class="field"><label for="prompt">提示词 <span style="color:var(--red)">*</span></label><textarea class="prompt-box" id="prompt" placeholder="描述主体、动作、场景、镜头运动、光线与整体风格……"></textarea><span class="hint" id="promptCount">0 字符 · 按模型限制填写</span></div>
+              <div class="field"><label for="prompt">提示词 <span style="color:var(--red)">*</span></label><textarea class="prompt-box" id="prompt" maxlength="20000" placeholder="描述主体、动作、场景、镜头运动、光线与整体风格……"></textarea><span class="hint" id="promptCount">0 / 20000 字符 · 默认接口上限</span></div>
               <div class="field"><label for="negativePrompt">负面提示词 <span style="font-weight:450;color:#9aa39c">可选</span></label><textarea class="negative-box" id="negativePrompt" placeholder="例如：模糊、闪烁、畸形肢体、文字水印"></textarea></div>
-              <div class="field"><label>基础输出参数</label><div class="mode-switch" role="tablist"><button type="button" class="selected" data-mode="standard">标准参数</button><button type="button" data-mode="extended">模型扩展参数</button></div></div>
+              <div class="field" id="modeSwitchField"><label>基础输出参数</label><div class="mode-switch" role="tablist"><button type="button" class="selected" data-mode="standard">标准参数</button><button type="button" data-mode="extended">模型扩展参数</button></div></div>
               <div class="row" id="standardParams">
-                <div class="field"><label for="seconds">时长 · seconds</label><input id="seconds" value="4" placeholder="4"><span class="hint">标准接口字段，填写秒数。</span></div>
-                <div class="field"><label for="size">尺寸 · size</label><input id="size" value="1280x720" placeholder="1280x720"><span class="hint">宽 × 高；请按模型规格填写。</span></div>
+                <div class="field" data-param="seconds"><label for="seconds">时长 · seconds</label><input id="seconds" value="4" placeholder="4"><span class="hint">标准接口字段，填写秒数。</span></div>
+                <div class="field" data-param="size"><label for="size">尺寸 · size</label><input id="size" value="" placeholder="留空使用模型默认尺寸"><span class="hint">可选参数；留空使用模型默认尺寸。</span></div>
               </div>
               <div class="row three" id="extendedParams" hidden>
-                <div class="field"><label for="duration">时长 · duration</label><input id="duration" value="4s" placeholder="4s"><span class="hint">如 4s、10s 或 auto。</span></div>
-                <div class="field"><label for="resolution">分辨率 · resolution</label><input id="resolution" placeholder="720p"><span class="hint">按所选模型约束填写。</span></div>
-                <div class="field"><label for="aspectRatio">画幅 · aspect_ratio</label><input id="aspectRatio" placeholder="16:9"><span class="hint">例如 16:9、9:16、auto。</span></div>
+                <div class="field" data-param="duration"><label for="duration">时长 · duration</label><input id="duration" value="4s" placeholder="4s"><span class="hint">如 4s、10s 或 auto。</span></div>
+                <div class="field" data-param="resolution"><label for="resolution">分辨率 · resolution</label><input id="resolution" placeholder="720p"><span class="hint">按所选模型约束填写。</span></div>
+                <div class="field" data-param="aspectRatio"><label for="aspectRatio">画幅 · aspect_ratio</label><input id="aspectRatio" placeholder="16:9"><span class="hint">例如 16:9、9:16、auto。</span></div>
               </div>
-              <div class="row">
-                <div class="field"><label for="imageUrl">首帧参考图 URL</label><input id="imageUrl" placeholder="https://… 或选择本地图片"><div class="file-line"><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp"><span class="file-name" id="imageFileName">PNG / JPEG / WebP</span></div></div>
-                <div class="field"><label for="endImageUrl">尾帧参考图 URL</label><input id="endImageUrl" placeholder="https://… 或选择本地图片"><div class="file-line"><input id="endImageFile" type="file" accept="image/png,image/jpeg,image/webp"><span class="file-name" id="endImageFileName">可选 · PNG / JPEG / WebP</span></div></div>
+              <div class="hint" id="paramFallback" hidden>当前模型目录没有声明可配置的基础参数；请查看模型文档，或在高级 JSON 中填写模型专属字段。</div>
+              <div class="row" data-auto-grid>
+                <div class="field" data-param="imageUrl" data-capability="image_input"><label for="imageUrl">首帧参考图 URL</label><input id="imageUrl" placeholder="https://… 或选择本地图片"><div class="file-line"><input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp"><span class="file-name" id="imageFileName">PNG / JPEG / WebP</span></div></div>
+                <div class="field" data-param="endImageUrl" data-capability="end_image_input"><label for="endImageUrl">尾帧参考图 URL</label><input id="endImageUrl" placeholder="https://… 或选择本地图片"><div class="file-line"><input id="endImageFile" type="file" accept="image/png,image/jpeg,image/webp"><span class="file-name" id="endImageFileName">可选 · PNG / JPEG / WebP</span></div></div>
               </div>
-              <div class="row">
-                <div class="field"><label for="referenceImages">参考图片 URL</label><textarea id="referenceImages" placeholder="每行一个 URL 或 data URL" style="min-height:66px"></textarea></div>
-                <div class="field"><label for="referenceVideos">参考视频 URL</label><textarea id="referenceVideos" placeholder="每行一个 URL 或 data URL" style="min-height:66px"></textarea></div>
+              <div class="row" data-auto-grid>
+                <div class="field" data-param="referenceImages" data-capability="reference_images"><label for="referenceImages">参考图片 URL</label><textarea id="referenceImages" placeholder="每行一个 URL 或 data URL" style="min-height:66px"></textarea><span class="hint"></span></div>
+                <div class="field" data-param="referenceVideos" data-capability="video_input"><label for="referenceVideos">参考视频 URL</label><textarea id="referenceVideos" placeholder="每行一个 URL 或 data URL" style="min-height:66px"></textarea><span class="hint"></span></div>
               </div>
-              <div class="row">
-                <div class="field"><label for="videoUrl">输入视频 URL</label><input id="videoUrl" placeholder="视频编辑 / 增强模型使用"></div>
-                <div class="field"><label for="audioUrl">输入音频 URL</label><input id="audioUrl" placeholder="模型支持时作为背景音频"></div>
+              <div class="row" data-auto-grid>
+                <div class="field" data-param="videoUrl" data-capability="video_input"><label for="videoUrl">输入视频 URL</label><input id="videoUrl" placeholder="视频编辑 / 增强模型使用"><span class="hint"></span></div>
+                <div class="field" data-param="audioUrl" data-capability="audio_input"><label for="audioUrl">输入音频 URL</label><input id="audioUrl" placeholder="模型支持时作为背景音频"><span class="hint"></span></div>
               </div>
-              <label class="checkline"><input id="audioEnabled" type="checkbox" checked> 请求模型生成音频（适用时）</label>
+              <div class="field" data-param="audioEnabled" data-capability="audio_configurable"><label class="checkline"><input id="audioEnabled" type="checkbox" checked> 请求模型生成音频</label><span class="hint"></span></div>
               <details class="advanced">
                 <summary style="font-size:11px;font-weight:700;color:#45534a;cursor:pointer">高级参数 JSON <span style="font-weight:450;color:#929c95">· 相机轨迹、元素、模型专用字段等</span></summary>
                 <div class="field" style="margin-top:9px"><textarea id="extraJson" spellcheck="false">{}</textarea><span class="hint">填写 JSON 对象。不要重复填写上方已单独配置的字段。</span></div>
@@ -203,6 +205,72 @@
     const modelId = (m) => m.id || m.model || m.name || m.api_model || '';
     const modelSpec = (m) => m.model_spec || m.spec || {};
     const isOffline = (m) => modelSpec(m).offline === true;
+    const constraintsForModel = () => modelSpec(activeModel()).constraints || {};
+    const paramField = (id) => document.querySelector(`[data-param="${id}"]`);
+    const paramVisible = (id) => !paramField(id)?.hidden;
+    const stringChoices = (value) => Array.isArray(value) ? value.filter(v=>typeof v==='string'||typeof v==='number').map(String) : null;
+    function setParamHint(id,text){const field=paramField(id),hint=field?.querySelector('.hint');if(!hint)return;if(!Object.hasOwn(field.dataset,'baseHint'))field.dataset.baseHint=hint.textContent;hint.textContent=`${field.dataset.baseHint}${text?`${field.dataset.baseHint?' · ':''}${text}`:''}`;}
+    function configureParam(id,{values=null,known=false,unsupported=false,placeholder='',defaultValue='',reset=false,caption=''}={}){
+      const field=paramField(id),old=$(id);if(!field||!old)return;
+      field.hidden=unsupported||(known&&!values?.length);
+      if(field.hidden){setParamHint(id,'');return}
+      const options=known&&Array.isArray(values)&&values.length>0?values.map(v=>typeof v==='string'?{value:v,label:v}:v):null;
+      const current=old.value;
+      if(options){
+        const select=document.createElement('select');select.id=id;
+        options.forEach(item=>{const option=document.createElement('option');option.value=String(item.value);option.textContent=String(item.label);select.append(option)});
+        const allowed=options.some(o=>String(o.value)===current);
+        const preferred=options.some(o=>String(o.value)===String(defaultValue))?String(defaultValue):String(options[0].value);
+        select.value=allowed&&!reset?current:preferred;old.replaceWith(select);
+        setParamHint(id,caption||`此模型支持：${options.map(o=>o.label).join('、')}`);
+      }else{
+        let input=old;
+        if(old.tagName!=='INPUT'){input=document.createElement('input');input.type='text';input.id=id;old.replaceWith(input);input.value=current}
+        input.placeholder=placeholder;
+        if(reset)input.value='';
+        setParamHint(id,caption||'目录未提供此项的允许值；请按模型文档填写。');
+      }
+    }
+    function configureCapability(id,key,constraints){
+      const field=paramField(id);if(!field)return;
+      const support=constraints[key];field.hidden=support===false;
+      if(support===true)setParamHint(id,'模型目录确认支持');
+      else if(support===false)setParamHint(id,'');
+      else setParamHint(id,'模型目录未声明此能力');
+    }
+    function applyParameterLayout(){
+      for(const row of document.querySelectorAll('[data-auto-grid]')){
+        const fields=[...row.querySelectorAll('[data-param]')],visible=fields.filter(f=>!f.hidden).length;
+        row.hidden=visible===0;row.classList.toggle('single-visible',visible===1);
+      }
+      const standardFields=[...$('standardParams').querySelectorAll('[data-param]')],extendedFields=[...$('extendedParams').querySelectorAll('[data-param]')];
+      const hasStandard=standardFields.some(f=>!f.hidden),hasExtended=extendedFields.some(f=>!f.hidden);
+      $('standardParams').classList.toggle('single-visible',standardFields.filter(f=>!f.hidden).length===1);
+      $('extendedParams').classList.toggle('single-visible',extendedFields.filter(f=>!f.hidden).length===1);
+      const switchField=$('modeSwitchField');switchField.hidden=!(hasStandard&&hasExtended);
+      if(!hasStandard&&hasExtended)document.querySelector('[data-mode="extended"]').classList.add('selected'),document.querySelector('[data-mode="standard"]').classList.remove('selected');
+      if(hasStandard&&!hasExtended)document.querySelector('[data-mode="standard"]').classList.add('selected'),document.querySelector('[data-mode="extended"]').classList.remove('selected');
+      const mode=document.querySelector('[data-mode].selected')?.dataset.mode||'standard';
+      $('standardParams').hidden=mode!=='standard'||!hasStandard;$('extendedParams').hidden=mode!=='extended'||!hasExtended;
+      $('paramFallback').hidden=hasStandard||hasExtended;
+    }
+    function configureModelParameters(constraints){
+      const durations=stringChoices(constraints.durations);
+      const standardDurations=durations?.map(value=>({value:value.replace(/s$/i,''),label:/s$/i.test(value)?value:`${value}s`}))||null;
+      const durationHint=Array.isArray(constraints.durations)?'按当前模型目录提供的时长选项选择。':'目录未提供时长列表；按模型文档填写。';
+      configureParam('seconds',{values:standardDurations,known:Array.isArray(constraints.durations),placeholder:'秒数',defaultValue:'4',caption:durationHint});
+      configureParam('duration',{values:durations,known:Array.isArray(constraints.durations),placeholder:'例如 4s',defaultValue:'4s',caption:durationHint});
+      configureParam('size',{values:stringChoices(constraints.sizes),known:Array.isArray(constraints.sizes),placeholder:'留空使用模型默认尺寸',caption:Array.isArray(constraints.sizes)?'模型目录提供的尺寸选项。':''});
+      configureParam('resolution',{values:stringChoices(constraints.resolutions),known:Array.isArray(constraints.resolutions),placeholder:'例如 720p'});
+      configureParam('aspectRatio',{values:stringChoices(constraints.aspect_ratios),known:Array.isArray(constraints.aspect_ratios),placeholder:'例如 16:9'});
+      for(const field of document.querySelectorAll('[data-capability]'))configureCapability(field.dataset.param,field.dataset.capability,constraints);
+      const rawLimit=Number(constraints.prompt_character_limit),knownPromptLimit=Number.isFinite(rawLimit)&&rawLimit>0,limit=knownPromptLimit?rawLimit:20000;
+      $('prompt').maxLength=limit;
+      $('promptCount').dataset.limit=String(limit);
+      $('promptCount').dataset.limitKnown=String(knownPromptLimit);
+      applyParameterLayout();
+    }
+    function promptLimit(){return Number($('promptCount').dataset.limit)||20000}
     const arrayLines = (id) => $(id).value.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);
     const makePayload = () => {
       const id=modelId(activeModel());
@@ -210,29 +278,31 @@
       const prompt=$('prompt').value.trim();
       if (!prompt) throw new Error('请填写提示词。');
       if (isOffline(activeModel())) throw new Error('当前模型标记为离线，不能提交任务。');
+      const maxPromptLength=promptLimit();
+      if(prompt.length>maxPromptLength)throw new Error(`此模型的提示词上限为 ${maxPromptLength} 个字符。`);
       const body={model:id,prompt};
       const neg=$('negativePrompt').value.trim(); if(neg) body.negative_prompt=neg;
       if(document.querySelector('[data-mode].selected').dataset.mode==='standard'){
         const seconds=$('seconds').value.trim(), size=$('size').value.trim();
-        if(seconds) body.seconds=seconds;
-        if(size) body.size=size;
+        if(paramVisible('seconds')&&seconds) body.seconds=seconds;
+        if(paramVisible('size')&&size) body.size=size;
       }else{
         const duration=$('duration').value.trim(), resolution=$('resolution').value.trim(), ratio=$('aspectRatio').value.trim();
-        if(duration) body.duration=duration;
-        if(resolution) body.resolution=resolution;
-        if(ratio) body.aspect_ratio=ratio;
+        if(paramVisible('duration')&&duration) body.duration=duration;
+        if(paramVisible('resolution')&&resolution) body.resolution=resolution;
+        if(paramVisible('aspectRatio')&&ratio) body.aspect_ratio=ratio;
       }
-      const image=state.fileData.image || $('imageUrl').value.trim();
-      const endImage=state.fileData.end || $('endImageUrl').value.trim();
+      const image=paramVisible('imageUrl')&&(state.fileData.image || $('imageUrl').value.trim());
+      const endImage=paramVisible('endImageUrl')&&(state.fileData.end || $('endImageUrl').value.trim());
       if(image) body.input_reference={image_url:image};
       if(endImage) body.end_image_url=endImage;
-      const imageRefs=arrayLines('referenceImages'), videoRefs=arrayLines('referenceVideos');
+      const imageRefs=paramVisible('referenceImages')?arrayLines('referenceImages'):[], videoRefs=paramVisible('referenceVideos')?arrayLines('referenceVideos'):[];
       if(imageRefs.length) body.reference_image_urls=imageRefs;
       if(videoRefs.length) body.reference_video_urls=videoRefs;
-      const video=$('videoUrl').value.trim(), audio=$('audioUrl').value.trim();
+      const video=paramVisible('videoUrl')?$('videoUrl').value.trim():'', audio=paramVisible('audioUrl')?$('audioUrl').value.trim():'';
       if(video) body.video_url=video;
       if(audio) body.audio_url=audio;
-      body.audio=$('audioEnabled').checked;
+      if(paramVisible('audioEnabled'))body.audio=$('audioEnabled').checked;
       let extra;
       try{extra=JSON.parse($('extraJson').value||'{}')}catch(e){throw new Error(`高级参数 JSON 格式错误：${e.message}`)}
       if(!extra || Array.isArray(extra) || typeof extra!=='object') throw new Error('高级参数必须是 JSON 对象。');
@@ -267,7 +337,7 @@
     const updatePreview = () => {
       $('endpointPreview').textContent=endpoint('/videos');
       try{const preview=makePayload();if(state.quote?.quote_id)preview.quote_id=state.quote.quote_id;$('jsonPreview').textContent=JSON.stringify(preview,null,2)}catch(e){$('jsonPreview').textContent=JSON.stringify({model:modelId(activeModel()),prompt:$('prompt').value.trim(),_note:e.message},null,2)}
-      $('promptCount').textContent=`${$('prompt').value.length} 字符 · 按模型限制填写`;
+      $('promptCount').textContent=`${$('prompt').value.length} / ${promptLimit()} 字符 · ${$('promptCount').dataset.limitKnown==='true'?'模型目录上限':'默认接口上限'}`;
       $('idempotencyLabel').textContent=state.lastAttempt?.key ? `上次提交键 · ${state.lastAttempt.key}` : '提交键待生成';
     };
     const friendlyError = (payload, fallback) => payload?.error?.message || payload?.message || payload?.detail || fallback;
@@ -296,7 +366,8 @@
     function renderModelSpec(){
       const m=activeModel(), spec=modelSpec(m), id=modelId(m), constraints=spec.constraints||{};
       $('specJson').textContent=JSON.stringify(m,null,2);
-      $('modelNote').innerHTML=`<strong>${escapeHtml(id||'尚未选择')}</strong>${isOffline(m)?' · <span style="color:var(--red);font-weight:800">当前离线</span>':' · 当前目录可用'}${Object.keys(constraints).length?`<br>模型约束：<code>${escapeHtml(Object.keys(constraints).join(' · '))}</code>`:'<br>目录未提供可展开的约束值；请按模型文档填写参数。'}`;
+      configureModelParameters(constraints);
+      $('modelNote').innerHTML=`<strong>${escapeHtml(id||'尚未选择')}</strong>${isOffline(m)?' · <span style="color:var(--red);font-weight:800">当前离线</span>':' · 当前目录可用'}${Object.keys(constraints).length?`<br>模型约束：<code>${escapeHtml(Object.keys(constraints).join(' · '))}</code>`:'<br>目录未提供约束值；可确认支持的选项会显示为下拉菜单。'}`;
       $('createBtn').disabled=!state.apiKey||!state.models.length||isOffline(m);
       $('quoteBtn').disabled=!state.apiKey||!state.models.length||isOffline(m);
       updatePreview();
@@ -370,7 +441,11 @@
 
     $('connectBtn').addEventListener('click',loadCatalog);
     $('toggleKey').addEventListener('click',()=>{const k=$('apiKey');const shown=k.type==='text';k.type=shown?'password':'text';$('toggleKey').textContent=shown?'显示':'隐藏'});
-    $('modelSelect').addEventListener('change',()=>{state.model=state.models.find(m=>modelId(m)===$('modelSelect').value)||null;renderModelSpec();$('quoteResult').hidden=true;state.quote=null});
+    $('modelSelect').addEventListener('change',()=>{
+      state.model=state.models.find(m=>modelId(m)===$('modelSelect').value)||null;
+      state.pendingModelId=$('modelSelect').value;state.quote=null;state.lastAttempt=null;safeRemove(STORE.attempt);$('quoteResult').hidden=true;
+      renderModelSpec();scheduleDraftSave();
+    });
     $('quoteBtn').addEventListener('click',quote);$('createBtn').addEventListener('click',createVideo);
     $('refreshTaskBtn').addEventListener('click',()=>refreshTask().then(()=>showToast('状态已更新')).catch(e=>setNotice(`查询失败：${e.message}`,'error')));
     $('downloadBtn').addEventListener('click',downloadVideo);$('deleteTaskBtn').addEventListener('click',deleteTask);
@@ -380,18 +455,27 @@
     document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('selected',b===btn));const ext=btn.dataset.mode==='extended';$('standardParams').hidden=ext;$('extendedParams').hidden=!ext;state.quote=null;$('quoteResult').hidden=true;updatePreview();scheduleDraftSave()}));
     $('imageFile').addEventListener('change',()=>fileToDataUrl($('imageFile'),'image','imageFileName','imageUrl'));
     $('endImageFile').addEventListener('change',()=>fileToDataUrl($('endImageFile'),'end','endImageFileName','endImageUrl'));
-    fields.forEach(id=>$(id).addEventListener('input',()=>{
-      if(id==='apiKey'&&$('rememberKey').checked)safeRemove(STORE.key);
-      if(id==='apiKey'&&state.apiKey&&state.apiKey!==$('apiKey').value.trim()){
-        state.apiKey='';state.models=[];state.model=null;state.lastAttempt=null;safeRemove(STORE.attempt);stopPolling();$('modelSelect').innerHTML='<option>先连接并载入目录</option>'; $('modelSelect').disabled=true;setConnected(false);
-      }
+    function onComposeValueChange(id){
       if(id==='imageUrl'&&$('imageUrl').value.trim()){state.fileData.image='';state.needsReselect.image=false;$('imageFileName').textContent='PNG / JPEG / WebP'}
       if(id==='endImageUrl'&&$('endImageUrl').value.trim()){state.fileData.end='';state.needsReselect.end=false;$('endImageFileName').textContent='可选 · PNG / JPEG / WebP'}
-      if(id!=='apiKey'){state.quote=null;state.lastAttempt=null;safeRemove(STORE.attempt);$('quoteResult').hidden=true}
+      state.quote=null;state.lastAttempt=null;safeRemove(STORE.attempt);$('quoteResult').hidden=true;
+      updatePreview();scheduleDraftSave();
+    }
+    $('apiKey').addEventListener('input',()=>{
+      if($('rememberKey').checked)safeRemove(STORE.key);
+      if(state.apiKey&&state.apiKey!==$('apiKey').value.trim()){
+        state.apiKey='';state.models=[];state.model=null;state.lastAttempt=null;state.quote=null;safeRemove(STORE.attempt);stopPolling();configureModelParameters({});$('specJson').textContent='尚未载入';$('modelNote').innerHTML='模型状态、支持参数和可用性以账户返回的 <strong>model_spec</strong> 为准。离线模型不能提交任务。';$('modelSelect').innerHTML='<option>先连接并载入目录</option>'; $('modelSelect').disabled=true;setConnected(false);
+      }
       updatePreview();
-      scheduleDraftSave();
-    }));
-    $('modelSelect').addEventListener('change',()=>{state.pendingModelId=$('modelSelect').value;scheduleDraftSave()});
+    });
+    $('composeCard').addEventListener('input',e=>{
+      const id=e.target.id;
+      if(fields.includes(id)&&!['apiKey','modelSelect','audioEnabled'].includes(id))onComposeValueChange(id);
+    });
+    $('composeCard').addEventListener('change',e=>{
+      const id=e.target.id;
+      if(id==='audioEnabled'||e.target.matches('select'))onComposeValueChange(id);
+    });
     $('rememberKey').addEventListener('change',()=>{
       const enabled=$('rememberKey').checked;
       safeSet(STORE.remember,enabled?'true':'false');
@@ -404,8 +488,9 @@
     $('clearLocalBtn').addEventListener('click',()=>{
       if(!confirm('清除本浏览器保存的 API Key、草稿和任务摘要？服务端的视频任务不会被删除。'))return;
       Object.values(STORE).forEach(safeRemove);clearTimeout(draftTimer);stopPolling();state.apiKey='';state.models=[];state.model=null;state.pendingModelId='';state.task=null;state.lastAttempt=null;state.quote=null;state.fileData={image:'',end:''};state.needsReselect={image:false,end:false};
-      $('apiKey').value='';$('rememberKey').checked=false;$('prompt').value='';$('negativePrompt').value='';$('seconds').value='4';$('size').value='1280x720';$('duration').value='4s';$('resolution').value='';$('aspectRatio').value='';$('imageUrl').value='';$('endImageUrl').value='';$('referenceImages').value='';$('referenceVideos').value='';$('videoUrl').value='';$('audioUrl').value='';$('audioEnabled').checked=true;$('extraJson').value='{}';$('imageFile').value='';$('endImageFile').value='';$('imageFileName').textContent='PNG / JPEG / WebP';$('endImageFileName').textContent='可选 · PNG / JPEG / WebP';
-      document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('selected',b.dataset.mode==='standard'));$('standardParams').hidden=false;$('extendedParams').hidden=true;$('modelSelect').innerHTML='<option>先连接并载入目录</option>';$('modelSelect').disabled=true;$('quoteResult').hidden=true;setConnected(false);renderTask(null);renderHistory([]);persistStatus();setNotice('本地 Key、草稿和任务摘要已清除；服务端任务未删除。','success');updatePreview();
+      configureModelParameters({});
+      $('apiKey').value='';$('rememberKey').checked=false;$('prompt').value='';$('negativePrompt').value='';$('seconds').value='4';$('size').value='';$('duration').value='4s';$('resolution').value='';$('aspectRatio').value='';$('imageUrl').value='';$('endImageUrl').value='';$('referenceImages').value='';$('referenceVideos').value='';$('videoUrl').value='';$('audioUrl').value='';$('audioEnabled').checked=true;$('extraJson').value='{}';$('imageFile').value='';$('endImageFile').value='';$('imageFileName').textContent='PNG / JPEG / WebP';$('endImageFileName').textContent='可选 · PNG / JPEG / WebP';
+      document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('selected',b.dataset.mode==='standard'));$('standardParams').hidden=false;$('extendedParams').hidden=true;$('modelSelect').innerHTML='<option>先连接并载入目录</option>';$('modelSelect').disabled=true;$('quoteResult').hidden=true;$('specJson').textContent='尚未载入';$('modelNote').innerHTML='模型状态、支持参数和可用性以账户返回的 <strong>model_spec</strong> 为准。离线模型不能提交任务。';setConnected(false);renderTask(null);renderHistory([]);persistStatus();setNotice('本地 Key、草稿和任务摘要已清除；服务端任务未删除。','success');updatePreview();
     });
     document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.task&&!terminal.has(state.task.status))refreshTask().catch(()=>{})});
     $('rememberKey').checked=safeGet(STORE.remember)==='true';
