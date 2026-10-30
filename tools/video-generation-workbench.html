@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-wfS+NP4E3/SczILSIlogKOqb8jhRMs0FTcgoLWA9mso='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-iMhDNGl7AOkE9Hm69Fs4LUxGnaCxdLfXJne7ZpMNhTA='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>TeamoRouter · 视频生成工作台</title>
   <style>
     :root{--ink:#17211d;--muted:#748078;--line:#e7ebe6;--paper:#f5f7f4;--card:#fff;--green:#157a53;--green2:#e9f5ee;--lime:#d8f36a;--amber:#a56a12;--amberbg:#fff6e5;--red:#bd4c43;--redbg:#fff0ee;--shadow:0 12px 34px rgba(30,50,39,.055);--radius:18px}
@@ -332,7 +332,7 @@
     }
     function saveAttempt(){
       if(!state.lastAttempt?.persistable||!state.lastAttempt?.fingerprint?.match(/^[a-f0-9]{64}$/)){safeRemove(STORE.attempt);return}
-      safeSet(STORE.attempt,JSON.stringify({fingerprint:state.lastAttempt.fingerprint,key:state.lastAttempt.key,quoteId:state.quote?.quote_id||'',expiresAt:state.quote?.expiresAt||0,quote:state.quote?.quote,currency:state.quote?.currency,estimated:state.quote?.estimated}));
+      safeSet(STORE.attempt,JSON.stringify({version:2,fingerprint:state.lastAttempt.fingerprint,key:state.lastAttempt.key,quoteId:state.quote?.quote_id||'',expiresAt:state.quote?.expiresAt||0,quote:state.quote?.quote,currency:state.quote?.currency,estimated:state.quote?.estimated}));
     }
     const randomKey = () => `video-${crypto.randomUUID()}`;
     const updatePreview = () => {
@@ -348,7 +348,7 @@
       if(options.body && !(options.body instanceof FormData)) headers.set('Content-Type','application/json');
       let response;
       try{response=await fetch(endpoint(path),{...options,headers,redirect:'error'})}catch(e){throw new Error(`无法连接 TeamoRouter API：${e.message}。请确认网络及浏览器跨域访问状态。`)}
-      if(!response.ok){let data={};try{data=await response.clone().json()}catch{};throw new Error(friendlyError(data,`${response.status} ${response.statusText}`))}
+      if(!response.ok){let data={};try{data=await response.clone().json()}catch{};const error=new Error(friendlyError(data,`${response.status} ${response.statusText}`));error.status=response.status;throw error}
       return response;
     }
     async function apiJson(path, options={}){const r=await api(path,options);return r.json()}
@@ -470,7 +470,7 @@
         state.lastAttempt=null;safeRemove(STORE.attempt);
         setNotice(`任务已提交，ID：${v.id||'已返回'}`,'success');loadHistory().catch(()=>{});
         $('runCard').scrollIntoView({behavior:'smooth',block:'center'});
-      }catch(e){setNotice(`提交未完成：${e.message}。如果网络结果不明确，请保持参数不变后重试。`,'error')}
+      }catch(e){if(e.status>=400&&e.status<500){state.lastAttempt=null;safeRemove(STORE.attempt)}setNotice(`提交未完成：${e.message}。如果网络结果不明确，请保持参数不变后重试。`,'error')}
       finally{$('createBtn').disabled=!state.apiKey||!state.models.length||isOffline(activeModel());$('createBtn').innerHTML='生成视频 <span aria-hidden="true">↗</span>';updatePreview()}
     }
     async function downloadVideo(){if(!state.task?.id)return;await downloadTask(state.task.id)}
@@ -546,7 +546,7 @@
     else safeRemove(STORE.key);
     restoreDraft();
     const cachedTask=readJson(STORE.task);if(cachedTask?.id){state.task=cachedTask;renderTask(cachedTask)}
-    const savedAttempt=readJson(STORE.attempt);if(savedAttempt?.fingerprint&&savedAttempt?.key){state.lastAttempt=savedAttempt;if(savedAttempt.quoteId)state.quote={quote_id:savedAttempt.quoteId,expiresAt:savedAttempt.expiresAt||0,quote:savedAttempt.quote,currency:savedAttempt.currency,estimated:savedAttempt.estimated};}
+    const savedAttempt=readJson(STORE.attempt);if(savedAttempt?.version===2&&savedAttempt?.fingerprint&&savedAttempt?.key){state.lastAttempt=savedAttempt;if(savedAttempt.quoteId)state.quote={quote_id:savedAttempt.quoteId,expiresAt:savedAttempt.expiresAt||0,quote:savedAttempt.quote,currency:savedAttempt.currency,estimated:savedAttempt.estimated};}else safeRemove(STORE.attempt);
     renderHistory(readJson(STORE.history,[])||[]);persistStatus();
     const autoConnect=$('rememberKey').checked&&!!$('apiKey').value.trim();
     if(autoConnect){$('connectionLabel').textContent='正在连接…';setNotice('已恢复保存的 API Key，正在验证并载入模型目录。','');}
