@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-iMhDNGl7AOkE9Hm69Fs4LUxGnaCxdLfXJne7ZpMNhTA='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-bkyYvekixfaWBYgo4u7IqORl1yG2ljJRK8zEOSBYkdg='; style-src 'unsafe-inline'; connect-src https://api.teamorouter.cn; img-src data: blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>TeamoRouter · 视频生成工作台</title>
   <style>
     :root{--ink:#17211d;--muted:#748078;--line:#e7ebe6;--paper:#f5f7f4;--card:#fff;--green:#157a53;--green2:#e9f5ee;--lime:#d8f36a;--amber:#a56a12;--amberbg:#fff6e5;--red:#bd4c43;--redbg:#fff0ee;--shadow:0 12px 34px rgba(30,50,39,.055);--radius:18px}
@@ -58,7 +58,7 @@
             <span class="hint" style="display:block;margin-top:7px">固定连接 TeamoRouter；页面不会向其他 API 域名发送 Key。</span>
             <div class="persist-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:11px">
               <label class="checkline"><input id="rememberKey" type="checkbox">在此浏览器记住 API Key</label>
-              <span class="hint" id="persistStatus">Key 默认不保存；草稿和任务摘要保存在本地浏览器。</span>
+              <span class="hint" id="persistStatus">提示词自动保存在本地；API Key 默认不保存。</span>
               <button class="tiny-btn" id="clearLocalBtn" type="button" style="margin-left:auto">清除本地数据</button>
             </div>
             <div class="model-row">
@@ -160,7 +160,8 @@
   (() => {
     const $ = (id) => document.getElementById(id);
     const API_BASE='https://api.teamorouter.cn/v1';
-    const STORE = { draft:'teamorouter-video-workbench-draft-v1', key:'teamorouter-video-workbench-key-v1', remember:'teamorouter-video-workbench-remember-key-v1', task:'teamorouter-video-workbench-current-task-v1', history:'teamorouter-video-workbench-history-v1', attempt:'teamorouter-video-workbench-attempt-v1' };
+    const STORE = { prompt:'teamorouter-video-workbench-prompt-v1', key:'teamorouter-video-workbench-key-v1' };
+    const LEGACY_STORE = ['teamorouter-video-workbench-draft-v1','teamorouter-video-workbench-remember-key-v1','teamorouter-video-workbench-current-task-v1','teamorouter-video-workbench-history-v1','teamorouter-video-workbench-attempt-v1'];
     const state = { apiKey:'', models:[], model:null, pendingModelId:'', task:null, preview:null, historyItems:[], pollTimer:null, historyTimer:null, historyBusy:false, lastAttempt:null, fileData:{image:'',end:''}, needsReselect:{image:false,end:false}, quote:null, busy:false };
     const terminal = new Set(['completed','failed']);
     const fields = ['apiKey','modelSelect','prompt','negativePrompt','seconds','size','duration','resolution','aspectRatio','imageUrl','endImageUrl','referenceImages','referenceVideos','videoUrl','audioUrl','audioEnabled','extraJson'];
@@ -169,32 +170,20 @@
     const safeRemove = (key) => { try{localStorage.removeItem(key)}catch{} };
     const readJson = (key,fallback=null) => { try{return JSON.parse(safeGet(key)||'null')??fallback}catch{return fallback} };
     const withoutDataUrls = (value) => String(value||'').split(/[\n,]+/).map(s=>s.trim()).filter(s=>s&&!/^data:/i.test(s)).join('\n');
-    const summarizeTask = (v) => v?Object.fromEntries(['id','model','status','progress','created_at','completed_at','expires_at','seconds','size','error'].filter(k=>v[k]!==undefined).map(k=>[k,v[k]])):null;
     let draftTimer=null;
     function persistStatus(){
       const remembered=$('rememberKey').checked;
-      $('persistStatus').textContent=remembered?'Key 已启用本地保存（浏览器存储未加密）；草稿和任务摘要自动保存。':'Key 默认不保存；勾选后写入浏览器本地存储（未加密）。草稿和任务摘要自动保存。';
+      $('persistStatus').textContent=remembered?'提示词和 API Key 保存在本地浏览器（未加密）。':'提示词自动保存在本地；API Key 默认不保存。';
     }
     function saveDraft(){
-      const image=$('imageUrl').value.trim(),endImage=$('endImageUrl').value.trim();
-      const draft={modelId:state.model?modelId(state.model):state.pendingModelId,mode:document.querySelector('[data-mode].selected')?.dataset.mode||'standard',prompt:$('prompt').value,negativePrompt:$('negativePrompt').value,seconds:$('seconds').value,size:$('size').value,duration:$('duration').value,resolution:$('resolution').value,aspectRatio:$('aspectRatio').value,imageUrl:/^data:/i.test(image)?'':image,endImageUrl:/^data:/i.test(endImage)?'':endImage,referenceImages:withoutDataUrls($('referenceImages').value),referenceVideos:withoutDataUrls($('referenceVideos').value),videoUrl:/^data:/i.test($('videoUrl').value.trim())?'':$('videoUrl').value,audioUrl:/^data:/i.test($('audioUrl').value.trim())?'':$('audioUrl').value,audioEnabled:$('audioEnabled').checked,extraJson:$('extraJson').value,localImagePending:!!state.fileData.image||state.needsReselect.image,localEndImagePending:!!state.fileData.end||state.needsReselect.end};
-      if(draft.extraJson.length>50000||/data:/i.test(draft.extraJson))draft.extraJson='{}';
-      if(!safeSet(STORE.draft,JSON.stringify(draft)))$('persistStatus').textContent='浏览器无法保存草稿；请检查本地存储空间或隐私设置。';
+      if(!safeSet(STORE.prompt,$('prompt').value))$('persistStatus').textContent='浏览器无法保存提示词；请检查本地存储空间或隐私设置。';
     }
     function scheduleDraftSave(){clearTimeout(draftTimer);draftTimer=setTimeout(saveDraft,250)}
     function restoreDraft(){
-      const d=readJson(STORE.draft,{});if(!d||typeof d!=='object')return;
-      const map={prompt:'prompt',negativePrompt:'negativePrompt',seconds:'seconds',size:'size',duration:'duration',resolution:'resolution',aspectRatio:'aspectRatio',imageUrl:'imageUrl',endImageUrl:'endImageUrl',referenceImages:'referenceImages',referenceVideos:'referenceVideos',videoUrl:'videoUrl',audioUrl:'audioUrl',extraJson:'extraJson'};
-      for(const [key,id] of Object.entries(map))if(typeof d[key]==='string')$(id).value=d[key];
-      if(typeof d.audioEnabled==='boolean')$('audioEnabled').checked=d.audioEnabled;
-      state.needsReselect={image:!!d.localImagePending,end:!!d.localEndImagePending};
-      if(state.needsReselect.image)$('imageFileName').textContent='刷新前载入过本地图片，请重新选择';
-      if(state.needsReselect.end)$('endImageFileName').textContent='刷新前载入过本地图片，请重新选择';
-      state.pendingModelId=typeof d.modelId==='string'?d.modelId:'';
-      if(d.mode==='extended'){
-        document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('selected',b.dataset.mode==='extended'));
-        $('standardParams').hidden=true;$('extendedParams').hidden=false;
-      }
+      const savedPrompt=safeGet(STORE.prompt);
+      if(savedPrompt!==null){$('prompt').value=savedPrompt;return}
+      const oldDraft=readJson(LEGACY_STORE[0],{});
+      if(typeof oldDraft?.prompt==='string'){$('prompt').value=oldDraft.prompt;safeSet(STORE.prompt,oldDraft.prompt)}
     }
     const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const baseUrl = () => API_BASE;
@@ -330,10 +319,6 @@
       if(globalThis.crypto?.subtle){const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('')}
       return `session:${raw}`;
     }
-    function saveAttempt(){
-      if(!state.lastAttempt?.persistable||!state.lastAttempt?.fingerprint?.match(/^[a-f0-9]{64}$/)){safeRemove(STORE.attempt);return}
-      safeSet(STORE.attempt,JSON.stringify({version:2,fingerprint:state.lastAttempt.fingerprint,key:state.lastAttempt.key,quoteId:state.quote?.quote_id||'',expiresAt:state.quote?.expiresAt||0,quote:state.quote?.quote,currency:state.quote?.currency,estimated:state.quote?.estimated}));
-    }
     const randomKey = () => `video-${crypto.randomUUID()}`;
     const updatePreview = () => {
       $('endpointPreview').textContent=endpoint('/videos');
@@ -376,7 +361,7 @@
     function statusClass(s){return ['queued','in_progress','completed','failed'].includes(s)?s:''}
     function statusText(s){return ({queued:'排队中',in_progress:'生成中',completed:'已完成',failed:'失败'})[s]||s||'未知'}
     function formatDate(seconds){if(!seconds)return '时间未知';const d=new Date(seconds*1000);return d.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}
-    function setTask(video){state.task=video;renderTask(video);if(video){safeSet(STORE.task,JSON.stringify(summarizeTask(video)));if(state.historyItems.some(item=>item.id===video.id)){state.historyItems=state.historyItems.map(item=>item.id===video.id?{...item,...video}:item);renderHistory(state.historyItems)}}else safeRemove(STORE.task);}
+    function setTask(video){state.task=video;renderTask(video);if(video&&state.historyItems.some(item=>item.id===video.id)){state.historyItems=state.historyItems.map(item=>item.id===video.id?{...item,...video}:item);renderHistory(state.historyItems)}}
     function renderTask(v){
       if(state.preview?.id!==v?.id){const player=$('taskVideo');player.pause();player.removeAttribute('src');player.load();player.hidden=true;if(state.preview?.url)URL.revokeObjectURL(state.preview.url);state.preview=null}
       $('emptyRun').hidden=!!v;$('runDetails').hidden=!v;if(!v){$('runStatus').textContent='待提交';$('runStatus').className='status-pill';$('runSubtitle').textContent='生成后将在此处自动跟踪状态';$('progressFill').style.width='0%';$('progressPercent').textContent='0%';$('taskId').textContent='';$('taskError').hidden=true;return}
@@ -422,7 +407,7 @@
       items.forEach((item,index)=>{const id=String(item.id||'');let card=existing.get(id);if(!card)card=makeHistoryCard(item);existing.delete(id);updateHistoryCard(card,item);const current=root.children[index];if(current!==card)root.insertBefore(card,current||null)});
       existing.forEach(card=>card.remove());syncHistoryPolling();
     }
-    async function loadHistory(silent=false){if(state.historyBusy)return;state.historyBusy=true;const button=$('loadHistoryBtn');if(!silent){button.disabled=true;button.textContent='载入中…'}try{const data=await apiJson('/videos?limit=20&order=desc');const items=Array.isArray(data.data)?data.data:[];renderHistory(items);safeSet(STORE.history,JSON.stringify(items.map(summarizeTask)))}finally{state.historyBusy=false;button.disabled=!state.apiKey;button.textContent='刷新列表 ↻'}}
+    async function loadHistory(silent=false){if(state.historyBusy)return;state.historyBusy=true;const button=$('loadHistoryBtn');if(!silent){button.disabled=true;button.textContent='载入中…'}try{const data=await apiJson('/videos?limit=20&order=desc');const items=Array.isArray(data.data)?data.data:[];renderHistory(items)}finally{state.historyBusy=false;button.disabled=!state.apiKey;button.textContent='刷新列表 ↻'}}
     async function downloadTask(id,button=null){if(button){button.disabled=true;button.textContent='下载中…'}try{const r=await api(`/videos/${encodeURIComponent(id)}/content?variant=video`);const blob=await r.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${id}.mp4`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('视频下载已开始')}catch(e){setNotice(`下载失败：${e.message}`,'error')}finally{if(button){button.disabled=false;button.textContent='下载成片'}}}
     async function previewTask(id,button=null){
       if(state.preview?.id===id){$('runCard').scrollIntoView({behavior:'smooth',block:'center'});$('taskVideo').focus();return}
@@ -461,29 +446,28 @@
       if(state.quote?.quote_id&&(state.quote.expiresAt>Date.now()||state.lastAttempt))body.quote_id=state.quote.quote_id;
       else if(state.quote?.quote_id){state.quote=null;$('quoteResult').hidden=true}
       const mark=await fingerprint(body);let key=state.lastAttempt?.fingerprint===mark?state.lastAttempt.key:randomKey();
-      const persistable=!/data:/i.test(JSON.stringify(body));
-      state.lastAttempt={fingerprint:mark,key,persistable};saveAttempt();updatePreview();
+      state.lastAttempt={fingerprint:mark,key};updatePreview();
       $('createBtn').disabled=true;$('createBtn').innerHTML='<span class="loading"></span> 正在提交';
       try{
         const v=await apiJson('/videos',{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify(body)});
         setTask(v);if(!terminal.has(v.status))startPolling();else stopPolling();
-        state.lastAttempt=null;safeRemove(STORE.attempt);
+        state.lastAttempt=null;
         setNotice(`任务已提交，ID：${v.id||'已返回'}`,'success');loadHistory().catch(()=>{});
         $('runCard').scrollIntoView({behavior:'smooth',block:'center'});
-      }catch(e){if(e.status>=400&&e.status<500){state.lastAttempt=null;safeRemove(STORE.attempt)}setNotice(`提交未完成：${e.message}。如果网络结果不明确，请保持参数不变后重试。`,'error')}
+      }catch(e){if(e.status>=400&&e.status<500)state.lastAttempt=null;setNotice(`提交未完成：${e.message}。如果网络结果不明确，请保持参数不变后重试。`,'error')}
       finally{$('createBtn').disabled=!state.apiKey||!state.models.length||isOffline(activeModel());$('createBtn').innerHTML='生成视频 <span aria-hidden="true">↗</span>';updatePreview()}
     }
     async function downloadVideo(){if(!state.task?.id)return;await downloadTask(state.task.id)}
     async function deleteTask(){if(!state.task?.id||!terminal.has(state.task.status))return;if(!confirm('删除这条已结束的视频任务？删除后无法再次查询或下载。'))return;try{await apiJson(`/videos/${encodeURIComponent(state.task.id)}`,{method:'DELETE'});setTask(null);setNotice('任务及媒体已删除。','success');await loadHistory()}catch(e){setNotice(`删除失败：${e.message}`,'error')}}
     async function copy(text){try{await navigator.clipboard.writeText(text);showToast('已复制到剪贴板')}catch{showToast('复制失败，请检查浏览器剪贴板权限')}}
-    async function fileToDataUrl(input,kind,nameId,urlId){const f=input.files?.[0];if(!f)return;$(nameId).textContent=`读取中 · ${f.name}`;const reader=new FileReader();reader.onload=()=>{state.fileData[kind]=String(reader.result||'');state.needsReselect[kind]=false;state.quote=null;state.lastAttempt=null;safeRemove(STORE.attempt);$(nameId).textContent=`已载入 · ${f.name}`;$(urlId).value='';updatePreview();scheduleDraftSave()};reader.onerror=()=>{state.fileData[kind]='';$(nameId).textContent='文件读取失败';setNotice('无法读取所选参考图。','error')};reader.readAsDataURL(f)}
+    async function fileToDataUrl(input,kind,nameId,urlId){const f=input.files?.[0];if(!f)return;$(nameId).textContent=`读取中 · ${f.name}`;const reader=new FileReader();reader.onload=()=>{state.fileData[kind]=String(reader.result||'');state.needsReselect[kind]=false;state.quote=null;state.lastAttempt=null;$(nameId).textContent=`已载入 · ${f.name}`;$(urlId).value='';updatePreview();scheduleDraftSave()};reader.onerror=()=>{state.fileData[kind]='';$(nameId).textContent='文件读取失败';setNotice('无法读取所选参考图。','error')};reader.readAsDataURL(f)}
     function activeStep(n){for(let i=1;i<=4;i++)$(`step${i}`).classList.toggle('active',i<=n)}
 
     $('connectBtn').addEventListener('click',loadCatalog);
     $('toggleKey').addEventListener('click',()=>{const k=$('apiKey');const shown=k.type==='text';k.type=shown?'password':'text';$('toggleKey').textContent=shown?'显示':'隐藏'});
     $('modelSelect').addEventListener('change',()=>{
       state.model=state.models.find(m=>modelId(m)===$('modelSelect').value)||null;
-      state.pendingModelId=$('modelSelect').value;state.quote=null;state.lastAttempt=null;safeRemove(STORE.attempt);$('quoteResult').hidden=true;
+      state.pendingModelId=$('modelSelect').value;state.quote=null;state.lastAttempt=null;$('quoteResult').hidden=true;
       renderModelSpec();scheduleDraftSave();
     });
     $('quoteBtn').addEventListener('click',quote);$('createBtn').addEventListener('click',createVideo);
@@ -506,13 +490,13 @@
     function onComposeValueChange(id){
       if(id==='imageUrl'&&$('imageUrl').value.trim()){state.fileData.image='';state.needsReselect.image=false;$('imageFileName').textContent='PNG / JPEG / WebP'}
       if(id==='endImageUrl'&&$('endImageUrl').value.trim()){state.fileData.end='';state.needsReselect.end=false;$('endImageFileName').textContent='可选 · PNG / JPEG / WebP'}
-      state.quote=null;state.lastAttempt=null;safeRemove(STORE.attempt);$('quoteResult').hidden=true;
+      state.quote=null;state.lastAttempt=null;$('quoteResult').hidden=true;
       updatePreview();scheduleDraftSave();
     }
     $('apiKey').addEventListener('input',()=>{
       if($('rememberKey').checked)safeRemove(STORE.key);
       if(state.apiKey&&state.apiKey!==$('apiKey').value.trim()){
-        state.apiKey='';state.models=[];state.model=null;state.lastAttempt=null;state.quote=null;safeRemove(STORE.attempt);stopPolling();configureModelParameters({});$('specJson').textContent='尚未载入';$('modelNote').innerHTML='模型状态、支持参数和可用性以账户返回的 <strong>model_spec</strong> 为准。离线模型不能提交任务。';$('modelSelect').innerHTML='<option>先连接并载入目录</option>'; $('modelSelect').disabled=true;setConnected(false);
+        state.apiKey='';state.models=[];state.model=null;state.lastAttempt=null;state.quote=null;stopPolling();configureModelParameters({});$('specJson').textContent='尚未载入';$('modelNote').innerHTML='模型状态、支持参数和可用性以账户返回的 <strong>model_spec</strong> 为准。离线模型不能提交任务。';$('modelSelect').innerHTML='<option>先连接并载入目录</option>'; $('modelSelect').disabled=true;setConnected(false);
       }
       updatePreview();
     });
@@ -526,7 +510,6 @@
     });
     $('rememberKey').addEventListener('change',()=>{
       const enabled=$('rememberKey').checked;
-      safeSet(STORE.remember,enabled?'true':'false');
       if(enabled){const key=$('apiKey').value.trim();if(key)safeSet(STORE.key,key)}else safeRemove(STORE.key);
       persistStatus();
     });
@@ -534,24 +517,19 @@
       if($('rememberKey').checked){const key=$('apiKey').value.trim();if(key)safeSet(STORE.key,key);else safeRemove(STORE.key)}
     });
     $('clearLocalBtn').addEventListener('click',()=>{
-      if(!confirm('清除本浏览器保存的 API Key、草稿和任务摘要？服务端的视频任务不会被删除。'))return;
-      Object.values(STORE).forEach(safeRemove);clearTimeout(draftTimer);stopPolling();state.apiKey='';state.models=[];state.model=null;state.pendingModelId='';state.task=null;state.lastAttempt=null;state.quote=null;state.fileData={image:'',end:''};state.needsReselect={image:false,end:false};
+      if(!confirm('清除本浏览器保存的 API Key 和提示词？服务端的视频任务不会被删除。'))return;
+      Object.values(STORE).forEach(safeRemove);LEGACY_STORE.forEach(safeRemove);clearTimeout(draftTimer);stopPolling();state.apiKey='';state.models=[];state.model=null;state.pendingModelId='';state.task=null;state.lastAttempt=null;state.quote=null;state.fileData={image:'',end:''};state.needsReselect={image:false,end:false};
       configureModelParameters({});
       $('apiKey').value='';$('rememberKey').checked=false;$('prompt').value='';$('negativePrompt').value='';$('seconds').value='4';$('size').value='';$('duration').value='4s';$('resolution').value='';$('aspectRatio').value='';$('imageUrl').value='';$('endImageUrl').value='';$('referenceImages').value='';$('referenceVideos').value='';$('videoUrl').value='';$('audioUrl').value='';$('audioEnabled').checked=true;$('extraJson').value='{}';$('imageFile').value='';$('endImageFile').value='';$('imageFileName').textContent='PNG / JPEG / WebP';$('endImageFileName').textContent='可选 · PNG / JPEG / WebP';
-      document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('selected',b.dataset.mode==='standard'));$('standardParams').hidden=false;$('extendedParams').hidden=true;$('modelSelect').innerHTML='<option>先连接并载入目录</option>';$('modelSelect').disabled=true;$('quoteResult').hidden=true;$('specJson').textContent='尚未载入';$('modelNote').innerHTML='模型状态、支持参数和可用性以账户返回的 <strong>model_spec</strong> 为准。离线模型不能提交任务。';setConnected(false);renderTask(null);renderHistory([]);persistStatus();setNotice('本地 Key、草稿和任务摘要已清除；服务端任务未删除。','success');updatePreview();
+      document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('selected',b.dataset.mode==='standard'));$('standardParams').hidden=false;$('extendedParams').hidden=true;$('modelSelect').innerHTML='<option>先连接并载入目录</option>';$('modelSelect').disabled=true;$('quoteResult').hidden=true;$('specJson').textContent='尚未载入';$('modelNote').innerHTML='模型状态、支持参数和可用性以账户返回的 <strong>model_spec</strong> 为准。离线模型不能提交任务。';setConnected(false);renderTask(null);renderHistory([]);persistStatus();setNotice('本地 API Key 和提示词已清除；服务端任务未删除。','success');updatePreview();
     });
     document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.task&&!terminal.has(state.task.status))refreshTask().catch(()=>{})});
-    $('rememberKey').checked=safeGet(STORE.remember)==='true';
-    if($('rememberKey').checked){const savedKey=safeGet(STORE.key);if(savedKey)$('apiKey').value=savedKey;}
-    else safeRemove(STORE.key);
+    const savedKey=safeGet(STORE.key);if(savedKey){$('rememberKey').checked=true;$('apiKey').value=savedKey;}
     restoreDraft();
-    const cachedTask=readJson(STORE.task);if(cachedTask?.id){state.task=cachedTask;renderTask(cachedTask)}
-    const savedAttempt=readJson(STORE.attempt);if(savedAttempt?.version===2&&savedAttempt?.fingerprint&&savedAttempt?.key){state.lastAttempt=savedAttempt;if(savedAttempt.quoteId)state.quote={quote_id:savedAttempt.quoteId,expiresAt:savedAttempt.expiresAt||0,quote:savedAttempt.quote,currency:savedAttempt.currency,estimated:savedAttempt.estimated};}else safeRemove(STORE.attempt);
-    renderHistory(readJson(STORE.history,[])||[]);persistStatus();
+    LEGACY_STORE.forEach(safeRemove);
+    renderHistory([]);persistStatus();
     const autoConnect=$('rememberKey').checked&&!!$('apiKey').value.trim();
     if(autoConnect){$('connectionLabel').textContent='正在连接…';setNotice('已恢复保存的 API Key，正在验证并载入模型目录。','');}
-    const startupNotes=[];if(cachedTask?.id)startupNotes.push('已恢复本地任务摘要；连接 API 后可查询最新状态或下载');if(state.needsReselect.image||state.needsReselect.end)startupNotes.push('刷新前载入的本地参考图不会保存，请重新选择');if(startupNotes.length)setNotice(startupNotes.join('；')+'。','');
-    if(state.quote?.quote_id&&state.quote.quote!==undefined){$('quoteResult').hidden=false;$('quoteResult').textContent=`${state.quote.expiresAt>Date.now()?'':'报价已过期 · 重试沿用原参数 · '}${state.quote.estimated?'约 ':''}${state.quote.currency||'USD'} ${Number(state.quote.quote).toFixed(4)}`;}
     updatePreview();
     if(autoConnect)loadCatalog();
   })();
